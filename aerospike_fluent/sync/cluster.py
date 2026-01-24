@@ -1,0 +1,143 @@
+"""Cluster - Represents a connection to an Aerospike cluster (sync version)."""
+
+from __future__ import annotations
+
+import typing
+from typing import Optional
+
+from aerospike_async import ClientPolicy
+
+from aerospike_fluent.policy.behavior import Behavior
+from aerospike_fluent.sync.client import SyncFluentClient
+
+if typing.TYPE_CHECKING:
+    from aerospike_fluent.sync.session import SyncSession
+
+
+class Cluster:
+    """
+    Represents a connection to an Aerospike cluster (sync version).
+    
+    This class manages the lifecycle of a connection to an Aerospike cluster,
+    including the underlying client. It implements context manager protocol
+    to ensure proper resource cleanup.
+    
+    Example usage:
+        ```python
+        with ClusterDefinition("localhost", 3100).connect() as cluster:
+            session = cluster.create_session(Behavior.DEFAULT)
+            # Use the session for database operations...
+        ```
+    """
+    
+    def __init__(self, fluent_client: SyncFluentClient) -> None:
+        """
+        Initialize a Cluster instance.
+        
+        Args:
+            fluent_client: The underlying SyncFluentClient instance
+        
+        Note:
+            This should not be called directly. Use ClusterDefinition.connect() instead.
+        """
+        self._fluent_client = fluent_client
+    
+    @classmethod
+    def _create(cls, policy: ClientPolicy, seeds: str) -> Cluster:
+        """
+        Internal method to create a new Cluster instance.
+        
+        Args:
+            policy: The ClientPolicy configuration
+            seeds: The seeds string (e.g., "localhost:3000")
+        
+        Returns:
+            A new Cluster instance
+        """
+        fluent_client = SyncFluentClient(seeds=seeds, policy=policy)
+        fluent_client.connect()
+        return cls(fluent_client)
+    
+    def __enter__(self) -> Cluster:
+        """Context manager entry."""
+        return self
+    
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[typing.TracebackType],
+    ) -> None:
+        """Context manager exit."""
+        self.close()
+    
+    @property
+    def _client(self) -> SyncFluentClient:
+        """Get the underlying SyncFluentClient."""
+        return self._fluent_client
+    
+    def create_session(self, behavior: Optional[Behavior] = None) -> SyncSession:
+        """
+        Creates a new session with the specified behavior.
+        
+        A session represents a logical connection to the cluster with specific
+        behavior settings that control how operations are performed (timeouts,
+        retry policies, consistency levels, etc.).
+        
+        Args:
+            behavior: The behavior configuration for the session. If None, uses Behavior.DEFAULT.
+        
+        Returns:
+            A new SyncSession instance
+        """
+        if behavior is None:
+            behavior = Behavior.DEFAULT
+        return self._fluent_client.create_session(behavior)
+    
+    def create_transactional_session(
+        self,
+        behavior: Optional[Behavior] = None,
+    ):
+        """
+        Creates a new transactional session with the specified behavior.
+        
+        Args:
+            behavior: The behavior configuration for the session. If None, uses Behavior.DEFAULT.
+                     Note: Currently TransactionalSession doesn't use behavior, but parameter
+                     is included for API consistency.
+        
+        Returns:
+            A new transactional session instance
+        
+        Note:
+            SyncTransactionalSession may not be implemented yet. This is a placeholder
+            for API consistency with the async version.
+        """
+        # TODO: Implement SyncTransactionalSession
+        raise NotImplementedError("SyncTransactionalSession is not yet implemented")
+    
+    def is_connected(self) -> bool:
+        """
+        Checks if the cluster connection is currently active.
+        
+        Returns:
+            True if the connection is active, False otherwise
+        """
+        return self._fluent_client.is_connected
+    
+    def close(self) -> None:
+        """
+        Closes the cluster connection and releases all associated resources.
+        
+        This method closes the underlying client connection. It should be called
+        when the cluster is no longer needed to ensure proper resource cleanup.
+        
+        This method is automatically called when using context manager:
+            ```python
+            with ClusterDefinition("localhost", 3100).connect() as cluster:
+                # Use the cluster...
+            # cluster.close() is automatically called here
+            ```
+        """
+        self._fluent_client.close()
+

@@ -1,0 +1,22 @@
+# Runtime dependencies for aerospike-fluent-client-python
+#
+# IMPORTANT: The aerospike-client-python-async dependency must be installed separately.
+# 
+# Installation options:
+#
+# Option 1: Install from local source (development)
+#   cd /path/to/aerospike-client-python-async
+#   pip install -e .
+#   cd /path/to/aerospike-fluent-client-python
+#   pip install -e .
+#
+# Option 2: Install from git (if available)
+#   pip install git+https://github.com/aerospike/aerospike-client-python-async.git@branch-name
+#   pip install -e .
+#
+# Option 3: Install from PyPI (when published)
+#   pip install aerospike-client-python-async>=0.2.0
+#   pip install -e .
+#
+# The fluent client itself has no additional runtime dependencies beyond the async client.
+
