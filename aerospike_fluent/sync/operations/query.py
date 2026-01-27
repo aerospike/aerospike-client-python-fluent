@@ -14,7 +14,8 @@ from aerospike_async import (
     Recordset,
     Replica,
 )
-from aerospike_fluent.dsl import _Expression
+from aerospike_fluent.dsl.exceptions import DslParseException
+from aerospike_fluent.dsl.parser import parse_dsl
 
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.aio.operations.query import QueryBuilder
@@ -147,31 +148,29 @@ class SyncQueryBuilder:
         self._filter_expression = expression
         return self
 
-    def where(self, expression: _Expression) -> SyncQueryBuilder:
+    def where(self, expression: str) -> SyncQueryBuilder:
         """
         Add a DSL expression to the query.
 
-        This method accepts a Dsl expression (e.g., Dsl.stringBin("name").eq("Tim"))
-        and converts it to Filter objects.
+        This method accepts a text DSL string that is parsed into a FilterExpression.
 
         Args:
-            expression: A Dsl expression to convert to filters.
+            expression: A DSL string (e.g., "$.country == 'US' and $.order_total > 500")
 
         Returns:
             self for method chaining.
 
         Example:
             ```python
-            from aerospike_fluent import Dsl
-
-            query = session.query(dataset).where(
-                Dsl.stringBin("name").eq("Tim").and_(Dsl.longBin("age").gt(18))
-            )
+            # Using text DSL
+            query = session.query(dataset).where("$.country == 'US' and $.order_total > 500")
             ```
         """
-        filters = expression.to_filters()
-        for f in filters:
-            self._filters.append(f)
+        try:
+            filter_expr = parse_dsl(expression)
+            self._filter_expression = filter_expr
+        except DslParseException as e:
+            raise ValueError(f"Failed to parse DSL expression: {e}") from e
         return self
 
     def with_policy(self, policy: QueryPolicy) -> SyncQueryBuilder:

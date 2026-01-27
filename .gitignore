@@ -56,3 +56,5 @@ dmypy.json
 Thumbs.db
 
 
+aerospike_fluent/dsl/antlr4/generated/
+antlr-*.jar

@@ -470,7 +470,7 @@ async def test_java_example_filter_control_full(session, customer_dataset):
     Note: This test verifies the API methods can be chained together.
     Full functionality requires proper index setup which may vary by environment.
     """
-    from aerospike_fluent import Dsl
+    from aerospike_fluent.dsl.parser import parse_dsl
 
     # Test that all Filter Control methods can be chained together
     # This verifies the API works, even if the query requires index setup
@@ -478,7 +478,7 @@ async def test_java_example_filter_control_full(session, customer_dataset):
         session.query(customer_dataset)
         .chunk_size(100)
         .on_partitions(1, 2, 3)
-        .where(Dsl.longBin("age").gt(20))
+        .where("$.age > 20")
     )
 
     # Verify the builder was created successfully

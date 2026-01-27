@@ -20,3 +20,5 @@
 #
 # The fluent client itself has no additional runtime dependencies beyond the async client.
 
+# ANTLR runtime for string-based DSL parsing
+antlr4-python3-runtime>=4.13.0
