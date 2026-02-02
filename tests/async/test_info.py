@@ -6,9 +6,9 @@ from aerospike_fluent import Behavior, FluentClient
 
 
 @pytest_asyncio.fixture
-async def client(aerospike_host):
+async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host) as client:
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 

@@ -8,9 +8,9 @@ from aerospike_fluent import FluentClient
 
 
 @pytest_asyncio.fixture
-async def client(aerospike_host):
+async def client(aerospike_host, client_policy):
     """Setup fluent client and test data for query tests."""
-    async with FluentClient(seeds=aerospike_host) as client:
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         # Clean up and insert test data
         async with client.key_value_service("test", "query_test") as kv:
             # Clean up existing records

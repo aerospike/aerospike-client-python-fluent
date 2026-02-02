@@ -6,9 +6,9 @@ from aerospike_fluent import DataSet, SyncFluentClient
 
 
 @pytest.fixture
-def client(aerospike_host):
+def client(aerospike_host, client_policy):
     """Setup sync fluent client for testing."""
-    with SyncFluentClient(seeds=aerospike_host) as client:
+    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
         # Clean up test record before each test
         client.key_value(
             namespace="test",

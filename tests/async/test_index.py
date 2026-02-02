@@ -1,5 +1,6 @@
 """Tests for IndexBuilder fluent API."""
 
+import os
 import pytest
 import pytest_asyncio
 from aerospike_async import CollectionIndexType
@@ -8,10 +9,20 @@ from aerospike_fluent import FluentClient
 
 
 @pytest_asyncio.fixture
-async def client(aerospike_host):
+async def client(aerospike_host, client_policy):
     """Setup fluent client for index tests."""
-    async with FluentClient(seeds=aerospike_host) as client:
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
+
+
+@pytest.mark.asyncio
+async def test_client_policy_use_services_alternate_from_env(client_policy, aerospike_host):
+    """Verify AEROSPIKE_USE_SERVICES_ALTERNATE is loaded and applied to client_policy."""
+    assert client_policy.use_services_alternate is True
+    env_val = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").strip().lower()
+    assert env_val in ("true", "1", "yes", ""), f"unexpected AEROSPIKE_USE_SERVICES_ALTERNATE={env_val!r}"
+    assert aerospike_host, "AEROSPIKE_HOST should be set (e.g. 127.0.0.1:3100)"
+
 
 @pytest.mark.asyncio
 async def test_create_numeric_index(client):

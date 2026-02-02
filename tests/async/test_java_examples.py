@@ -529,19 +529,6 @@ async def test_java_example_query_operations(session, customer_dataset):
     recordset.close()
 
 
-# Scan operations removed - scan() method no longer available
-# @pytest.mark.asyncio
-# async def test_java_example_scan_operations(session, customer_dataset):
-#     """Java: RecordSet rs = session.scan(customerDataSet).execute();"""
-#     recordset = await session.scan(dataset=customer_dataset).execute()
-#     count = 0
-#     async for record in recordset:
-#         count += 1
-#         assert record is not None
-#     assert count > 0
-#     recordset.close()
-
-
 @pytest.mark.asyncio
 async def test_java_example_index_operations(session, customer_dataset):
     """Java: session.index(customerDataSet).onBin("age").named("age_idx").numeric().create();

@@ -547,25 +547,6 @@ def test_java_example_query_operations(session, customer_dataset):
     recordset.close()
 
 
-# Scan operations removed - scan() method no longer available
-# def test_java_example_scan_operations(session, customer_dataset):
-#     """Java: RecordSet rs = session.scan(customerDataSet).execute();"""
-#     # Use the client directly for scan (matching test_scan.py pattern)
-#     from aerospike_fluent.sync import SyncFluentClient
-#     # Note: This test verifies the pattern - actual scan may need client setup
-#     # For now, we'll test that the method exists and can be called
-#     scan_builder = session.scan(dataset=customer_dataset)
-#     assert scan_builder is not None
-#     # Execute and verify it works
-#     recordset = scan_builder.execute()
-#     count = 0
-#     for record in recordset:
-#         count += 1
-#         assert record is not None
-#     assert count > 0
-#     recordset.close()
-
-
 def test_java_example_index_operations(session, customer_dataset):
     """Java: session.index(customerDataSet).onBin("age").named("age_idx").numeric().create();
               session.index(customerDataSet).onBin("roles").named("roles_idx").collection(CollectionIndexType.LIST).create();

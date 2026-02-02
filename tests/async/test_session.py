@@ -8,9 +8,9 @@ from aerospike_fluent import Behavior, DataSet, FluentClient
 
 
 @pytest_asyncio.fixture
-async def client(aerospike_host):
+async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host) as client:
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -209,38 +209,6 @@ async def test_session_query_delegation(session):
     recordset = await session.query(key=key).execute()
     async for rec in recordset:
         assert rec.bins == {"name": "QueryTest", "value": 42}
-
-
-# Scan operations removed - scan() method no longer available
-# @pytest.mark.asyncio
-# async def test_session_scan_delegation(session):
-#     """Test that session.scan() delegates to client correctly."""
-#     users = DataSet.of("test", "users")
-#
-#     # Create a unique record for this test
-#     unique_key = users.id("scan_delegation_test_unique")
-#     await session.upsert(key=unique_key).set_bins({"name": "ScanDelegation", "test": True}).execute()
-#
-#     # Verify the record exists via get
-#     record = await session.key_value(key=unique_key).get()
-#     assert record is not None
-#     assert record.bins["name"] == "ScanDelegation"
-#
-#     # Scan using session - verify it returns records (may include other records too)
-#     recordset = await session.scan(dataset=users).execute()
-#     found_our_record = False
-#     count = 0
-#     async for rec in recordset:
-#         count += 1
-#         if rec.bins.get("name") == "ScanDelegation":
-#             found_our_record = True
-#         if count >= 10:  # Limit iteration for performance
-#             break
-#
-#     # At minimum, verify scan works and returns records
-#     assert count > 0
-#     # Our record should be found (may take a moment for consistency)
-#     assert found_our_record or count > 0  # At least verify scan returns something
 
 
 @pytest.mark.asyncio

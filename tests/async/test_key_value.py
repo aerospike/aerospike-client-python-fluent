@@ -7,9 +7,9 @@ from aerospike_fluent import FluentClient
 
 
 @pytest_asyncio.fixture
-async def client(aerospike_host):
+async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host) as client:
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         # Clean up test record before each test
         await client.key_value(
             namespace="test",

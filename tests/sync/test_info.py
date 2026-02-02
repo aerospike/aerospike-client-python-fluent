@@ -5,9 +5,9 @@ from aerospike_fluent import Behavior, SyncFluentClient
 
 
 @pytest.fixture
-def client(aerospike_host):
+def client(aerospike_host, client_policy):
     """Setup sync fluent client for testing."""
-    with SyncFluentClient(seeds=aerospike_host) as client:
+    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
