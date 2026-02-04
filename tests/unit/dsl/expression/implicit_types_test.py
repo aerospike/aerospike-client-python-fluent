@@ -1,0 +1,158 @@
+"""Unit tests for DSL implicit type inference."""
+
+from aerospike_fluent import Exp, parse_dsl
+
+
+class TestImplicitTypes:
+    """Test implicit type inference in DSL expressions."""
+
+    def test_float_comparison(self):
+        """Test $.floatBin1 >= 100.25."""
+        expected = Exp.ge(Exp.float_bin("floatBin1"), Exp.float_val(100.25))
+        result = parse_dsl("$.floatBin1 >= 100.25")
+        assert result == expected
+
+    def test_boolean_comparison_true(self):
+        """Test $.boolBin1 == true."""
+        expected = Exp.eq(Exp.bool_bin("boolBin1"), Exp.bool_val(True))
+        result = parse_dsl("$.boolBin1 == true")
+        assert result == expected
+
+    def test_boolean_comparison_false_first(self):
+        """Test false == $.boolBin1."""
+        expected = Exp.eq(Exp.bool_val(False), Exp.bool_bin("boolBin1"))
+        result = parse_dsl("false == $.boolBin1")
+        assert result == expected
+
+    def test_boolean_comparison_not_equals(self):
+        """Test $.boolBin1 != false."""
+        expected = Exp.ne(Exp.bool_bin("boolBin1"), Exp.bool_val(False))
+        result = parse_dsl("$.boolBin1 != false")
+        assert result == expected
+
+    def test_bin_boolean_implicit_logical_and(self):
+        """Test $.boolBin1 and $.boolBin2."""
+        expected = Exp.and_([Exp.bool_bin("boolBin1"), Exp.bool_bin("boolBin2")])
+        result = parse_dsl("$.boolBin1 and $.boolBin2")
+        assert result == expected
+
+    def test_bin_boolean_implicit_logical_or(self):
+        """Test $.boolBin1 or $.boolBin2."""
+        expected = Exp.or_([Exp.bool_bin("boolBin1"), Exp.bool_bin("boolBin2")])
+        result = parse_dsl("$.boolBin1 or $.boolBin2")
+        assert result == expected
+
+    def test_bin_boolean_implicit_logical_not(self):
+        """Test not($.boolBin1)."""
+        expected = Exp.not_(Exp.bool_bin("boolBin1"))
+        result = parse_dsl("not($.boolBin1)")
+        assert result == expected
+
+    def test_implicit_default_int_comparison(self):
+        """Test $.intBin1 < $.intBin2."""
+        expected = Exp.lt(Exp.int_bin("intBin1"), Exp.int_bin("intBin2"))
+        result = parse_dsl("$.intBin1 < $.intBin2")
+        assert result == expected
+
+    def test_second_degree_implicit_casting_float(self):
+        """Test ($.apples + $.bananas) > 10.5 - float literal infers float bins."""
+        expected = Exp.gt(
+            Exp.num_add([Exp.float_bin("apples"), Exp.float_bin("bananas")]),
+            Exp.float_val(10.5)
+        )
+        result = parse_dsl("($.apples + $.bananas) > 10.5")
+        assert result == expected
+
+    def test_second_degree_float_first_implicit_casting(self):
+        """Test mixed float and int arithmetic."""
+        expected = Exp.and_([
+            Exp.gt(
+                Exp.num_add([Exp.float_bin("apples"), Exp.float_bin("bananas")]),
+                Exp.float_val(10.5)
+            ),
+            Exp.le(
+                Exp.num_add([Exp.int_bin("oranges"), Exp.int_bin("grapes")]),
+                Exp.int_val(5)
+            )
+        ])
+        result = parse_dsl("($.apples + $.bananas) > 10.5 and ($.oranges + $.grapes) <= 5")
+        assert result == expected
+
+    def test_second_degree_int_first_implicit_casting(self):
+        """Test int first, then float arithmetic."""
+        expected = Exp.and_([
+            Exp.gt(
+                Exp.num_add([Exp.int_bin("apples"), Exp.int_bin("bananas")]),
+                Exp.int_val(5)
+            ),
+            Exp.le(
+                Exp.num_add([Exp.float_bin("oranges"), Exp.float_bin("grapes")]),
+                Exp.float_val(10.5)
+            )
+        ])
+        result = parse_dsl("($.apples + $.bananas) > 5 and ($.oranges + $.grapes) <= 10.5")
+        assert result == expected
+
+    def test_third_degree_default_int(self):
+        """Test (($.apples + $.bananas) + $.oranges) > 10."""
+        expected = Exp.gt(
+            Exp.num_add([
+                Exp.num_add([Exp.int_bin("apples"), Exp.int_bin("bananas")]),
+                Exp.int_bin("oranges")
+            ]),
+            Exp.int_val(10)
+        )
+        result = parse_dsl("(($.apples + $.bananas) + $.oranges) > 10")
+        assert result == expected
+
+    def test_third_degree_implicit_casting_float(self):
+        """Test (($.apples + $.bananas) + $.oranges) > 10.5."""
+        expected = Exp.gt(
+            Exp.num_add([
+                Exp.num_add([Exp.float_bin("apples"), Exp.float_bin("bananas")]),
+                Exp.float_bin("oranges")
+            ]),
+            Exp.float_val(10.5)
+        )
+        result = parse_dsl("(($.apples + $.bananas) + $.oranges) > 10.5")
+        assert result == expected
+
+    def test_fourth_degree_default_int(self):
+        """Test (($.apples + $.bananas) + ($.oranges + $.acai)) > 10."""
+        expected = Exp.gt(
+            Exp.num_add([
+                Exp.num_add([Exp.int_bin("apples"), Exp.int_bin("bananas")]),
+                Exp.num_add([Exp.int_bin("oranges"), Exp.int_bin("acai")])
+            ]),
+            Exp.int_val(10)
+        )
+        result = parse_dsl("(($.apples + $.bananas) + ($.oranges + $.acai)) > 10")
+        assert result == expected
+
+    def test_fourth_degree_implicit_casting_float(self):
+        """Test (($.apples + $.bananas) + ($.oranges + $.acai)) > 10.5."""
+        expected = Exp.gt(
+            Exp.num_add([
+                Exp.num_add([Exp.float_bin("apples"), Exp.float_bin("bananas")]),
+                Exp.num_add([Exp.float_bin("oranges"), Exp.float_bin("acai")])
+            ]),
+            Exp.float_val(10.5)
+        )
+        result = parse_dsl("(($.apples + $.bananas) + ($.oranges + $.acai)) > 10.5")
+        assert result == expected
+
+    def test_complicated_when_implicit_type_int(self):
+        """Test when expression with implicit int type."""
+        expected = Exp.eq(
+            Exp.int_bin("a"),
+            Exp.cond([
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(1)), Exp.int_bin("a1"),
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(2)), Exp.int_bin("a2"),
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(3)), Exp.int_bin("a3"),
+                Exp.num_add([Exp.int_bin("a4"), Exp.int_val(1)])
+            ])
+        )
+        result = parse_dsl(
+            "$.a == (when($.b == 1 => $.a1, $.b == 2 => $.a2, $.b == 3 => $.a3, default => $.a4+1))"
+        )
+        assert result == expected

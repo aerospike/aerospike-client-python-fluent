@@ -1,8 +1,7 @@
 """Tests for SyncFluentClient Query operations."""
 
 import pytest
-from aerospike_async import FilterExpression
-from aerospike_fluent import DataSet, SyncFluentClient
+from aerospike_fluent import DataSet, Exp, SyncFluentClient
 
 
 @pytest.fixture
@@ -69,11 +68,11 @@ def test_query_with_bins(client):
     assert count > 0
 
 def test_query_with_filter_expression(client):
-    """Test query with FilterExpression for server-side filtering."""
+    """Test query with Exp (FilterExpression) for server-side filtering."""
     # Create a filter expression for age >= 25
-    filter_exp = FilterExpression.ge(
-        FilterExpression.int_bin("age"),
-        FilterExpression.int_val(25)
+    filter_exp = Exp.ge(
+        Exp.int_bin("age"),
+        Exp.int_val(25)
     )
 
     recordset = (
@@ -94,11 +93,11 @@ def test_query_with_filter_expression(client):
     assert count > 0
 
 def test_query_with_filter_expression_and(client):
-    """Test query with FilterExpression using AND for multiple conditions."""
+    """Test query with Exp (FilterExpression) using AND for multiple conditions."""
     # Create filter expression: age >= 25 AND age <= 27
-    filter_exp = FilterExpression.and_([
-        FilterExpression.ge(FilterExpression.int_bin("age"), FilterExpression.int_val(25)),
-        FilterExpression.le(FilterExpression.int_bin("age"), FilterExpression.int_val(27))
+    filter_exp = Exp.and_([
+        Exp.ge(Exp.int_bin("age"), Exp.int_val(25)),
+        Exp.le(Exp.int_bin("age"), Exp.int_val(27))
     ])
 
     recordset = (

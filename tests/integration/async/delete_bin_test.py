@@ -1,0 +1,127 @@
+"""Tests for delete bin operations."""
+
+import pytest
+import pytest_asyncio
+from aerospike_fluent.aio.client import FluentClient
+from aerospike_fluent.dataset import DataSet
+
+
+@pytest_asyncio.fixture
+async def client(aerospike_host, client_policy):
+    """Setup fluent client for testing."""
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        yield client
+
+
+@pytest.fixture
+def test_set():
+    """DataSet fixture for delete bin tests."""
+    return DataSet.of("test", "delete_bin_test")
+
+
+class TestDeleteBin:
+    """Test deleting individual bins from records."""
+
+    async def test_delete_bin(self, client: FluentClient, test_set: DataSet):
+        """Test deleting a single bin from a record."""
+        session = client.create_session()
+        key = test_set.id("deleteBin")
+        bin_name1 = "bin1"
+        bin_name2 = "bin2"
+
+        # Create record with two bins
+        await session.upsert(key) \
+            .bin(bin_name1).set_to("value1") \
+            .bin(bin_name2).set_to("value2") \
+            .execute()
+
+        # Verify both bins exist
+        record = await session.key_value(key=key).get()
+        assert record is not None
+        assert record.bins[bin_name1] == "value1"
+        assert record.bins[bin_name2] == "value2"
+
+        # Remove bin1
+        await session.upsert(key).bin(bin_name1).remove().execute()
+
+        # Verify bin1 is gone but bin2 remains
+        record = await session.key_value(key=key).get()
+        assert record is not None
+        assert bin_name1 not in record.bins or record.bins.get(bin_name1) is None
+        assert record.bins[bin_name2] == "value2"
+
+        # Cleanup
+        await session.delete(key).delete()
+
+    async def test_delete_multiple_bins(self, client: FluentClient, test_set: DataSet):
+        """Test deleting multiple bins from a record."""
+        session = client.create_session()
+        key = test_set.id("deleteMultipleBins")
+
+        # Create record with three bins
+        await session.upsert(key) \
+            .bin("bin1").set_to("value1") \
+            .bin("bin2").set_to("value2") \
+            .bin("bin3").set_to("value3") \
+            .execute()
+
+        # Remove bin1 and bin2
+        await session.upsert(key) \
+            .bin("bin1").remove() \
+            .bin("bin2").remove() \
+            .execute()
+
+        # Verify only bin3 remains
+        record = await session.key_value(key=key).get()
+        assert record is not None
+        assert "bin1" not in record.bins or record.bins.get("bin1") is None
+        assert "bin2" not in record.bins or record.bins.get("bin2") is None
+        assert record.bins["bin3"] == "value3"
+
+        # Cleanup
+        await session.delete(key).delete()
+
+    async def test_delete_bin_nonexistent(self, client: FluentClient, test_set: DataSet):
+        """Test removing a bin that doesn't exist (should not error)."""
+        session = client.create_session()
+        key = test_set.id("deleteNonexistentBin")
+
+        # Create record with one bin
+        await session.upsert(key).bin("bin1").set_to("value1").execute()
+
+        # Try to remove a bin that doesn't exist (should not error)
+        await session.upsert(key).bin("nonexistent").remove().execute()
+
+        # Verify original bin still exists
+        record = await session.key_value(key=key).get()
+        assert record is not None
+        assert record.bins["bin1"] == "value1"
+
+        # Cleanup
+        await session.delete(key).delete()
+
+    async def test_delete_and_set_bin(self, client: FluentClient, test_set: DataSet):
+        """Test deleting one bin while setting another in same operation."""
+        session = client.create_session()
+        key = test_set.id("deleteAndSetBin")
+
+        # Create record with two bins
+        await session.upsert(key) \
+            .bin("bin1").set_to("value1") \
+            .bin("bin2").set_to("value2") \
+            .execute()
+
+        # Remove bin1 and update bin2 in same operation
+        await session.upsert(key) \
+            .bin("bin1").remove() \
+            .bin("bin2").set_to("new_value2") \
+            .execute()
+
+        # Verify
+        record = await session.key_value(key=key).get()
+        assert record is not None
+        assert "bin1" not in record.bins or record.bins.get("bin1") is None
+        assert record.bins["bin2"] == "new_value2"
+
+        # Cleanup
+        await session.delete(key).delete()

@@ -14,7 +14,6 @@ from aerospike_async import (
     Recordset,
     Replica,
 )
-from aerospike_fluent.dsl.exceptions import DslParseException
 from aerospike_fluent.dsl.parser import parse_dsl
 
 from aerospike_fluent.aio.client import FluentClient
@@ -166,11 +165,8 @@ class SyncQueryBuilder:
             query = session.query(dataset).where("$.country == 'US' and $.order_total > 500")
             ```
         """
-        try:
-            filter_expr = parse_dsl(expression)
-            self._filter_expression = filter_expr
-        except DslParseException as e:
-            raise ValueError(f"Failed to parse DSL expression: {e}") from e
+        filter_expr = parse_dsl(expression)
+        self._filter_expression = filter_expr
         return self
 
     def with_policy(self, policy: QueryPolicy) -> SyncQueryBuilder:
@@ -254,7 +250,7 @@ class SyncQueryBuilder:
             query = session.query(dataset).on_partition_range(100, 200)
             ```
         """
-        # Validation matching Java's sanityCheckPartitionRange
+        # Partition range validation
         if start_incl < 0 or start_incl >= 4096:
             raise ValueError(f"Start partition must be in range 0-4095, not {start_incl}")
         if end_excl < 1 or end_excl > 4096:

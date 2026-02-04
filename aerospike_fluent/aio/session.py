@@ -12,7 +12,9 @@ from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
+    from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
     from aerospike_fluent.aio.operations.batch_delete import BatchDeleteOperation
+    from aerospike_fluent.aio.operations.batch_exists import BatchExistsOperation
     from aerospike_fluent.aio.operations.key_value import KeyValueOperation
     from aerospike_fluent.aio.operations.query import QueryBuilder
     from aerospike_fluent.aio.operations.index import IndexBuilder
@@ -83,6 +85,38 @@ class Session:
         return self._client
 
     # Delegate all FluentClient operations to maintain same API
+
+    def batch(self) -> "BatchOperationBuilder":
+        """
+        Create a batch operation builder for chaining operations across multiple keys.
+        
+        This enables fluent chaining of insert, update, upsert, replace, and delete
+        operations on different keys, which are executed as a single batch.
+        
+        Returns:
+            A BatchOperationBuilder for chaining operations.
+        
+        Example:
+            ```python
+            # Chain multiple operations across different keys
+            results = await session.batch() \\
+                .insert(key1).bin("name").set_to("Alice").bin("age").set_to(25) \\
+                .update(key2).bin("counter").increment_by(1) \\
+                .upsert(key3).put({"status": "active"}) \\
+                .delete(key4) \\
+                .execute()
+            
+            # Check results
+            for result in results:
+                print(f"Key: {result.key}, Result: {result.result_code}")
+            ```
+        """
+        from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
+        
+        if self._client._client is None:
+            raise RuntimeError("Client is not connected")
+        
+        return BatchOperationBuilder(self._client._client)
 
     @typing.overload
     def key_value(
@@ -360,6 +394,52 @@ class Session:
         """
         from aerospike_fluent.aio.info import InfoCommands
         return InfoCommands(self)
+
+    async def is_namespace_sc(self, namespace: str) -> bool:
+        """
+        Check if a namespace is in strong consistency (SC) mode.
+
+        Strong consistency mode provides linearizable reads and writes
+        at the cost of availability during network partitions.
+
+        Args:
+            namespace: The namespace name to check.
+
+        Returns:
+            True if the namespace is in strong consistency mode, False otherwise.
+
+        Raises:
+            ValueError: If the namespace is unknown or the info command fails.
+
+        Example:
+            ```python
+            if await session.is_namespace_sc("test"):
+                print("Namespace 'test' is in strong consistency mode")
+            else:
+                print("Namespace 'test' is in AP (availability) mode")
+            ```
+        """
+        if self._client._client is None:
+            raise RuntimeError("Client is not connected")
+
+        try:
+            # Query namespace configuration via info command
+            result = await self._client._client.info(f"namespace/{namespace}")
+
+            # Parse the result - it's a dict with node addresses as keys
+            for node_result in result.values():
+                # Parse semicolon-separated key=value pairs
+                for pair in node_result.split(";"):
+                    if "=" in pair:
+                        key, value = pair.split("=", 1)
+                        if key == "strong-consistency":
+                            return value.lower() == "true"
+
+            # If we didn't find the strong-consistency key, default to False (AP mode)
+            return False
+
+        except Exception as e:
+            raise ValueError(f"Failed to check namespace '{namespace}': {e}") from e
 
     async def do_in_transaction(
         self,
@@ -761,7 +841,109 @@ class Session:
         else:
             raise ValueError("Either key (Key object) or key_value must be provided")
 
-        # Set write policy to ReplaceOnly for replace semantics
+        # Set write policy to Replace for replace semantics (create or replace)
+        if op._write_policy is None:
+            op._write_policy = WritePolicy()
+        op._write_policy.record_exists_action = RecordExistsAction.REPLACE
+        return op
+
+    @typing.overload
+    def replace_if_exists(
+        self,
+        key: Key,
+    ) -> KeyValueOperation:
+        """Create a replace-if-exists operation builder for a single Key."""
+        ...
+
+    @typing.overload
+    def replace_if_exists(
+        self,
+        keys: List[Key],
+    ) -> KeyValueOperation:
+        """Create a replace-if-exists operation builder for multiple Keys (returns first key's operation)."""
+        ...
+
+    @typing.overload
+    def replace_if_exists(
+        self,
+        key1: Key,
+        key2: Key,
+        *keys: Key,
+    ) -> KeyValueOperation:
+        """Create a replace-if-exists operation builder for multiple Keys (varargs, returns first key's operation)."""
+        ...
+
+    def replace_if_exists(
+        self,
+        arg1: Optional[Union[Key, List[Key]]] = None,
+        arg2: Optional[Key] = None,
+        *keys: Key,
+        key: Optional[Key] = None,
+        dataset: Optional[DataSet] = None,
+        namespace: Optional[str] = None,
+        set_name: Optional[str] = None,
+        key_value: Optional[Union[str, int, bytes]] = None,
+    ) -> KeyValueOperation:
+        """
+        Create a replace-if-exists (replace only if record exists) operation builder.
+
+        This operation will fail if the record does not exist.
+        All bins not in the write command will be deleted.
+
+        Supports multiple calling styles:
+
+        1. Positional single Key: `replace_if_exists(key)`
+        2. Positional List[Key]: `replace_if_exists([key1, key2])` (returns first key's operation)
+        3. Varargs Keys: `replace_if_exists(key1, key2, key3)` (returns first key's operation)
+        4. Keyword arguments (legacy): `replace_if_exists(key=key)`, `replace_if_exists(dataset=..., key_value=...)`
+
+        Args:
+            arg1: A Key object, List[Key], or None (for keyword args).
+            arg2: Second Key (for varargs).
+            *keys: Additional Keys (for varargs).
+            key: A Key object (keyword arg, preferred).
+            dataset: A DataSet to use for namespace/set.
+            namespace: The namespace name (if not using Key or DataSet).
+            set_name: The set name (if not using Key or DataSet).
+            key_value: The key value (if not using Key object).
+
+        Returns:
+            A KeyValueOperation builder for chaining operations.
+
+        Example:
+            ```python
+            users = DataSet.of("test", "users")
+            key = users.id("user123")
+
+            # Replace only if exists - fails if record doesn't exist
+            await session.replace_if_exists(key).put({"name": "New Name", "status": "updated"})
+            ```
+        """
+        # Handle positional arguments (fluent API)
+        if arg1 is not None:
+            if isinstance(arg1, Key):
+                op = self.key_value(key=arg1)
+            elif isinstance(arg1, list):
+                if len(arg1) == 0:
+                    raise ValueError("keys list cannot be empty")
+                if not isinstance(arg1[0], Key):
+                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
+                op = self.key_value(key=arg1[0])
+            else:
+                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
+        elif key is not None:
+            op = self.key_value(key=key)
+        elif key_value is not None:
+            if dataset is not None:
+                op = self.key_value(dataset=dataset, key=key_value)
+            elif namespace is not None and set_name is not None:
+                op = self.key_value(namespace, set_name, key_value)
+            else:
+                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
+        else:
+            raise ValueError("Either key (Key object) or key_value must be provided")
+
+        # Set write policy to ReplaceOnly - fail if record doesn't exist
         if op._write_policy is None:
             op._write_policy = WritePolicy()
         op._write_policy.record_exists_action = RecordExistsAction.REPLACE_ONLY
@@ -994,8 +1176,8 @@ class Session:
     def exists(
         self,
         keys: List[Key],
-    ) -> KeyValueOperation:
-        """Create an exists operation builder for multiple Keys (returns first key's operation)."""
+    ) -> "BatchExistsOperation":
+        """Create a batch exists operation builder for multiple Keys."""
         ...
 
     @typing.overload
@@ -1004,8 +1186,8 @@ class Session:
         key1: Key,
         key2: Key,
         *keys: Key,
-    ) -> KeyValueOperation:
-        """Create an exists operation builder for multiple Keys (varargs, returns first key's operation)."""
+    ) -> "BatchExistsOperation":
+        """Create a batch exists operation builder for multiple Keys (varargs)."""
         ...
 
     def exists(
@@ -1018,15 +1200,15 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> KeyValueOperation:
+    ) -> Union[KeyValueOperation, "BatchExistsOperation"]:
         """
         Create an exists (check existence) operation builder.
 
         Supports multiple calling styles:
 
         1. Positional single Key: `exists(key)`
-        2. Positional List[Key]: `exists([key1, key2])` (returns first key's operation)
-        3. Varargs Keys: `exists(key1, key2, key3)` (returns first key's operation)
+        2. Positional List[Key]: `exists([key1, key2])`
+        3. Varargs Keys: `exists(key1, key2, key3)`
         4. Keyword arguments (legacy): `exists(key=key)`, `exists(dataset=..., key_value=...)`
 
         Args:
@@ -1040,7 +1222,7 @@ class Session:
             key_value: The key value (if not using Key object).
 
         Returns:
-            A KeyValueOperation builder for chaining operations.
+            KeyValueOperation for single key, BatchExistsOperation for multiple keys.
 
         Example:
             ```python
@@ -1050,23 +1232,43 @@ class Session:
             # Single key (positional)
             exists = await session.exists(key).exists()
 
-            # Keyword arguments (legacy)
-            exists = await session.exists(key=key).exists()
+            # Multiple keys - batch operation
+            results = await session.exists(users.ids("user1", "user2", "user3")).execute()
+            for exists in results:
+                print(f"exists: {exists}")
             ```
         """
+        from aerospike_fluent.aio.operations.batch_exists import BatchExistsOperation
+
         # Handle positional arguments (fluent API)
         if arg1 is not None:
+            # Check if it's a single Key
             if isinstance(arg1, Key):
-                return self.key_value(key=arg1)
+                # If arg2 is also a Key, or there are varargs, treat as multiple keys
+                if isinstance(arg2, Key) or keys:
+                    all_keys = [arg1]
+                    if isinstance(arg2, Key):
+                        all_keys.append(arg2)
+                    if keys:
+                        all_keys.extend(keys)
+                    # Multiple keys - return BatchExistsOperation
+                    return BatchExistsOperation(self._client._client, all_keys)
+                else:
+                    # Single key - return KeyValueOperation
+                    return self.key_value(key=arg1)
+            # Check if it's a List[Key]
             elif isinstance(arg1, list):
                 if len(arg1) == 0:
                     raise ValueError("keys list cannot be empty")
                 if not isinstance(arg1[0], Key):
                     raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                return self.key_value(key=arg1[0])
+                # Multiple keys - return BatchExistsOperation
+                return BatchExistsOperation(self._client._client, arg1)
             else:
                 raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
-        elif key is not None:
+
+        # Fall back to keyword arguments (legacy style)
+        if key is not None:
             return self.key_value(key=key)
         elif key_value is not None:
             if dataset is not None:

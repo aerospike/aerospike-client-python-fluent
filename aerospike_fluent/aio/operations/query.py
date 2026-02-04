@@ -20,7 +20,6 @@ from aerospike_async import (
     Replica,
     Statement,
 )
-from aerospike_fluent.dsl.exceptions import DslParseException
 from aerospike_fluent.dsl.parser import parse_dsl
 
 
@@ -167,11 +166,8 @@ class QueryBuilder:
             query = session.query(dataset).where("$.country == 'US' and $.order_total > 500")
             ```
         """
-        try:
-            filter_expr = parse_dsl(expression)
-            self._filter_expression = filter_expr
-        except DslParseException as e:
-            raise ValueError(f"Failed to parse DSL expression: {e}") from e
+        filter_expr = parse_dsl(expression)
+        self._filter_expression = filter_expr
         return self
 
     def with_policy(self, policy: QueryPolicy) -> QueryBuilder:
@@ -292,7 +288,7 @@ class QueryBuilder:
             query = session.query(dataset).on_partition_range(100, 200)
             ```
         """
-        # Validation matching Java's sanityCheckPartitionRange
+        # Partition range validation
         if start_incl < 0 or start_incl >= 4096:
             raise ValueError(f"Start partition must be in range 0-4095, not {start_incl}")
         if end_excl < 1 or end_excl > 4096:
@@ -565,7 +561,7 @@ class QueryBuilder:
         
         # Handle dataset query (standard query)
         policy = self._policy or QueryPolicy()
-        # Apply chunk size to policy.max_records (following Java's logic where chunkSize sets stmt.setMaxRecords)
+        # Apply chunk size to policy.max_records
         if self._chunk_size is not None and self._chunk_size > 0:
             policy.max_records = self._chunk_size
         if self._filter_expression is not None:

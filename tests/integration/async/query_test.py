@@ -3,8 +3,8 @@
 import asyncio
 import pytest
 import pytest_asyncio
-from aerospike_async import Filter, FilterExpression, PartitionFilter, QueryPolicy
-from aerospike_fluent import FluentClient
+from aerospike_async import Filter, PartitionFilter, QueryPolicy
+from aerospike_fluent import Exp, FluentClient
 
 
 @pytest_asyncio.fixture
@@ -180,11 +180,11 @@ async def test_query_iteration(client):
 
 @pytest.mark.asyncio
 async def test_query_with_filter_expression(client):
-    """Test query with FilterExpression for server-side filtering."""
+    """Test query with Exp (FilterExpression) for server-side filtering."""
     # Create a filter expression for age >= 25
-    filter_exp = FilterExpression.ge(
-        FilterExpression.int_bin("age"),
-        FilterExpression.int_val(25)
+    filter_exp = Exp.ge(
+        Exp.int_bin("age"),
+        Exp.int_val(25)
     )
 
     recordset = await (
@@ -206,7 +206,7 @@ async def test_query_with_filter_expression(client):
 
 @pytest.mark.asyncio
 async def test_query_with_filter_and_filter_expression(client):
-    """Test query with both Filter (secondary index) and FilterExpression."""
+    """Test query with both Filter (secondary index) and Exp (FilterExpression)."""
     # Create index first (if not exists)
     try:
         await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
@@ -214,10 +214,10 @@ async def test_query_with_filter_and_filter_expression(client):
     except Exception:
         pass  # Index might already exist
 
-    # Use Filter for secondary index and FilterExpression for additional filtering
-    filter_exp = FilterExpression.eq(
-        FilterExpression.string_bin("name"),
-        FilterExpression.string_val("User5")
+    # Use Filter for secondary index and Exp (FilterExpression) for additional filtering
+    filter_exp = Exp.eq(
+        Exp.string_bin("name"),
+        Exp.string_val("User5")
     )
 
     try:
@@ -249,11 +249,11 @@ async def test_query_with_filter_and_filter_expression(client):
 
 @pytest.mark.asyncio
 async def test_query_with_filter_expression_and(client):
-    """Test query with FilterExpression using AND for multiple conditions."""
+    """Test query with Exp (FilterExpression) using AND for multiple conditions."""
     # Create filter expression: age >= 25 AND age <= 27
-    filter_exp = FilterExpression.and_([
-        FilterExpression.ge(FilterExpression.int_bin("age"), FilterExpression.int_val(25)),
-        FilterExpression.le(FilterExpression.int_bin("age"), FilterExpression.int_val(27))
+    filter_exp = Exp.and_([
+        Exp.ge(Exp.int_bin("age"), Exp.int_val(25)),
+        Exp.le(Exp.int_bin("age"), Exp.int_val(27))
     ])
 
     recordset = await (

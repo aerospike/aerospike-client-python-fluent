@@ -678,9 +678,17 @@ async def test_replace_succeeds_if_record_exists(client):
     assert "city" not in record.bins
 
 @pytest.mark.asyncio
-async def test_replace_fails_if_record_not_exists(client):
-    """Test that replace() fails if record does not exist."""
+async def test_replace_if_exists_fails_if_record_not_exists(client):
+    """Test that replace_if_exists() fails if record does not exist."""
     session = client.create_session()
+    # Ensure record doesn't exist
+    try:
+        await session.key_value(namespace="test", set_name="test", key=99999).delete()
+    except Exception:
+        pass
+    
     with pytest.raises(ServerError) as exc_info:
-        await session.replace(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})
-    assert "KeyNotFoundError" in str(exc_info.value) or "RecordNotFoundError" in str(exc_info.value)
+        await session.replace_if_exists(key_value=99999, namespace="test", set_name="test").put({"name": "Bob"})
+    # Error should indicate key not found
+    error_str = str(exc_info.value)
+    assert "KeyNotFoundError" in error_str or "RecordNotFoundError" in error_str or "key not found" in error_str.lower()

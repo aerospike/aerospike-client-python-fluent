@@ -1,0 +1,411 @@
+"""Unit tests for DSL explicit type expressions."""
+
+import pytest
+from aerospike_fluent import Exp, parse_dsl
+from aerospike_fluent.dsl.exceptions import DslParseException
+
+
+class TestExplicitTypes:
+    """Test explicit type expressions.
+
+    List and map explicit types are tested in their own test classes.
+    """
+
+    # Integer comparison tests
+    def test_integer_comparison(self):
+        """Test $.intBin1.get(type: INT) > 5."""
+        expected = Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(5))
+        result = parse_dsl("$.intBin1.get(type: INT) > 5")
+        assert result == expected
+
+    def test_integer_comparison_reversed(self):
+        """Test 5 < $.intBin1.get(type: INT)."""
+        expected = Exp.lt(Exp.int_val(5), Exp.int_bin("intBin1"))
+        result = parse_dsl("5 < $.intBin1.get(type: INT)")
+        assert result == expected
+
+    # String comparison tests
+    def test_string_comparison_double_quotes(self):
+        """Test $.stringBin1.get(type: STRING) == "yes"."""
+        expected = Exp.eq(Exp.string_bin("stringBin1"), Exp.string_val("yes"))
+        result = parse_dsl('$.stringBin1.get(type: STRING) == "yes"')
+        assert result == expected
+
+    def test_string_comparison_single_quotes(self):
+        """Test $.stringBin1.get(type: STRING) == 'yes'."""
+        expected = Exp.eq(Exp.string_bin("stringBin1"), Exp.string_val("yes"))
+        result = parse_dsl("$.stringBin1.get(type: STRING) == 'yes'")
+        assert result == expected
+
+    def test_string_comparison_reversed_double_quotes(self):
+        """Test "yes" == $.stringBin1.get(type: STRING)."""
+        expected = Exp.eq(Exp.string_val("yes"), Exp.string_bin("stringBin1"))
+        result = parse_dsl('"yes" == $.stringBin1.get(type: STRING)')
+        assert result == expected
+
+    def test_string_comparison_reversed_single_quotes(self):
+        """Test 'yes' == $.stringBin1.get(type: STRING)."""
+        expected = Exp.eq(Exp.string_val("yes"), Exp.string_bin("stringBin1"))
+        result = parse_dsl("'yes' == $.stringBin1.get(type: STRING)")
+        assert result == expected
+
+    def test_string_comparison_negative_unquoted(self):
+        """Test that unquoted string constant raises error."""
+        with pytest.raises(DslParseException):
+            parse_dsl("$.stringBin1.get(type: STRING) == yes")
+
+    # Blob comparison tests
+    @pytest.mark.skip(reason="Blob base64 decoding in DSL not yet implemented")
+    def test_blob_comparison(self):
+        """Test $.blobBin1.get(type: BLOB) == base64_encoded_data."""
+        import base64
+        data = bytes([1, 2, 3])
+        encoded = base64.b64encode(data).decode('ascii')
+        expected = Exp.eq(Exp.blob_bin("blobBin1"), Exp.blob_val(data))
+        result = parse_dsl(f'$.blobBin1.get(type: BLOB) == "{encoded}"')
+        assert result == expected
+
+    @pytest.mark.skip(reason="Blob base64 decoding in DSL not yet implemented")
+    def test_blob_comparison_reversed(self):
+        """Test base64_encoded_data == $.blobBin1.get(type: BLOB)."""
+        import base64
+        data = bytes([1, 2, 3])
+        encoded = base64.b64encode(data).decode('ascii')
+        expected = Exp.eq(Exp.blob_val(data), Exp.blob_bin("blobBin1"))
+        result = parse_dsl(f'"{encoded}" == $.blobBin1.get(type: BLOB)')
+        assert result == expected
+
+    # Float comparison tests
+    def test_float_comparison(self):
+        """Test $.floatBin1.get(type: FLOAT) == 1.5."""
+        expected = Exp.eq(Exp.float_bin("floatBin1"), Exp.float_val(1.5))
+        result = parse_dsl("$.floatBin1.get(type: FLOAT) == 1.5")
+        assert result == expected
+
+    def test_float_comparison_reversed(self):
+        """Test 1.5 == $.floatBin1.get(type: FLOAT)."""
+        expected = Exp.eq(Exp.float_val(1.5), Exp.float_bin("floatBin1"))
+        result = parse_dsl("1.5 == $.floatBin1.get(type: FLOAT)")
+        assert result == expected
+
+    # Boolean comparison tests
+    def test_boolean_comparison(self):
+        """Test $.boolBin1.get(type: BOOL) == true."""
+        expected = Exp.eq(Exp.bool_bin("boolBin1"), Exp.bool_val(True))
+        result = parse_dsl("$.boolBin1.get(type: BOOL) == true")
+        assert result == expected
+
+    def test_boolean_comparison_reversed(self):
+        """Test true == $.boolBin1.get(type: BOOL)."""
+        expected = Exp.eq(Exp.bool_val(True), Exp.bool_bin("boolBin1"))
+        result = parse_dsl("true == $.boolBin1.get(type: BOOL)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
+    def test_boolean_comparison_negative_type_mismatch(self):
+        """Test that BOOL compared to INT raises error."""
+        with pytest.raises(DslParseException, match="Cannot compare BOOL to INT"):
+            parse_dsl("$.boolBin1.get(type: BOOL) == 5")
+
+    # List comparison tests - constant on right side
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_single_int(self):
+        """Test $.listBin1.get(type: LIST) == [100]."""
+        expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val([100]))
+        result = parse_dsl("$.listBin1.get(type: LIST) == [100]")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_shorthand(self):
+        """Test $.listBin1.[] == [100]."""
+        expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val([100]))
+        result = parse_dsl("$.listBin1.[] == [100]")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_multiple_ints(self):
+        """Test $.listBin1.get(type: LIST) == [100, 200, 300, 400]."""
+        expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val([100, 200, 300, 400]))
+        result = parse_dsl("$.listBin1.get(type: LIST) == [100, 200, 300, 400]")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_single_string(self):
+        """Test $.listBin1.get(type: LIST) == ['yes']."""
+        expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val(["yes"]))
+        result = parse_dsl("$.listBin1.get(type: LIST) == ['yes']")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_multiple_strings(self):
+        """Test $.listBin1.get(type: LIST) == ['yes', 'of course']."""
+        expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val(["yes", "of course"]))
+        result = parse_dsl("$.listBin1.get(type: LIST) == ['yes', 'of course']")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_double_quote_strings(self):
+        """Test $.listBin1.get(type: LIST) == ["yes", "of course"]."""
+        expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val(["yes", "of course"]))
+        result = parse_dsl('$.listBin1.get(type: LIST) == ["yes", "of course"]')
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_negative_unquoted_strings(self):
+        """Test that unquoted strings in list raise error."""
+        with pytest.raises(DslParseException):
+            parse_dsl("$.listBin1.get(type: LIST) == [yes, of course]")
+
+    # List comparison tests - constant on left side
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_left_single_int(self):
+        """Test [100] == $.listBin1.get(type: LIST)."""
+        expected = Exp.eq(Exp.list_val([100]), Exp.list_bin("listBin1"))
+        result = parse_dsl("[100] == $.listBin1.get(type: LIST)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_left_shorthand(self):
+        """Test [100] == $.listBin1.[]."""
+        expected = Exp.eq(Exp.list_val([100]), Exp.list_bin("listBin1"))
+        result = parse_dsl("[100] == $.listBin1.[]")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_left_multiple_ints(self):
+        """Test [100, 200, 300, 400] == $.listBin1.get(type: LIST)."""
+        expected = Exp.eq(Exp.list_val([100, 200, 300, 400]), Exp.list_bin("listBin1"))
+        result = parse_dsl("[100, 200, 300, 400] == $.listBin1.get(type: LIST)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_left_strings(self):
+        """Test ['yes', 'of course'] == $.listBin1.get(type: LIST)."""
+        expected = Exp.eq(Exp.list_val(["yes", "of course"]), Exp.list_bin("listBin1"))
+        result = parse_dsl("['yes', 'of course'] == $.listBin1.get(type: LIST)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="List constants in expressions not yet supported")
+    def test_list_comparison_left_negative_unquoted(self):
+        """Test that unquoted strings on left raise error."""
+        with pytest.raises(DslParseException):
+            parse_dsl("[yes, of course] == $.listBin1.get(type: LIST)")
+
+    # Map comparison tests - constant on right side
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_single_pair(self):
+        """Test $.mapBin1.get(type: MAP) == {100:100}."""
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 100}))
+        result = parse_dsl("$.mapBin1.get(type: MAP) == {100:100}")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_with_spaces(self):
+        """Test $.mapBin1.get(type: MAP) == {100 : 100}."""
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 100}))
+        result = parse_dsl("$.mapBin1.get(type: MAP) == {100 : 100}")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_shorthand(self):
+        """Test $.mapBin1.{} == {100:100}."""
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 100}))
+        result = parse_dsl("$.mapBin1.{} == {100:100}")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_multiple_pairs(self):
+        """Test $.mapBin1.get(type: MAP) == {100:200, 300:400}."""
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 200, 300: 400}))
+        result = parse_dsl("$.mapBin1.get(type: MAP) == {100:200, 300:400}")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_string_keys(self):
+        """Test $.mapBin1.get(type: MAP) == {'yes?':'yes!'}."""
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"yes?": "yes!"}))
+        result = parse_dsl("$.mapBin1.get(type: MAP) == {'yes?':'yes!'}")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_double_quote_strings(self):
+        """Test $.mapBin1.get(type: MAP) == {"yes" : "yes"}."""
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"yes": "yes"}))
+        result = parse_dsl('$.mapBin1.get(type: MAP) == {"yes" : "yes"}')
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_nested_list_value(self):
+        """Test $.mapBin1.get(type: MAP) == {"yes" : ["yes", "of course"]}."""
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"yes": ["yes", "of course"]}))
+        result = parse_dsl('$.mapBin1.get(type: MAP) == {"yes" : ["yes", "of course"]}')
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_negative_unquoted_strings(self):
+        """Test that unquoted strings in map raise error."""
+        with pytest.raises(DslParseException):
+            parse_dsl("$.mapBin1.get(type: MAP) == {yes, of course}")
+
+    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
+    def test_map_comparison_negative_list_type(self):
+        """Test that comparing MAP to LIST raises error."""
+        with pytest.raises(DslParseException, match="Cannot compare MAP to LIST"):
+            parse_dsl("$.mapBin1.get(type: MAP) == ['yes', 'of course']")
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_negative_list_key(self):
+        """Test that list as map key raises error."""
+        with pytest.raises(DslParseException):
+            parse_dsl("$.mapBin1.get(type: MAP) == {[100]:[100]}")
+
+    # Map comparison tests - constant on left side
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_single_pair(self):
+        """Test {100:100} == $.mapBin1.get(type: MAP)."""
+        expected = Exp.eq(Exp.map_val({100: 100}), Exp.map_bin("mapBin1"))
+        result = parse_dsl("{100:100} == $.mapBin1.get(type: MAP)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_shorthand(self):
+        """Test {100:100} == $.mapBin1.{}."""
+        expected = Exp.eq(Exp.map_val({100: 100}), Exp.map_bin("mapBin1"))
+        result = parse_dsl("{100:100} == $.mapBin1.{}")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_multiple_pairs(self):
+        """Test {100:200, 300:400} == $.mapBin1.get(type: MAP)."""
+        expected = Exp.eq(Exp.map_val({100: 200, 300: 400}), Exp.map_bin("mapBin1"))
+        result = parse_dsl("{100:200, 300:400} == $.mapBin1.get(type: MAP)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_string_keys(self):
+        """Test {'yes?':'yes!'} == $.mapBin1.get(type: MAP)."""
+        expected = Exp.eq(Exp.map_val({"yes?": "yes!"}), Exp.map_bin("mapBin1"))
+        result = parse_dsl("{'yes?':'yes!'} == $.mapBin1.get(type: MAP)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_nested_list(self):
+        """Test {"yes" : ["yes", "of course"]} == $.mapBin1.get(type: MAP)."""
+        expected = Exp.eq(Exp.map_val({"yes": ["yes", "of course"]}), Exp.map_bin("mapBin1"))
+        result = parse_dsl('{"yes" : ["yes", "of course"]} == $.mapBin1.get(type: MAP)')
+        assert result == expected
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_negative_unquoted(self):
+        """Test that unquoted strings on left raise error."""
+        with pytest.raises(DslParseException):
+            parse_dsl("{yes, of course} == $.mapBin1.get(type: MAP)")
+
+    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
+    def test_map_comparison_left_negative_list_type(self):
+        """Test that comparing LIST to MAP raises error."""
+        with pytest.raises(DslParseException, match="Cannot compare MAP to LIST"):
+            parse_dsl("['yes', 'of course'] == $.mapBin1.get(type: MAP)")
+
+    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_negative_list_key(self):
+        """Test that list as map key on left raises error."""
+        with pytest.raises(DslParseException):
+            parse_dsl("{[100]:[100]} == $.mapBin1.get(type: MAP)")
+
+    # Two bins comparison tests
+    def test_two_string_bins(self):
+        """Test $.stringBin1.get(type: STRING) == $.stringBin2.get(type: STRING)."""
+        expected = Exp.eq(Exp.string_bin("stringBin1"), Exp.string_bin("stringBin2"))
+        result = parse_dsl("$.stringBin1.get(type: STRING) == $.stringBin2.get(type: STRING)")
+        assert result == expected
+
+    def test_two_int_bins(self):
+        """Test $.intBin1.get(type: INT) == $.intBin2.get(type: INT)."""
+        expected = Exp.eq(Exp.int_bin("intBin1"), Exp.int_bin("intBin2"))
+        result = parse_dsl("$.intBin1.get(type: INT) == $.intBin2.get(type: INT)")
+        assert result == expected
+
+    def test_two_float_bins(self):
+        """Test $.floatBin1.get(type: FLOAT) == $.floatBin2.get(type: FLOAT)."""
+        expected = Exp.eq(Exp.float_bin("floatBin1"), Exp.float_bin("floatBin2"))
+        result = parse_dsl("$.floatBin1.get(type: FLOAT) == $.floatBin2.get(type: FLOAT)")
+        assert result == expected
+
+    def test_two_blob_bins(self):
+        """Test $.blobBin1.get(type: BLOB) == $.blobBin2.get(type: BLOB)."""
+        expected = Exp.eq(Exp.blob_bin("blobBin1"), Exp.blob_bin("blobBin2"))
+        result = parse_dsl("$.blobBin1.get(type: BLOB) == $.blobBin2.get(type: BLOB)")
+        assert result == expected
+
+    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
+    def test_two_different_types_negative(self):
+        """Test that comparing STRING to FLOAT raises error."""
+        with pytest.raises(DslParseException, match="Cannot compare STRING to FLOAT"):
+            parse_dsl("$.stringBin1.get(type: STRING) == $.floatBin2.get(type: FLOAT)")
+
+    # Arithmetic with explicit types
+    def test_second_degree_explicit_float(self):
+        """Test ($.apples.get(type: FLOAT) + $.bananas.get(type: FLOAT)) > 10.5."""
+        expected = Exp.gt(
+            Exp.num_add([Exp.float_bin("apples"), Exp.float_bin("bananas")]),
+            Exp.float_val(10.5)
+        )
+        result = parse_dsl("($.apples.get(type: FLOAT) + $.bananas.get(type: FLOAT)) > 10.5")
+        assert result == expected
+
+    def test_fourth_degree_explicit_float(self):
+        """Test (($.apples.get(type: FLOAT) + $.bananas.get(type: FLOAT)) + ...) > 10.5."""
+        expected = Exp.gt(
+            Exp.num_add([
+                Exp.num_add([Exp.float_bin("apples"), Exp.float_bin("bananas")]),
+                Exp.num_add([Exp.float_bin("oranges"), Exp.float_bin("acai")])
+            ]),
+            Exp.float_val(10.5)
+        )
+        result = parse_dsl(
+            "(($.apples.get(type: FLOAT) + $.bananas.get(type: FLOAT))"
+            " + ($.oranges.get(type: FLOAT) + $.acai.get(type: FLOAT))) > 10.5"
+        )
+        assert result == expected
+
+    # Complicated when expressions with explicit types
+    def test_complicated_when_explicit_type_int(self):
+        """Test complex when expression with explicit INT types."""
+        expected = Exp.eq(
+            Exp.int_bin("a"),
+            Exp.cond([
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(1)), Exp.int_bin("a1"),
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(2)), Exp.int_bin("a2"),
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(3)), Exp.int_bin("a3"),
+                Exp.num_add([Exp.int_bin("a4"), Exp.int_val(1)])
+            ])
+        )
+        result = parse_dsl(
+            "$.a.get(type: INT) == "
+            "(when($.b.get(type: INT) == 1 => $.a1.get(type: INT),"
+            " $.b.get(type: INT) == 2 => $.a2.get(type: INT),"
+            " $.b.get(type: INT) == 3 => $.a3.get(type: INT),"
+            " default => $.a4.get(type: INT) + 1))"
+        )
+        assert result == expected
+
+    def test_complicated_when_explicit_type_string(self):
+        """Test complex when expression with explicit STRING types."""
+        expected = Exp.eq(
+            Exp.string_bin("a"),
+            Exp.cond([
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(1)), Exp.string_bin("a1"),
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(2)), Exp.string_bin("a2"),
+                Exp.eq(Exp.int_bin("b"), Exp.int_val(3)), Exp.string_bin("a3"),
+                Exp.string_val("hello")
+            ])
+        )
+        result = parse_dsl(
+            '$.a.get(type: STRING) == '
+            '(when($.b == 1 => $.a1.get(type: STRING),'
+            ' $.b == 2 => $.a2.get(type: STRING),'
+            ' $.b == 3 => $.a3.get(type: STRING),'
+            ' default => "hello"))'
+        )
+        assert result == expected

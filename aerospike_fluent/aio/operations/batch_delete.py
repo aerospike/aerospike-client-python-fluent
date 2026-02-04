@@ -2,19 +2,30 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from aerospike_async import Client, Key, WritePolicy
 
-from aerospike_fluent.aio.operations.key_value import KeyValueOperation
+if TYPE_CHECKING:
+    from aerospike_async import BatchRecord
 
 
 class BatchDeleteOperation:
     """
     Builder for batch delete operations.
     
-    This class handles batch deletes for multiple keys:
-    session.delete(customerDataSet.ids(1,2,3)).execute()
+    This class handles batch deletes for multiple keys using the
+    underlying async client's batch_delete for optimal performance.
+    
+    Example:
+        ```python
+        # Delete multiple keys
+        results = await session.delete(users.ids("user1", "user2", "user3")).execute()
+        
+        # Check results
+        for i, result in enumerate(results):
+            print(f"Key {i}: deleted={result.result_code == 0}")
+        ```
     """
 
     def __init__(
@@ -32,6 +43,7 @@ class BatchDeleteOperation:
         self._client = client
         self._keys = keys
         self._write_policy: Optional[WritePolicy] = None
+        self._respond_all_keys: bool = False
 
     def with_write_policy(self, policy: WritePolicy) -> BatchDeleteOperation:
         """
@@ -62,16 +74,28 @@ class BatchDeleteOperation:
         self._write_policy.durable_delete = durable
         return self
 
-    async def execute(self) -> None:
+    def respond_all_keys(self) -> BatchDeleteOperation:
+        """
+        Request that results be returned for all keys, not just failures.
+        
+        Returns:
+            self for method chaining.
+        """
+        self._respond_all_keys = True
+        return self
+
+    async def execute(self) -> List["BatchRecord"]:
         """
         Execute the batch delete operation.
         
-        This deletes all keys in the batch.
+        Returns:
+            List of BatchRecord results, one for each key.
         """
-        policy = self._write_policy or WritePolicy()
-        # Delete all keys concurrently using the underlying async client
-        import asyncio
-        # self._client is the underlying async client (Client from aerospike_async)
-        tasks = [self._client.delete(policy, key) for key in self._keys]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # Use the async client's batch_delete for optimal performance
+        results = await self._client.batch_delete(
+            None,  # batch_policy
+            None,  # delete_policy  
+            self._keys,
+        )
+        return results
 
