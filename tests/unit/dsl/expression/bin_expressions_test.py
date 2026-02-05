@@ -5,16 +5,16 @@ from aerospike_fluent import DslParseException, Exp, parse_dsl
 
 
 class TestBinExpressions:
-    """Test basic bin comparison expressions. Order matches JFC BinExpressionsTests."""
+    """Test basic bin comparison expressions."""
 
     def test_bin_gt(self):
-        """JFC: binGT - $.intBin1 > 100, string, reversed operands."""
+        """$.A > 10 (int bin greater-than)."""
         expected = Exp.gt(Exp.int_bin("A"), Exp.int_val(10))
         result = parse_dsl("$.A > 10")
         assert result == expected
 
     def test_bin_ge(self):
-        """JFC: binGE - >= int and string."""
+        """>= int and string."""
         expected = Exp.ge(Exp.int_bin("A"), Exp.int_val(100))
         result = parse_dsl("$.A >= 100")
         assert result == expected
@@ -24,7 +24,7 @@ class TestBinExpressions:
         assert result == Exp.ge(Exp.string_bin("name"), Exp.string_val("text"))
 
     def test_bin_lt(self):
-        """JFC: binLT - < int and string."""
+        """< int and string."""
         expected = Exp.lt(Exp.int_bin("A"), Exp.int_val(10))
         result = parse_dsl("$.A < 10")
         assert result == expected
@@ -32,7 +32,7 @@ class TestBinExpressions:
         assert result == Exp.lt(Exp.string_bin("name"), Exp.string_val("text"))
 
     def test_bin_le(self):
-        """JFC: binLE - <= int and string."""
+        """<= int and string."""
         expected = Exp.le(Exp.int_bin("A"), Exp.int_val(100))
         result = parse_dsl("$.A <= 100")
         assert result == expected
@@ -42,7 +42,7 @@ class TestBinExpressions:
         assert result == Exp.le(Exp.string_bin("name"), Exp.string_val("text"))
 
     def test_bin_equals(self):
-        """JFC: binEquals - == int, string, reversed operands."""
+        """== int, string, reversed operands."""
         expected = Exp.eq(Exp.int_bin("A"), Exp.int_val(1))
         result = parse_dsl("$.A == 1")
         assert result == expected
@@ -56,7 +56,7 @@ class TestBinExpressions:
         assert result == Exp.eq(Exp.string_val("yes"), Exp.string_bin("strBin"))
 
     def test_bin_not_equals(self):
-        """JFC: binNotEquals - != int and string."""
+        """!= int and string."""
         expected = Exp.ne(Exp.int_bin("A"), Exp.int_val(1))
         result = parse_dsl("$.A != 1")
         assert result == expected
@@ -64,12 +64,12 @@ class TestBinExpressions:
         assert result == Exp.ne(Exp.string_bin("strBin"), Exp.string_val("yes"))
 
     def test_negative_string_bin_equals_unquoted_raises(self):
-        """JFC: negativeStringBinEquals - $.strBin == yes (unquoted) raises."""
-        with pytest.raises(DslParseException, match="operand"):
+        """$.strBin == yes (unquoted) raises DslParseException."""
+        with pytest.raises(DslParseException, match=r"operand|mismatched input|line \d+:\d+"):
             parse_dsl("$.strBin == yes")
 
     def test_reversed_operands_literal_on_left(self):
-        """Literal on left: 100 < $.intBin1, 'text' < $.stringBin1 (JFC binGT includes these)."""
+        """Literal on left: 100 < $.intBin1, 'text' < $.stringBin1."""
         result = parse_dsl("100 < $.intBin1")
         assert result == Exp.lt(Exp.int_val(100), Exp.int_bin("intBin1"))
         result = parse_dsl("'text' < $.stringBin1")

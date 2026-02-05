@@ -33,8 +33,23 @@ class TestWhenExpressions:
         result = parse_dsl("when($.who == 1 => 'bob', default => 'other')")
         assert result == expected
 
-    def test_when_using_the_result(self):
-        """JFC: whenUsingTheResult - when in comparison."""
+    def test_when_using_the_result_string_bin_equals_when(self):
+        """String bin equals when expression: $.stringBin1.get(type: STRING) == (when (...))."""
+        expected = Exp.eq(
+            Exp.string_bin("stringBin1"),
+            Exp.cond([
+                Exp.eq(Exp.int_bin("who"), Exp.int_val(1)),
+                Exp.string_val("bob"),
+                Exp.string_val("other")
+            ])
+        )
+        result = parse_dsl(
+            '$.stringBin1.get(type: STRING) == (when ($.who == 1 => "bob", default => "other"))'
+        )
+        assert result == expected
+
+    def test_when_using_the_result_numeric_in_comparison(self):
+        """When expression in comparison: (when (...) => 10, 20) > 15."""
         expected = Exp.gt(
             Exp.cond([
                 Exp.eq(Exp.int_bin("who"), Exp.int_val(1)),
@@ -47,7 +62,7 @@ class TestWhenExpressions:
         assert result == expected
 
     def test_when_multiple_conditions(self):
-        """JFC: whenWithMultipleDeclarations."""
+        """Multiple condition/result pairs plus default."""
         expected = Exp.cond([
             Exp.eq(Exp.int_bin("who"), Exp.int_val(1)),
             Exp.string_val("bob"),

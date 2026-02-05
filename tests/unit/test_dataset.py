@@ -267,7 +267,7 @@ class TestDataSetIdsFromDigests:
 
 
 class TestDataSetUsageExamples:
-    """Test DataSet usage patterns similar to Java examples."""
+    """Test common DataSet usage patterns."""
 
     def test_basic_usage(self):
         """Test basic DataSet usage pattern."""

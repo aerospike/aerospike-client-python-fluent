@@ -1,13 +1,15 @@
 """Arithmetic-to-filter extraction for DSL expressions.
 
-Parses single comparisons like ($.apples + 5) > 10 and produces Filter.range(bin, min, max)
-when the expression can be reduced to a bin range. Matches JFC VisitorUtils logic.
+Builds Filter.range(bin, min, max) or Filter.equal from arithmetic comparison node data
+(e.g. ($.apples + 5) > 10) when the expression can be reduced to a bin range.
+Tree-driven via filter_from_arithmetic_node; no string parsing.
 """
 
 import math
-import re
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Any, List, Optional, Tuple
+
+from aerospike_async import Filter
 
 MIN_LONG = -(2**63)
 MAX_LONG = 2**63 - 1
@@ -31,7 +33,7 @@ class _ArithmeticFilterResult:
 
 
 def _closest_long_to_the_right(value: float) -> int:
-    """Smallest integer > value; if value is integral, value+1 (JFC getClosestLongToTheRight)."""
+    """Smallest integer > value; if value is integral, value+1."""
     floored = math.floor(value)
     if value == floored:
         return int(floored) + 1
@@ -39,63 +41,11 @@ def _closest_long_to_the_right(value: float) -> int:
 
 
 def _closest_long_to_the_left(value: float) -> int:
-    """Largest integer < value; if value is integral, value-1 (JFC getClosestLongToTheLeft)."""
+    """Largest integer < value; if value is integral, value-1."""
     floored = math.floor(value)
     if value == floored:
         return int(floored) - 1
     return int(floored)
-
-
-# Regex-based parser for single arithmetic comparison.
-_BIN_NAME = r'\$\.([a-zA-Z_][a-zA-Z0-9_]*)'
-_INT = r'(-?\d+)'
-_OP_REL = r'(>=|<=|>|<)'
-# Inner: ( $.bin op int ) or ( int op $.bin )
-_RE_ARITH_LEFT = re.compile(
-    r'^\s*\(\s*' + _BIN_NAME + r'\s*([+\-*/])\s*' + _INT + r'\s*\)\s*' + _OP_REL + r'\s*' + _INT + r'\s*$'
-)
-_RE_ARITH_RIGHT = re.compile(
-    r'^\s*' + _INT + r'\s*' + _OP_REL + r'\s*\(\s*' + _BIN_NAME + r'\s*([+\-*/])\s*' + _INT + r'\s*\)\s*$'
-)
-_RE_ARITH_LEFT_SWAP = re.compile(
-    r'^\s*\(\s*' + _INT + r'\s*([+\-*/])\s*' + _BIN_NAME + r'\s*\)\s*' + _OP_REL + r'\s*' + _INT + r'\s*$'
-)
-_RE_ARITH_RIGHT_SWAP = re.compile(
-    r'^\s*' + _INT + r'\s*' + _OP_REL + r'\s*\(\s*' + _INT + r'\s*([+\-*/])\s*' + _BIN_NAME + r'\s*\)\s*$'
-)
-
-
-def _parse_arithmetic_comparison(dsl: str) -> Optional[Tuple[_ArithExpr, str, int]]:
-    """
-    If dsl is a single comparison of the form (arithmetic) rel const or const rel (arithmetic),
-    return (arith_expr, rel_op, comparison_const). Otherwise return None.
-    rel_op is one of '>', '>=', '<', '<='.
-    """
-    dsl = dsl.strip()
-    for pattern, bin_left, c1_first in [
-        (_RE_ARITH_LEFT, True, True),   # ($.bin op c) rel k
-        (_RE_ARITH_LEFT_SWAP, True, False),  # (c op $.bin) rel k
-        (_RE_ARITH_RIGHT, False, True),  # k rel ($.bin op c)
-        (_RE_ARITH_RIGHT_SWAP, False, False),  # k rel (c op $.bin)
-    ]:
-        m = pattern.match(dsl)
-        if not m:
-            continue
-        if bin_left:
-            if c1_first:
-                bin_name, op, const, rel, k = m.group(1), m.group(2), int(m.group(3)), m.group(4), int(m.group(5))
-                return _ArithExpr(bin_name=bin_name, op=op, constant=const, bin_on_left=True), rel, k
-            else:
-                const, op, bin_name, rel, k = int(m.group(1)), m.group(2), m.group(3), m.group(4), int(m.group(5))
-                return _ArithExpr(bin_name=bin_name, op=op, constant=const, bin_on_left=False), rel, k
-        else:
-            if c1_first:
-                k, rel, bin_name, op, const = int(m.group(1)), m.group(2), m.group(3), m.group(4), int(m.group(5))
-                return _ArithExpr(bin_name=bin_name, op=op, constant=const, bin_on_left=True), rel, k
-            else:
-                k, rel, const, op, bin_name = int(m.group(1)), m.group(2), int(m.group(3)), m.group(4), m.group(5)
-                return _ArithExpr(bin_name=bin_name, op=op, constant=const, bin_on_left=False), rel, k
-    return None
 
 
 def _solve_add(expr: _ArithExpr, rel: str, k: int) -> Optional[_ArithmeticFilterResult]:
@@ -144,7 +94,7 @@ def _solve_sub(expr: _ArithExpr, rel: str, k: int) -> Optional[_ArithmeticFilter
 
 
 def _solve_mul(expr: _ArithExpr, rel: str, k: int) -> Optional[_ArithmeticFilterResult]:
-    """(bin * c) rel k. If c > 0: bin rel k/c. If c < 0: invert rel and negate k. If c == 0: return None. Uses integer division to match JFC."""
+    """(bin * c) rel k. If c > 0: bin rel k/c. If c < 0: invert rel and negate k. If c == 0: return None. Uses integer division."""
     c = expr.constant
     if c == 0:
         return None
@@ -170,7 +120,7 @@ def _solve_div_dividend(expr: _ArithExpr, rel: str, k: int) -> Optional[_Arithme
     c = expr.constant
     if c == 0:
         return None
-    # JFC: LimitsForBinDividend. For positive divisor: GT -> (left*right+1, MAX), GTEQ -> (left*right, MAX), LT -> (MIN, left*right-1), LTEQ -> (MIN, left*right).
+    # For positive divisor: GT -> (left*right+1, MAX), GTEQ -> (left*right, MAX), LT -> (MIN, left*right-1), LTEQ -> (MIN, left*right).
     # left is "result of comparison" (k), right is divisor (c). So bin/c > k => bin > k*c => range(k*c+1, MAX).
     if c > 0:
         if rel == '>':
@@ -182,7 +132,7 @@ def _solve_div_dividend(expr: _ArithExpr, rel: str, k: int) -> Optional[_Arithme
         if rel == '<=':
             return _ArithmeticFilterResult(expr.bin_name, MIN_LONG, k * c)
     else:
-        # c < 0: JFC getLimitsForBinDividendWithLeftNumberNegative: GT -> (MIN, left*right-1), GTEQ -> (MIN, left*right), LT -> (left*right+1, MAX), LTEQ -> (left*right, MAX)
+        # c < 0: GT -> (MIN, left*right-1), GTEQ -> (MIN, left*right), LT -> (left*right+1, MAX), LTEQ -> (left*right, MAX)
         if rel == '>':
             return _ArithmeticFilterResult(expr.bin_name, MIN_LONG, k * c - 1)
         if rel == '>=':
@@ -195,7 +145,7 @@ def _solve_div_dividend(expr: _ArithExpr, rel: str, k: int) -> Optional[_Arithme
 
 
 def _solve_div_divisor(expr: _ArithExpr, rel: str, k: int) -> Optional[_ArithmeticFilterResult]:
-    """bin is divisor: (c / bin) rel k. JFC getLimitsForBinDivisor. Returns None when no integer solutions (e.g. single-point range that does not satisfy)."""
+    """bin is divisor: (c / bin) rel k. Returns None when no integer solutions (e.g. single-point range that does not satisfy)."""
     c = expr.constant
     if c == 0:
         return None
@@ -245,24 +195,58 @@ def _solve_div(expr: _ArithExpr, rel: str, k: int) -> Optional[_ArithmeticFilter
     return _solve_div_divisor(expr, rel, k)
 
 
-def try_arithmetic_filter(
-    dsl: str,
-) -> Optional[_ArithmeticFilterResult]:
+def filter_from_arithmetic_node(
+    bin_name: str,
+    arith_op: str,
+    arith_constant: int,
+    bin_on_left: bool,
+    rel_op: Any,
+    comparison_value: int,
+    ctx: Optional[List[Any]] = None,
+) -> Optional[Filter]:
     """
-    If dsl is a single arithmetic comparison (e.g. ($.apples + 5) > 10) that can be
-    reduced to a bin range, return (bin_name, range_min, range_max). Otherwise return None.
-    Float operands or unsupported forms return None.
+    Build a Filter from arithmetic comparison node data (tree-driven, no string parsing).
+    rel_op: comparison operator as string '>', '>=', '<', '<=', or '=='; or OperationType.
     """
-    parsed = _parse_arithmetic_comparison(dsl)
-    if not parsed:
+    op_to_rel = {">": ">", ">=": ">=", "<": "<", "<=": "<=", "==": "==", "GT": ">", "GE": ">=", "LT": "<", "LE": "<=", "EQ": "=="}
+    rel = op_to_rel.get(rel_op) if isinstance(rel_op, str) else op_to_rel.get(getattr(rel_op, "value", None))
+    if rel is None:
         return None
-    expr, rel, k = parsed
-    if expr.op == '+':
-        return _solve_add(expr, rel, k)
-    if expr.op == '-':
-        return _solve_sub(expr, rel, k)
-    if expr.op == '*':
-        return _solve_mul(expr, rel, k)
-    if expr.op == '/':
-        return _solve_div(expr, rel, k)
-    return None
+    if rel == "==":
+        eq_val: Optional[int] = None
+        if arith_op == "+":
+            eq_val = comparison_value - arith_constant
+        elif arith_op == "-":
+            eq_val = comparison_value + arith_constant if bin_on_left else arith_constant - comparison_value
+        elif arith_op == "*":
+            if arith_constant != 0 and comparison_value % arith_constant == 0:
+                eq_val = comparison_value // arith_constant
+        elif arith_op == "/":
+            if arith_constant != 0 and bin_on_left:
+                eq_val = comparison_value * arith_constant
+            elif comparison_value != 0 and not bin_on_left and arith_constant % comparison_value == 0:
+                eq_val = arith_constant // comparison_value
+        if eq_val is not None:
+            if ctx:
+                try:
+                    return Filter.equal(bin_name, eq_val, *ctx)
+                except TypeError:
+                    return Filter.equal(bin_name, eq_val)
+            return Filter.equal(bin_name, eq_val)
+        return None
+    expr = _ArithExpr(bin_name=bin_name, op=arith_op, constant=arith_constant, bin_on_left=bin_on_left)
+    result: Optional[_ArithmeticFilterResult] = None
+    if arith_op == "+":
+        result = _solve_add(expr, rel, comparison_value)
+    elif arith_op == "-":
+        result = _solve_sub(expr, rel, comparison_value)
+    elif arith_op == "*":
+        result = _solve_mul(expr, rel, comparison_value)
+    elif arith_op == "/":
+        result = _solve_div(expr, rel, comparison_value)
+    if result is None or result.range_min > result.range_max:
+        return None
+    try:
+        return Filter.range(bin_name, result.range_min, result.range_max, *ctx) if ctx else Filter.range(bin_name, result.range_min, result.range_max)
+    except TypeError:
+        return Filter.range(bin_name, result.range_min, result.range_max)

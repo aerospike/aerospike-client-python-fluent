@@ -12,6 +12,8 @@ The implementation uses a tree-based approach:
 5. Generate complementary Exp, skipping the part used for Filter
 """
 
+import base64
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -24,12 +26,44 @@ from aerospike_async import (
     IndexType,
 )
 
+from aerospike_fluent.dsl.exceptions import DslParseException
+
+
+def _substitute_placeholders(dsl_string: str, placeholder_values: Any) -> str:
+    """Replace ?0, ?1, ... in dsl_string with DSL literal form for filter/arithmetic parsing."""
+    # Find all ?N from end to start so indices stay valid
+    pattern = re.compile(r"\?(\d+)")
+    matches = list(pattern.finditer(dsl_string))
+    if not matches:
+        return dsl_string
+    result = list(dsl_string)
+    for m in reversed(matches):
+        idx = int(m.group(1))
+        try:
+            value = placeholder_values.get(idx)
+        except Exception:
+            continue
+        if isinstance(value, bool):
+            repl = "true" if value else "false"
+        elif isinstance(value, (int, float)):
+            repl = str(value)
+        elif isinstance(value, str):
+            repl = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+        elif isinstance(value, bytes):
+            repl = '"' + base64.b64encode(value).decode("ascii") + '"'
+        else:
+            continue
+        start, end = m.span()
+        result[start:end] = repl
+    return "".join(result)
+
 
 class IndexTypeEnum(Enum):
     """Index type for filter generation matching."""
     NUMERIC = "NUMERIC"
     STRING = "STRING"
     GEO2D_SPHERE = "GEO2D_SPHERE"
+    BLOB = "BLOB"
 
     def to_aerospike(self) -> IndexType:
         """Convert to aerospike_async IndexType."""
@@ -39,6 +73,8 @@ class IndexTypeEnum(Enum):
             return IndexType.STRING
         elif self == IndexTypeEnum.GEO2D_SPHERE:
             return IndexType.GEO2D_SPHERE
+        elif self == IndexTypeEnum.BLOB:
+            return getattr(IndexType, "BLOB", IndexType.STRING)
         raise ValueError(f"Unknown index type: {self}")
 
 
@@ -113,8 +149,8 @@ class OperationType(Enum):
 @dataclass
 class ExpressionNode:
     """A node in the expression tree.
-    
-    Tracks filter eligibility similar to JFC's ExpressionContainer.
+
+    Tracks filter eligibility for secondary index selection.
     """
     op: OperationType
     left: Optional["ExpressionNode"] = None
@@ -123,263 +159,17 @@ class ExpressionNode:
     bin_name: Optional[str] = None
     value: Any = None
     value_type: Optional[IndexTypeEnum] = None
+    bin_explicit_type: Optional[str] = None  # from .get(type: XXX)
+    ctx: Optional[List[CTX]] = None  # from path e.g. .[5]
     # Filter eligibility tracking
     has_secondary_index_filter: bool = False
     is_excl_from_secondary_index_filter: bool = False
     # Original DSL string for this part (for Exp generation)
     dsl_fragment: Optional[str] = None
-
-
-class ExpressionTreeBuilder:
-    """Builds expression tree from DSL string with proper operator precedence."""
-    
-    def __init__(self, dsl_string: str):
-        self.dsl = dsl_string
-        self.pos = 0
-    
-    def parse(self) -> Optional[ExpressionNode]:
-        """Parse DSL string into expression tree."""
-        self.pos = 0
-        self.skip_whitespace()
-        if self.pos >= len(self.dsl):
-            return None
-        return self._parse_or()
-    
-    def skip_whitespace(self):
-        while self.pos < len(self.dsl) and self.dsl[self.pos] in ' \t\n':
-            self.pos += 1
-    
-    def _parse_or(self) -> Optional[ExpressionNode]:
-        """Parse OR expressions (lowest precedence)."""
-        left = self._parse_and()
-        if left is None:
-            return None
-        
-        parts = [left]
-        while True:
-            self.skip_whitespace()
-            if self._match_keyword("or"):
-                right = self._parse_and()
-                if right:
-                    parts.append(right)
-            else:
-                break
-        
-        if len(parts) == 1:
-            return parts[0]
-        
-        # Build right-associative OR tree
-        result = parts[-1]
-        for i in range(len(parts) - 2, -1, -1):
-            result = ExpressionNode(op=OperationType.OR, left=parts[i], right=result)
-        return result
-    
-    def _parse_and(self) -> Optional[ExpressionNode]:
-        """Parse AND expressions (higher precedence than OR)."""
-        left = self._parse_unary()
-        if left is None:
-            return None
-        
-        parts = [left]
-        while True:
-            self.skip_whitespace()
-            if self._match_keyword("and"):
-                right = self._parse_unary()
-                if right:
-                    parts.append(right)
-            else:
-                break
-        
-        if len(parts) == 1:
-            return parts[0]
-        
-        # Build right-associative AND tree
-        result = parts[-1]
-        for i in range(len(parts) - 2, -1, -1):
-            result = ExpressionNode(op=OperationType.AND, left=parts[i], right=result)
-        return result
-    
-    def _parse_unary(self) -> Optional[ExpressionNode]:
-        """Parse unary NOT and parenthesized expressions."""
-        self.skip_whitespace()
-        
-        # Handle NOT
-        if self._match_keyword("not"):
-            operand = self._parse_unary()
-            return ExpressionNode(op=OperationType.NOT, left=operand)
-        
-        # Handle parentheses
-        if self.pos < len(self.dsl) and self.dsl[self.pos] == '(':
-            self.pos += 1
-            result = self._parse_or()
-            self.skip_whitespace()
-            if self.pos < len(self.dsl) and self.dsl[self.pos] == ')':
-                self.pos += 1
-            return result
-        
-        return self._parse_comparison()
-    
-    def _parse_comparison(self) -> Optional[ExpressionNode]:
-        """Parse comparison expressions ($.bin op value) or (value op $.bin)."""
-        self.skip_whitespace()
-        start_pos = self.pos
-
-        # Try $.bin op value first
-        bin_name = self._parse_bin_ref()
-        if bin_name is not None:
-            self.skip_whitespace()
-            op = self._parse_operator()
-            if op is not None:
-                self.skip_whitespace()
-                value, value_type = self._parse_value()
-                end_pos = self.pos
-                dsl_fragment = self.dsl[start_pos:end_pos].strip()
-                return ExpressionNode(
-                    op=op,
-                    bin_name=bin_name,
-                    value=value,
-                    value_type=value_type,
-                    dsl_fragment=dsl_fragment
-                )
-
-        # Try value op $.bin (normalize to $.bin op value by flipping operator)
-        if self._can_start_value():
-            saved = self.pos
-            value, value_type = self._parse_value()
-            self.skip_whitespace()
-            op = self._parse_operator()
-            if op is not None:
-                self.skip_whitespace()
-                bin_name = self._parse_bin_ref()
-                if bin_name is not None:
-                    flipped = self._flip_op(op)
-                    end_pos = self.pos
-                    dsl_fragment = self.dsl[start_pos:end_pos].strip()
-                    return ExpressionNode(
-                        op=flipped,
-                        bin_name=bin_name,
-                        value=value,
-                        value_type=value_type,
-                        dsl_fragment=dsl_fragment
-                    )
-            self.pos = saved
-
-        return None
-    
-    def _parse_bin_ref(self) -> Optional[str]:
-        """Parse $.binName or $.binName.get(type: TYPE) reference; returns bin name only."""
-        self.skip_whitespace()
-        if not self.dsl[self.pos:].startswith('$.'):
-            return None
-        self.pos += 2
-
-        # Read bin name
-        start = self.pos
-        while self.pos < len(self.dsl) and (self.dsl[self.pos].isalnum() or self.dsl[self.pos] == '_'):
-            self.pos += 1
-
-        bin_name = self.dsl[start:self.pos]
-        if not bin_name:
-            return None
-
-        # Optional .get(type: INT) or .get(type: STRING) etc. so operator is next
-        self.skip_whitespace()
-        if self.pos + 10 <= len(self.dsl) and self.dsl[self.pos : self.pos + 10] == '.get(type:':
-            self.pos += 10
-            self.skip_whitespace()
-            while self.pos < len(self.dsl) and self.dsl[self.pos].isalpha():
-                self.pos += 1
-            self.skip_whitespace()
-            if self.pos < len(self.dsl) and self.dsl[self.pos] == ')':
-                self.pos += 1
-
-        return bin_name
-    
-    def _can_start_value(self) -> bool:
-        """Return True if current position can start a value (string or number)."""
-        self.skip_whitespace()
-        if self.pos >= len(self.dsl):
-            return False
-        c = self.dsl[self.pos]
-        if c in ('"', "'"):
-            return True
-        if c.isdigit():
-            return True
-        if c == '-' and self.pos + 1 < len(self.dsl) and (
-            self.dsl[self.pos + 1].isdigit() or self.dsl[self.pos + 1] == '.'
-        ):
-            return True
-        return False
-
-    def _flip_op(self, op: OperationType) -> OperationType:
-        """Flip operator for value op $.bin -> $.bin op value (e.g. 5 < $.x -> $.x > 5)."""
-        if op == OperationType.LT:
-            return OperationType.GT
-        if op == OperationType.LE:
-            return OperationType.GE
-        if op == OperationType.GT:
-            return OperationType.LT
-        if op == OperationType.GE:
-            return OperationType.LE
-        return op  # EQ, NE unchanged
-
-    def _parse_operator(self) -> Optional[OperationType]:
-        """Parse comparison operator."""
-        ops = [
-            ("==", OperationType.EQ),
-            ("!=", OperationType.NE),
-            (">=", OperationType.GE),
-            ("<=", OperationType.LE),
-            (">", OperationType.GT),
-            ("<", OperationType.LT),
-        ]
-        for op_str, op_type in ops:
-            if self.dsl[self.pos:].startswith(op_str):
-                self.pos += len(op_str)
-                return op_type
-        return None
-    
-    def _parse_value(self) -> Tuple[Any, Optional[IndexTypeEnum]]:
-        """Parse value (int, float, string)."""
-        self.skip_whitespace()
-        
-        # String value
-        if self.dsl[self.pos] in ('"', "'"):
-            quote = self.dsl[self.pos]
-            self.pos += 1
-            start = self.pos
-            while self.pos < len(self.dsl) and self.dsl[self.pos] != quote:
-                self.pos += 1
-            value = self.dsl[start:self.pos]
-            self.pos += 1  # Skip closing quote
-            return value, IndexTypeEnum.STRING
-        
-        # Numeric value
-        start = self.pos
-        has_dot = False
-        if self.dsl[self.pos] == '-':
-            self.pos += 1
-        while self.pos < len(self.dsl) and (self.dsl[self.pos].isdigit() or self.dsl[self.pos] == '.'):
-            if self.dsl[self.pos] == '.':
-                has_dot = True
-            self.pos += 1
-        
-        value_str = self.dsl[start:self.pos]
-        if has_dot:
-            return float(value_str), IndexTypeEnum.NUMERIC
-        return int(value_str), IndexTypeEnum.NUMERIC
-    
-    def _match_keyword(self, keyword: str) -> bool:
-        """Try to match a keyword (case insensitive, word boundary)."""
-        self.skip_whitespace()
-        remaining = self.dsl[self.pos:].lower()
-        if remaining.startswith(keyword.lower()):
-            # Check word boundary
-            next_pos = self.pos + len(keyword)
-            if next_pos >= len(self.dsl) or not self.dsl[next_pos].isalnum():
-                self.pos = next_pos
-                return True
-        return False
+    # Arithmetic comparison: (bin arith_op arith_constant) rel value
+    arith_op: Optional[str] = None  # '+', '-', '*', '/'
+    arith_constant: Optional[int] = None
+    bin_on_left: Optional[bool] = None  # True if $.bin op const, False if const op $.bin
 
 
 class FilterGenerator:
@@ -396,6 +186,19 @@ class FilterGenerator:
         self._indexes_by_bin: Dict[str, List[Index]] = {}
         if index_context:
             self._build_index_map()
+
+    def _validate_comparison_types(self, node: Optional[ExpressionNode]) -> None:
+        """Raise DslParseException if BOOL is compared to numeric (e.g. INT)."""
+        if node is None:
+            return
+        if node.bin_name is not None and node.bin_explicit_type == "BOOL":
+            is_numeric = node.value_type == IndexTypeEnum.NUMERIC or (
+                isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+            )
+            if is_numeric:
+                raise DslParseException("Cannot compare BOOL to INT")
+        self._validate_comparison_types(node.left)
+        self._validate_comparison_types(node.right)
 
     def _build_index_map(self) -> None:
         """Build map of bin name to matching indexes."""
@@ -423,28 +226,49 @@ class FilterGenerator:
             ParseResult with Filter and/or Exp.
         """
         from aerospike_fluent.dsl.parser import parse_dsl
-        from aerospike_fluent.dsl.arithmetic_filter import try_arithmetic_filter
+        from aerospike_fluent.dsl.filter_visitor import build_filter_tree_from_parse_tree
+        from antlr4 import InputStream, CommonTokenStream
+        from aerospike_fluent.dsl.antlr4.generated.ConditionLexer import ConditionLexer
+        from aerospike_fluent.dsl.antlr4.generated.ConditionParser import ConditionParser
 
-        arith = try_arithmetic_filter(dsl_string.strip())
-        if arith is not None and self._indexes_by_bin and arith.range_min <= arith.range_max:
-            indexes_for_bin = self._indexes_by_bin.get(arith.bin_name, [])
-            if any(idx.index_type == IndexTypeEnum.NUMERIC for idx in indexes_for_bin):
-                return ParseResult(
-                    filter=Filter.range(arith.bin_name, arith.range_min, arith.range_max),
-                    exp=None,
-                )
+        try:
+            from aerospike_fluent.dsl.parser import _DSLParseErrorListener
+            input_stream = InputStream(dsl_string)
+            lexer = ConditionLexer(input_stream)
+            token_stream = CommonTokenStream(lexer)
+            parser = ConditionParser(token_stream)
+            parser.removeErrorListeners()
+            parser.addErrorListener(_DSLParseErrorListener())
+            parse_tree = parser.parse()
+        except DslParseException:
+            raise
+        except Exception as e:
+            raise DslParseException("Could not parse given DSL expression input") from e
 
-        # Build expression tree
-        builder = ExpressionTreeBuilder(dsl_string)
-        tree = builder.parse()
-        
+        tree = build_filter_tree_from_parse_tree(parse_tree, dsl_string, placeholder_values)
+
+        def _safe_exp():
+            try:
+                return parse_dsl(dsl_string, placeholder_values)
+            except DslParseException:
+                return None
+
         if tree is None:
-            return ParseResult(filter=None, exp=parse_dsl(dsl_string, placeholder_values))
-        
+            try:
+                exp = parse_dsl(dsl_string, placeholder_values)
+                return ParseResult(filter=None, exp=exp)
+            except DslParseException as e:
+                msg = str(e)
+                if "List constants in expressions are not yet fully supported" in msg or "Map constants in expressions are not yet fully supported" in msg:
+                    return ParseResult(filter=None, exp=None)
+                raise
+
+        self._validate_comparison_types(tree)
+
         # No indexes - return full expression as Exp
         if not self._indexes_by_bin:
-            return ParseResult(filter=None, exp=parse_dsl(dsl_string, placeholder_values))
-        
+            return ParseResult(filter=None, exp=_safe_exp())
+
         # Mark nodes excluded from filter (under OR)
         self._mark_excluded_nodes(tree)
         
@@ -453,7 +277,7 @@ class FilterGenerator:
         self._collect_filterable_expressions(tree, exprs_by_cardinality)
         
         if not exprs_by_cardinality:
-            return ParseResult(filter=None, exp=parse_dsl(dsl_string, placeholder_values))
+            return ParseResult(filter=None, exp=_safe_exp())
         
         # Choose best expression (highest cardinality, then alphabetical)
         best_cardinality = max(exprs_by_cardinality.keys())
@@ -462,14 +286,14 @@ class FilterGenerator:
         # Sort alphabetically by bin name for consistent selection
         candidates.sort(key=lambda n: n.bin_name or "")
         chosen = candidates[0]
-        chosen.has_secondary_index_filter = True
-        
+
         # Create Filter
         filter_obj = self._create_filter(chosen)
-        
-        # Generate complementary Exp
+        if filter_obj is None:
+            return ParseResult(filter=None, exp=_safe_exp())
+
+        chosen.has_secondary_index_filter = True
         exp = self._generate_exp(tree, placeholder_values)
-        
         return ParseResult(filter=filter_obj, exp=exp)
     
     def _mark_excluded_nodes(self, node: Optional[ExpressionNode]) -> None:
@@ -514,10 +338,12 @@ class FilterGenerator:
             return
         
         # Check if this is a filterable comparison
-        if node.bin_name and node.op in (OperationType.EQ, OperationType.GT, OperationType.GE, 
+        if node.bin_name and node.op in (OperationType.EQ, OperationType.GT, OperationType.GE,
                                           OperationType.LT, OperationType.LE):
-            # Check if we have a matching index
-            cardinality = self._get_index_cardinality(node.bin_name, node.value_type, node.op)
+            # Check if we have a matching index (including ctx when present)
+            cardinality = self._get_index_cardinality(
+                node.bin_name, node.value_type, node.op, node.ctx
+            )
             if cardinality is not None:
                 if cardinality not in exprs_by_cardinality:
                     exprs_by_cardinality[cardinality] = []
@@ -529,33 +355,78 @@ class FilterGenerator:
             self._collect_filterable_expressions(node.right, exprs_by_cardinality)
     
     def _get_index_cardinality(
-        self, 
-        bin_name: str, 
+        self,
+        bin_name: str,
         value_type: Optional[IndexTypeEnum],
-        op: OperationType
+        op: OperationType,
+        ctx: Optional[List[CTX]] = None,
     ) -> Optional[float]:
         """Get cardinality of matching index, or None if no match."""
         if bin_name not in self._indexes_by_bin:
             return None
-        
+
         # String comparisons (>, <, etc.) not supported by secondary index
-        if value_type == IndexTypeEnum.STRING and op in (OperationType.GT, OperationType.GE, 
+        if value_type == IndexTypeEnum.STRING and op in (OperationType.GT, OperationType.GE,
                                                           OperationType.LT, OperationType.LE):
             return None
-        
+
         for index in self._indexes_by_bin[bin_name]:
+            if not self._ctx_matches(index.ctx, ctx):
+                continue
             if index.index_type == value_type:
                 return index.bin_values_ratio if index.bin_values_ratio is not None else -1
-        
+            # BLOB index: quoted string is base64-encoded blob literal (EQ only)
+            if index.index_type == IndexTypeEnum.BLOB and value_type == IndexTypeEnum.STRING and op == OperationType.EQ:
+                return index.bin_values_ratio if index.bin_values_ratio is not None else -1
+
         return None
+
+    def _ctx_matches(
+        self, index_ctx: Optional[List[CTX]], node_ctx: Optional[List[CTX]]
+    ) -> bool:
+        """True if index context matches expression node context."""
+        if node_ctx is None and index_ctx is None:
+            return True
+        if node_ctx is None or index_ctx is None:
+            return False
+        if len(node_ctx) != len(index_ctx):
+            return False
+        return all(
+            getattr(a, "ctx", a) == getattr(b, "ctx", b) for a, b in zip(index_ctx, node_ctx)
+        )
     
     def _create_filter(self, node: ExpressionNode) -> Optional[Filter]:
         """Create Filter from expression node."""
         if node.bin_name is None or node.value is None:
             return None
-        
+
+        if node.arith_op is not None and node.arith_constant is not None and node.bin_on_left is not None:
+            from aerospike_fluent.dsl.arithmetic_filter import filter_from_arithmetic_node
+            if not isinstance(node.value, int):
+                return None
+            return filter_from_arithmetic_node(
+                node.bin_name,
+                node.arith_op,
+                node.arith_constant,
+                node.bin_on_left,
+                node.op,
+                int(node.value),
+                node.ctx,
+            )
+
+        value = node.value
+        if node.op == OperationType.EQ and isinstance(value, str):
+            indexes_for_bin = self._indexes_by_bin.get(node.bin_name, [])
+            if any(idx.index_type == IndexTypeEnum.BLOB for idx in indexes_for_bin):
+                value = base64.b64decode(value)
+
         if node.op == OperationType.EQ:
-            return Filter.equal(node.bin_name, node.value)
+            if node.ctx:
+                try:
+                    return Filter.equal(node.bin_name, value, *node.ctx)
+                except TypeError:
+                    return Filter.equal(node.bin_name, value)
+            return Filter.equal(node.bin_name, value)
         elif node.op == OperationType.GT:
             return Filter.range(node.bin_name, int(node.value) + 1, 2**63 - 1)
         elif node.op == OperationType.GE:
@@ -564,7 +435,7 @@ class FilterGenerator:
             return Filter.range(node.bin_name, -(2**63), int(node.value) - 1)
         elif node.op == OperationType.LE:
             return Filter.range(node.bin_name, -(2**63), int(node.value))
-        
+
         return None
     
     def _generate_exp(self, tree: ExpressionNode, placeholder_values) -> Optional[FilterExpression]:

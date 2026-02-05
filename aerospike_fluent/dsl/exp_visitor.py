@@ -1,4 +1,4 @@
-"""DSL Visitor - Converts ANTLR parse tree to FilterExpression objects.
+"""DSL exp visitor: converts ANTLR parse tree to FilterExpression (exp) objects.
 
 This module contains the visitor that walks the ANTLR parse tree and converts
 it into Aerospike FilterExpression objects.
@@ -11,6 +11,7 @@ Type Inference:
 
 from __future__ import annotations
 
+import base64
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -84,9 +85,12 @@ class TypedExpr:
 
     Since FilterExpression is a PyO3 object that doesn't allow attribute setting,
     we wrap it with type information for inference during parsing.
+    Optional value stores the raw Python value for constants (e.g. string for
+    base64 decoding when comparing to BLOB).
     """
     expr: FilterExpression
     type_hint: InferredType
+    value: Optional[Any] = None
 
 
 class ArithOp(Enum):
@@ -242,12 +246,13 @@ class ListValuePart(CDTPart):
         value_type: ExpType,
         return_type: Union[ListReturnType, MapReturnType],
         ctx: Sequence[CTX],
+        bin_expr: Optional[FilterExpression] = None,
     ) -> FilterExpression:
         if not isinstance(return_type, ListReturnType):
             return_type = ListReturnType.VALUE
         if self.inverted:
             return_type = return_type | ListReturnType.INVERTED
-        # Determine value expression based on type
+        base_bin = bin_expr if bin_expr else FilterExpression.list_bin(bin_name)
         if isinstance(self.value, int):
             val_expr = FilterExpression.int_val(self.value)
         elif isinstance(self.value, float):
@@ -261,7 +266,7 @@ class ListValuePart(CDTPart):
         return FilterExpression.list_get_by_value(
             return_type,
             val_expr,
-            FilterExpression.list_bin(bin_name),
+            base_bin,
             list(ctx),
         )
 
@@ -917,6 +922,8 @@ class CDTPath:
     value_type: ExpType = ExpType.INT  # Default, can be overridden by .get(type:...)
     explicit_type: Optional[InferredType] = None  # For .asInt(), .asFloat() casts
     has_path_function: bool = False  # True if .get(), .asInt(), etc. was applied
+    list_return_type: Optional[ListReturnType] = None  # From .get(return: COUNT|EXISTS|INDEX)
+    map_return_type: Optional[MapReturnType] = None
 
     def to_expression(self, inferred_type: InferredType = InferredType.INT) -> FilterExpression:
         """Convert the CDT path to a FilterExpression.
@@ -944,18 +951,21 @@ class CDTPath:
         for part in self.parts[:-1]:
             ctx.append(part.get_context())
         
-        # Determine value type from inferred type
-        type_to_use = self.explicit_type if self.explicit_type else inferred_type
-        if type_to_use == InferredType.INT:
-            exp_type = ExpType.INT
-        elif type_to_use == InferredType.FLOAT:
-            exp_type = ExpType.FLOAT
-        elif type_to_use == InferredType.STRING:
-            exp_type = ExpType.STRING
-        elif type_to_use == InferredType.BOOL:
-            exp_type = ExpType.BOOL
+        # When get(return: COUNT|EXISTS|INDEX) was used, value_type was set in _apply_get_params
+        if self.list_return_type is not None or self.map_return_type is not None:
+            exp_type = self.value_type
         else:
-            exp_type = self.value_type  # Use configured value_type
+            type_to_use = self.explicit_type if self.explicit_type else inferred_type
+            if type_to_use == InferredType.INT:
+                exp_type = ExpType.INT
+            elif type_to_use == InferredType.FLOAT:
+                exp_type = ExpType.FLOAT
+            elif type_to_use == InferredType.STRING:
+                exp_type = ExpType.STRING
+            elif type_to_use == InferredType.BOOL:
+                exp_type = ExpType.BOOL
+            else:
+                exp_type = self.value_type
         
         # Determine bin type from FIRST part (not last)
         # If first part is a map access, base bin is map_bin; if list, base bin is list_bin
@@ -971,16 +981,18 @@ class CDTPath:
         
         # Use the last part to construct the expression
         last_part = self.parts[-1]
+        list_ret = self.list_return_type if self.list_return_type is not None else ListReturnType.VALUE
+        map_ret = self.map_return_type if self.map_return_type is not None else MapReturnType.VALUE
         if isinstance(last_part, (ListIndexPart, ListRankPart, ListValuePart,
                                    ListIndexRangePart, ListValueRangePart, ListValueListPart,
                                    ListRankRangePart, ListRankRangeRelativePart)):
             return last_part.construct_expr(
-                self.bin_name, exp_type, ListReturnType.VALUE, ctx,
+                self.bin_name, exp_type, list_ret, ctx,
                 bin_expr=bin_expr
             )
         else:
             return last_part.construct_expr(
-                self.bin_name, exp_type, MapReturnType.VALUE, ctx,
+                self.bin_name, exp_type, map_ret, ctx,
                 bin_expr=bin_expr
             )
 
@@ -1047,6 +1059,21 @@ def _resolve_for_comparison(left: ExprOrDeferred, right: ExprOrDeferred) -> tupl
     left_hint = _get_type_hint(left)
     right_hint = _get_type_hint(right)
 
+    # Reject incompatible type pairs for comparison
+    if left_hint != InferredType.UNKNOWN and right_hint != InferredType.UNKNOWN:
+        if (left_hint == InferredType.STRING and right_hint == InferredType.FLOAT) or (
+            left_hint == InferredType.FLOAT and right_hint == InferredType.STRING
+        ):
+            raise DslParseException("Cannot compare STRING to FLOAT")
+        if (left_hint == InferredType.LIST and right_hint == InferredType.MAP) or (
+            left_hint == InferredType.MAP and right_hint == InferredType.LIST
+        ):
+            raise DslParseException("Cannot compare MAP to LIST")
+        if (left_hint == InferredType.BOOL and right_hint == InferredType.INT) or (
+            left_hint == InferredType.INT and right_hint == InferredType.BOOL
+        ):
+            raise DslParseException("Cannot compare BOOL to INT")
+
     # Resolve left side
     if isinstance(left, (DeferredBin, CDTPath, DeferredArithmetic)):
         # Infer from right side, default to INT
@@ -1070,6 +1097,20 @@ def _resolve_for_comparison(left: ExprOrDeferred, right: ExprOrDeferred) -> tupl
         resolved_right = _unwrap_expr(right)
         if resolved_right is None:
             raise DslParseException("Failed to unwrap right operand")
+
+    # BLOB vs string constant: decode quoted string as base64 for blob_val
+    if left_hint == InferredType.BLOB and isinstance(right, TypedExpr) and right.type_hint == InferredType.STRING and right.value is not None:
+        try:
+            decoded = base64.b64decode(right.value)
+            resolved_right = FilterExpression.blob_val(list(decoded))
+        except Exception:
+            raise DslParseException("Invalid base64 for BLOB comparison")
+    if right_hint == InferredType.BLOB and isinstance(left, TypedExpr) and left.type_hint == InferredType.STRING and left.value is not None:
+        try:
+            decoded = base64.b64decode(left.value)
+            resolved_left = FilterExpression.blob_val(list(decoded))
+        except Exception:
+            raise DslParseException("Invalid base64 for BLOB comparison")
 
     return resolved_left, resolved_right
 
@@ -1555,7 +1596,37 @@ class ExpressionConditionVisitor(ConditionVisitor):
                                 }
                                 if param_value in type_map:
                                     cdt_path.value_type = type_map[param_value]
-                            # Note: return type is handled by the CDT part's construct_expr
+                            elif param_name == "return":
+                                ret_map = {
+                                    "COUNT": (ListReturnType.COUNT, MapReturnType.COUNT, None),
+                                    "EXISTS": (ListReturnType.EXISTS, MapReturnType.EXISTS, ExpType.BOOL),
+                                    "INDEX": (ListReturnType.INDEX, MapReturnType.INDEX, ExpType.INT),
+                                    "RANK": (ListReturnType.VALUE, MapReturnType.RANK, ExpType.INT),
+                                    "ORDERED_MAP": (ListReturnType.VALUE, MapReturnType.ORDERED_MAP, ExpType.STRING),
+                                    "UNORDERED_MAP": (ListReturnType.VALUE, MapReturnType.UNORDERED_MAP, ExpType.STRING),
+                                }
+                                if param_value in ret_map:
+                                    list_ret, map_ret, val_type = ret_map[param_value]
+                                    last = cdt_path.parts[-1] if cdt_path.parts else None
+                                    if isinstance(last, (ListIndexPart, ListRankPart, ListValuePart,
+                                                         ListIndexRangePart, ListValueRangePart,
+                                                         ListValueListPart, ListRankRangePart,
+                                                         ListRankRangeRelativePart)):
+                                        cdt_path.list_return_type = list_ret
+                                        if val_type is not None:
+                                            cdt_path.value_type = val_type
+                                        elif param_value == "COUNT":
+                                            cdt_path.value_type = ExpType.LIST
+                                    elif isinstance(last, (MapKeyPart, MapIndexPart, MapRankPart,
+                                                           MapValuePart, MapKeyRangePart, MapKeyListPart,
+                                                           MapIndexRangePart, MapValueRangePart,
+                                                           MapValueListPart, MapRankRangePart,
+                                                           MapRankRangeRelativePart, MapIndexRangeRelativePart)):
+                                        cdt_path.map_return_type = map_ret
+                                        if val_type is not None:
+                                            cdt_path.value_type = val_type
+                                        elif param_value == "COUNT":
+                                            cdt_path.value_type = ExpType.INT
 
     def _apply_get_params_to_deferred(self, deferred: DeferredBin, get_ctx) -> None:
         """Apply get() function type parameter to a DeferredBin.
@@ -2062,7 +2133,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         text = ctx.getText()
         unquoted = _unquote(text)
         expr = FilterExpression.string_val(unquoted)
-        return TypedExpr(expr, InferredType.STRING)
+        return TypedExpr(expr, InferredType.STRING, value=unquoted)
 
     def visitIntOperand(self, ctx: ConditionParser.IntOperandContext) -> ExprOrDeferred:
         """Visit integer operand: 123"""
@@ -2145,9 +2216,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
         if text == "deviceSize()":
             return FilterExpression.device_size()
         elif text == "memorySize()":
-            return FilterExpression.memory_size()
+            # Same as deviceSize/recordSize in server; PAC only has device_size
+            return FilterExpression.device_size()
         elif text == "recordSize()":
-            # recordSize maps to device_size in aerospike-async
             return FilterExpression.device_size()
         elif text == "isTombstone()":
             return FilterExpression.is_tombstone()
@@ -2158,7 +2229,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
         elif text == "sinceUpdate()":
             return FilterExpression.since_update()
         elif text == "setName()":
-            return FilterExpression.set_name()
+            # TypedExpr so comparisons infer the other operand as STRING (e.g. $.mySetBin == $.setName())
+            return TypedExpr(FilterExpression.set_name(), InferredType.STRING)
         elif text == "ttl()":
             return FilterExpression.ttl()
         elif text == "voidTime()":
@@ -2173,20 +2245,21 @@ class ExpressionConditionVisitor(ConditionVisitor):
         raise DslParseException(f"Unsupported metadata function: {text}")
 
     def visitExclusiveExpression(self, ctx: ConditionParser.ExclusiveExpressionContext) -> Optional[FilterExpression]:
-        """Visit exclusive expression: exclusive(expr1, expr2, ...)"""
-        # Exclusive means exactly one must be true (XOR of all)
+        """Visit exclusive expression: exclusive(expr1, expr2, ...)
+
+        Bare bins in logical context are inferred as bool_bin.
+        """
         if len(ctx.expression()) < 2:
             raise DslParseException("Exclusive expression requires at least 2 expressions")
-        
+
         expressions: List[FilterExpression] = []
         for expr_ctx in ctx.expression():
-            expr = self.visit(expr_ctx)
+            expr = _finalize_result(self.visit(expr_ctx), InferredType.BOOL)
             if expr is None:
                 raise DslParseException("Failed to parse expression in exclusive clause")
             expressions.append(expr)
-        
+
         # Exclusive is equivalent to XOR of all expressions
-        # For now, implement as: (expr1 XOR expr2) XOR expr3 ...
         result = expressions[0]
         for expr in expressions[1:]:
             result = FilterExpression.xor([result, expr])
@@ -2400,24 +2473,59 @@ class ExpressionConditionVisitor(ConditionVisitor):
         resolved_shift = _resolve_for_arithmetic(shift, has_float=False)
         return FilterExpression.int_rshift(resolved_value, resolved_shift)
 
-    def visitListConstant(self, ctx: ConditionParser.ListConstantContext) -> Optional[FilterExpression]:
+    def _operand_to_python_value(self, oper_ctx: ConditionParser.OperandContext) -> Any:
+        """Extract a Python value from an operand that must be a constant (for list/map literals)."""
+        if oper_ctx.numberOperand() is not None:
+            num = oper_ctx.numberOperand()
+            text = num.getText()
+            if num.floatOperand() is not None:
+                return float(text)
+            return int(text)
+        if oper_ctx.stringOperand() is not None:
+            return _unquote(oper_ctx.stringOperand().getText())
+        if oper_ctx.booleanOperand() is not None:
+            return oper_ctx.booleanOperand().getText().lower() == "true"
+        if oper_ctx.listConstant() is not None:
+            return [
+                self._operand_to_python_value(o)
+                for o in oper_ctx.listConstant().operand()
+            ]
+        if oper_ctx.orderedMapConstant() is not None:
+            result: dict = {}
+            for pair in oper_ctx.orderedMapConstant().mapPairConstant():
+                key_oper = pair.mapKeyOperand()
+                if key_oper.intOperand() is not None:
+                    key = int(key_oper.intOperand().getText())
+                else:
+                    key = _unquote(key_oper.stringOperand().getText())
+                value = self._operand_to_python_value(pair.operand())
+                result[key] = value
+            return result
+        raise DslParseException(
+            "List and map constants may only contain constants (number, string, boolean, list, map)"
+        )
+
+    def visitListConstant(self, ctx: ConditionParser.ListConstantContext) -> ExprOrDeferred:
         """Visit list constant: [val1, val2, ...]"""
         values: List[Any] = []
-        for operand_ctx in ctx.operand():
-            expr = self.visit(operand_ctx)
-            if expr is None:
-                raise DslParseException("Failed to parse operand in list constant")
-            # For now, we can't extract the actual value from FilterExpression
-            # List constants need to be handled differently - they're typically used
-            # in operations like "in" which aren't in the basic grammar
-            # This is a placeholder that will need more work
-            raise DslParseException("List constants in expressions are not yet fully supported")
+        for oper_ctx in ctx.operand():
+            values.append(self._operand_to_python_value(oper_ctx))
+        expr = FilterExpression.list_val(values)
+        return TypedExpr(expr, InferredType.LIST)
 
-    def visitOrderedMapConstant(self, ctx: ConditionParser.OrderedMapConstantContext) -> Optional[FilterExpression]:
+    def visitOrderedMapConstant(self, ctx: ConditionParser.OrderedMapConstantContext) -> ExprOrDeferred:
         """Visit ordered map constant: {key1: val1, key2: val2, ...}"""
-        # Map constants are complex - they need key-value pairs
-        # This is a placeholder that will need more work
-        raise DslParseException("Map constants in expressions are not yet fully supported")
+        result: dict = {}
+        for pair in ctx.mapPairConstant():
+            key_oper = pair.mapKeyOperand()
+            if key_oper.intOperand() is not None:
+                key = int(key_oper.intOperand().getText())
+            else:
+                key = _unquote(key_oper.stringOperand().getText())
+            value = self._operand_to_python_value(pair.operand())
+            result[key] = value
+        expr = FilterExpression.map_val(result)
+        return TypedExpr(expr, InferredType.MAP)
 
     def visitVariable(self, ctx: ConditionParser.VariableContext) -> Optional[FilterExpression]:
         """Visit variable: ${varName}"""

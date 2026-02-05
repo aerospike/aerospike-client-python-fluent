@@ -4,10 +4,138 @@ from aerospike_async import CTX, ExpType, ListReturnType, MapReturnType
 from aerospike_fluent import Exp, parse_dsl
 
 
-class TestNestedExpressions:
-    """Test nested CDT expressions."""
+class TestMapAndListExpressions:
+    """Test nested map and list CDT expressions. Order matches MapAndListExpressionsTests."""
+
+    def test_list_inside_a_map(self):
+        """Map with list value: $.mapBin1.a.[0] and $.mapBin1.a.cc.[2].get(type: INT)."""
+        expected = Exp.eq(
+            Exp.list_get_by_index(
+                ListReturnType.VALUE,
+                ExpType.INT,
+                Exp.int_val(0),
+                Exp.map_bin("mapBin1"),
+                [CTX.map_key("a")],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.mapBin1.a.[0] == 100")
+        assert result == expected
+
+        expected_gt = Exp.gt(
+            Exp.list_get_by_index(
+                ListReturnType.VALUE,
+                ExpType.INT,
+                Exp.int_val(2),
+                Exp.map_bin("mapBin1"),
+                [CTX.map_key("a"), CTX.map_key("cc")],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.mapBin1.a.cc.[2].get(type: INT) > 100")
+        assert result == expected_gt
+
+    def test_map_list_list(self):
+        """Map then list then list: $.mapBin1.a.[0].[0]."""
+        expected = Exp.eq(
+            Exp.list_get_by_index(
+                ListReturnType.VALUE,
+                ExpType.INT,
+                Exp.int_val(0),
+                Exp.map_bin("mapBin1"),
+                [CTX.map_key("a"), CTX.list_index(0)],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.mapBin1.a.[0].[0] == 100")
+        assert result == expected
+
+    def test_map_inside_a_list(self):
+        """List with map value: $.listBin1.[2].cc.get(type: INT)."""
+        expected = Exp.gt(
+            Exp.map_get_by_key(
+                MapReturnType.VALUE,
+                ExpType.INT,
+                Exp.string_val("cc"),
+                Exp.list_bin("listBin1"),
+                [CTX.list_index(2)],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.listBin1.[2].cc.get(type: INT) > 100")
+        assert result == expected
+
+    def test_list_map_map(self):
+        """List then map then map: $.listBin1.[2].aa.cc (with optional get(type: INT))."""
+        expected = Exp.gt(
+            Exp.map_get_by_key(
+                MapReturnType.VALUE,
+                ExpType.INT,
+                Exp.string_val("cc"),
+                Exp.list_bin("listBin1"),
+                [CTX.list_index(2), CTX.map_key("aa")],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.listBin1.[2].aa.cc > 100")
+        assert result == expected
+        result = parse_dsl("$.listBin1.[2].aa.cc.get(type: INT) > 100")
+        assert result == expected
+
+    def test_list_map_list(self):
+        """List then map then list: $.listBin1.[1].a.[0]."""
+        expected = Exp.eq(
+            Exp.list_get_by_index(
+                ListReturnType.VALUE,
+                ExpType.INT,
+                Exp.int_val(0),
+                Exp.list_bin("listBin1"),
+                [CTX.list_index(1), CTX.map_key("a")],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.listBin1.[1].a.[0] == 100")
+        assert result == expected
+
+    def test_list_map_list_size(self):
+        """Size of list at path: $.listBin1.[1].a.[0].count() and [].count() variant."""
+        expected = Exp.eq(
+            Exp.list_size(
+                Exp.list_get_by_index(
+                    ListReturnType.VALUE,
+                    ExpType.LIST,
+                    Exp.int_val(0),
+                    Exp.list_bin("listBin1"),
+                    [CTX.list_index(1), CTX.map_key("a")],
+                ),
+                [],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.listBin1.[1].a.[0].count() == 100")
+        assert result == expected
+        result = parse_dsl("$.listBin1.[1].a.[0].[].count() == 100")
+        assert result == expected
+
+    def test_map_list_map(self):
+        """Map then list then map: $.mapBin1.a.[0].cc (with optional get(type: INT))."""
+        expected = Exp.gt(
+            Exp.map_get_by_key(
+                MapReturnType.VALUE,
+                ExpType.INT,
+                Exp.string_val("cc"),
+                Exp.map_bin("mapBin1"),
+                [CTX.map_key("a"), CTX.list_index(0)],
+            ),
+            Exp.int_val(100),
+        )
+        result = parse_dsl("$.mapBin1.a.[0].cc > 100")
+        assert result == expected
+        result = parse_dsl("$.mapBin1.a.[0].cc.get(type: INT) > 100")
+        assert result == expected
 
     def test_nested_list_access(self):
+        """List then list: $.listBin.[0].[0] (list-list only)."""
         expected = Exp.eq(
             Exp.list_get_by_index(
                 ListReturnType.VALUE,
@@ -16,12 +144,13 @@ class TestNestedExpressions:
                 Exp.list_bin("listBin"),
                 [CTX.list_index(0)],
             ),
-            Exp.int_val(100)
+            Exp.int_val(100),
         )
         result = parse_dsl("$.listBin.[0].[0] == 100")
         assert result == expected
 
     def test_nested_map_access(self):
+        """Map then map then map: $.mapBin.a.bb.ccc (map-map-map only)."""
         expected = Exp.eq(
             Exp.map_get_by_key(
                 MapReturnType.VALUE,
@@ -30,126 +159,7 @@ class TestNestedExpressions:
                 Exp.map_bin("mapBin"),
                 [CTX.map_key("a"), CTX.map_key("bb")],
             ),
-            Exp.int_val(200)
+            Exp.int_val(200),
         )
         result = parse_dsl("$.mapBin.a.bb.ccc == 200")
-        assert result == expected
-
-
-class TestMapAndListExpressions:
-    """Test complex nested CDT expressions."""
-
-    def test_list_inside_map(self):
-        expected = Exp.eq(
-            Exp.list_get_by_index(
-                ListReturnType.VALUE,
-                ExpType.INT,
-                Exp.int_val(0),
-                Exp.map_bin("mapBin"),
-                [CTX.map_key("a")],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.mapBin.a.[0] == 100")
-        assert result == expected
-
-    def test_map_inside_list(self):
-        expected = Exp.gt(
-            Exp.map_get_by_key(
-                MapReturnType.VALUE,
-                ExpType.INT,
-                Exp.string_val("cc"),
-                Exp.list_bin("listBin"),
-                [CTX.list_index(2)],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.listBin.[2].cc > 100")
-        assert result == expected
-
-    def test_map_list_list(self):
-        expected = Exp.eq(
-            Exp.list_get_by_index(
-                ListReturnType.VALUE,
-                ExpType.INT,
-                Exp.int_val(0),
-                Exp.map_bin("mapBin"),
-                [CTX.map_key("a"), CTX.list_index(0)],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.mapBin.a.[0].[0] == 100")
-        assert result == expected
-
-    def test_list_map_map(self):
-        expected = Exp.gt(
-            Exp.map_get_by_key(
-                MapReturnType.VALUE,
-                ExpType.INT,
-                Exp.string_val("cc"),
-                Exp.list_bin("listBin"),
-                [CTX.list_index(2), CTX.map_key("aa")],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.listBin.[2].aa.cc > 100")
-        assert result == expected
-
-    def test_list_map_list(self):
-        expected = Exp.eq(
-            Exp.list_get_by_index(
-                ListReturnType.VALUE,
-                ExpType.INT,
-                Exp.int_val(0),
-                Exp.list_bin("listBin"),
-                [CTX.list_index(1), CTX.map_key("a")],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.listBin.[1].a.[0] == 100")
-        assert result == expected
-
-    def test_deep_nesting(self):
-        expected = Exp.gt(
-            Exp.list_get_by_index(
-                ListReturnType.VALUE,
-                ExpType.INT,
-                Exp.int_val(2),
-                Exp.map_bin("mapBin"),
-                [CTX.map_key("a"), CTX.map_key("cc")],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.mapBin.a.cc.[2] > 100")
-        assert result == expected
-
-    def test_map_list_map(self):
-        expected = Exp.gt(
-            Exp.map_get_by_key(
-                MapReturnType.VALUE,
-                ExpType.INT,
-                Exp.string_val("cc"),
-                Exp.map_bin("mapBin"),
-                [CTX.map_key("a"), CTX.list_index(0)],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.mapBin.a.[0].cc > 100")
-        assert result == expected
-
-    def test_list_map_list_size(self):
-        expected = Exp.eq(
-            Exp.list_size(
-                Exp.list_get_by_index(
-                    ListReturnType.VALUE,
-                    ExpType.LIST,
-                    Exp.int_val(0),
-                    Exp.list_bin("listBin"),
-                    [CTX.list_index(1), CTX.map_key("a")],
-                ),
-                [],
-            ),
-            Exp.int_val(100)
-        )
-        result = parse_dsl("$.listBin.[1].a.[0].count() == 100")
         assert result == expected

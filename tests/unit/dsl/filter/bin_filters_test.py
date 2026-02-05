@@ -1,7 +1,6 @@
 """Unit tests for bin filter generation.
 
-Order and scenarios match JFC BinFiltersTests. Each JFC parseFilterAndCompare
-or assertThat(parseFilter(...)).isNull() is a separate test for clear failure isolation.
+Each parseFilterAndCompare or assert filter null is a separate test for clear failure isolation.
 """
 
 import pytest
@@ -33,7 +32,7 @@ def _assert_equal_filter(result, bin_name: str, value) -> None:
 
 
 def _index_ctx():
-    """Index context with intBin1 (numeric) and stringBin1 (string). JFC INDEX_FILTER_INPUT."""
+    """Index context with intBin1 (numeric) and stringBin1 (string)."""
     indexes = [
         Index(bin="intBin1", index_type=IndexTypeEnum.NUMERIC, namespace="test", bin_values_ratio=1),
         Index(bin="stringBin1", index_type=IndexTypeEnum.STRING, namespace="test", bin_values_ratio=1),
@@ -51,7 +50,7 @@ def _index_ctx_int_bins():
 
 
 class TestBinFiltersGT:
-    """JFC binGT() — filter generation for greater-than."""
+    """Filter generation for greater-than."""
 
     def test_bin_gt_1(self):
         """$.intBin1 > 100 → range(intBin1, 101, MAX)."""
@@ -97,7 +96,7 @@ class TestBinFiltersGT:
 
 
 class TestBinFiltersGTLogicalCombinations:
-    """JFC binGT_logical_combinations() — AND with two indexed bins; no indexes."""
+    """AND with two indexed bins; no indexes."""
 
     def test_bin_gt_logical_combinations_1(self):
         """$.intBin1 > 100 and $.intBin2 < 1000 with indexes → Filter on intBin2 (higher cardinality), range(intBin2, MIN, 999)."""
@@ -116,7 +115,7 @@ class TestBinFiltersGTLogicalCombinations:
 
 
 class TestBinFiltersGE:
-    """JFC binGE() — filter generation for greater-than-or-equal."""
+    """Filter generation for greater-than-or-equal."""
 
     def test_bin_ge_1(self):
         """$.intBin1 >= 100 → range(intBin1, 100, MAX)."""
@@ -132,7 +131,7 @@ class TestBinFiltersGE:
 
 
 class TestBinFiltersLT:
-    """JFC binLT() — filter generation for less-than."""
+    """Filter generation for less-than."""
 
     def test_bin_lt_1(self):
         """$.intBin1 < 100 → range(intBin1, MIN, 99)."""
@@ -148,7 +147,7 @@ class TestBinFiltersLT:
 
 
 class TestBinFiltersLE:
-    """JFC binLE() — filter generation for less-than-or-equal."""
+    """Filter generation for less-than-or-equal."""
 
     def test_bin_le_1(self):
         """$.intBin1 <= 100 → range(intBin1, MIN, 100)."""
@@ -164,7 +163,7 @@ class TestBinFiltersLE:
 
 
 class TestBinFiltersEQ:
-    """JFC binEQ() — filter generation for equality."""
+    """Filter generation for equality."""
 
     def test_bin_eq_1(self):
         """$.intBin1 == 100 → equal(intBin1, 100)."""
@@ -192,7 +191,7 @@ class TestBinFiltersEQ:
 
 
 class TestBinFiltersNOTEQ:
-    """JFC binNOTEQ() — NOT EQUAL is not supported by secondary index filter; filter is None."""
+    """NOT EQUAL is not supported by secondary index filter; filter is None."""
 
     def test_bin_noteq_1(self):
         """$.intBin1 != 100 — not supported by secondary index filter."""
