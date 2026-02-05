@@ -48,6 +48,12 @@ class TestImplicitTypes:
         result = parse_dsl("not($.boolBin1)")
         assert result == expected
 
+    def test_bin_boolean_implicit_logical_exclusive(self):
+        """Test exclusive($.boolBin1, $.boolBin2)."""
+        expected = Exp.xor([Exp.bool_bin("boolBin1"), Exp.bool_bin("boolBin2")])
+        result = parse_dsl("exclusive($.boolBin1, $.boolBin2)")
+        assert result == expected
+
     def test_implicit_default_int_comparison(self):
         """Test $.intBin1 < $.intBin2."""
         expected = Exp.lt(Exp.int_bin("intBin1"), Exp.int_bin("intBin2"))

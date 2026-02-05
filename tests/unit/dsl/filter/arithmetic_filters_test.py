@@ -1,11 +1,11 @@
 """Unit tests for arithmetic filter generation.
 
+Each parseFilterAndCompare or assert filter null is a separate test for clear failure isolation.
 """
 
 from aerospike_async import Filter
 from aerospike_fluent import Index, IndexContext, IndexTypeEnum, parse_dsl_with_index
 
-# Java Long.MIN_VALUE, Long.MAX_VALUE
 MIN = -(2**63)
 MAX = 2**63 - 1
 
@@ -18,7 +18,7 @@ def _assert_range_filter(result, bin_name: str, range_min: int, range_max: int) 
 
 
 def _index_ctx():
-    """Index context with apples and bananas numeric indexes (JFC INDEX_FILTER_INPUT)."""
+    """Index context with apples and bananas numeric indexes."""
     indexes = [
         Index(bin="apples", index_type=IndexTypeEnum.NUMERIC, namespace="test1", bin_values_ratio=1),
         Index(bin="bananas", index_type=IndexTypeEnum.NUMERIC, namespace="test1", bin_values_ratio=1),
@@ -27,7 +27,7 @@ def _index_ctx():
 
 
 class TestArithmeticFiltersAdd:
-    """JFC add() — filter generation for addition in range expressions."""
+    """Filter generation for addition in range expressions."""
 
     def test_add_1(self):
         """Two bins: ($.apples + $.bananas) > 10 — not supported by secondary index filter."""
@@ -97,7 +97,7 @@ class TestArithmeticFiltersAdd:
 
 
 class TestArithmeticFiltersSub:
-    """JFC sub() — filter generation for subtraction."""
+    """Filter generation for subtraction."""
 
     def test_sub_1(self):
         """($.apples - $.bananas) > 10 — not supported by secondary index filter."""
@@ -190,7 +190,7 @@ class TestArithmeticFiltersSub:
 
 
 class TestArithmeticFiltersMul:
-    """JFC mul() — filter generation for multiplication."""
+    """Filter generation for multiplication."""
 
     def test_mul_1(self):
         """($.apples * $.bananas) > 10 — not supported by secondary index filter."""
@@ -290,7 +290,7 @@ class TestArithmeticFiltersMul:
 
 
 class TestArithmeticFiltersDivTwoBins:
-    """JFC div_twoBins()."""
+    """Division with two bins."""
 
     def test_div_two_bins_1(self):
         """($.apples / $.bananas) <= 10 — not supported by secondary index filter."""
@@ -300,7 +300,7 @@ class TestArithmeticFiltersDivTwoBins:
 
 
 class TestArithmeticFiltersDivBinDividedLeftLarger:
-    """JFC div_binIsDivided_leftNumberIsLarger — bin is dividend, divisor constant larger than result."""
+    """Bin is dividend, divisor constant larger than result."""
 
     def test_div_bin_divided_left_larger_1(self):
         """($.apples / 50) > 10 → range(apples, 501, MAX)."""
@@ -400,7 +400,7 @@ class TestArithmeticFiltersDivBinDividedLeftLarger:
 
 
 class TestArithmeticFiltersDivBinDividedLeftSmaller:
-    """JFC div_binIsDivided_leftNumberIsSmaller."""
+    """Bin is dividend, divisor constant smaller."""
 
     def test_div_bin_divided_left_smaller_1(self):
         """($.apples / 5) > 10 → range(apples, 51, MAX)."""
@@ -500,7 +500,7 @@ class TestArithmeticFiltersDivBinDividedLeftSmaller:
 
 
 class TestArithmeticFiltersDivBinDividedLeftEquals:
-    """JFC div_binIsDivided_leftNumberEqualsRight."""
+    """Bin is dividend, divisor constant equals result."""
 
     def test_div_bin_divided_left_equals_1(self):
         """($.apples / 5) > 5 → range(apples, 26, MAX)."""
@@ -552,7 +552,7 @@ class TestArithmeticFiltersDivBinDividedLeftEquals:
 
 
 class TestArithmeticFiltersDivBinDivisorLeftLarger:
-    """JFC div_binIsDivisor_leftNumberIsLarger — bin is divisor."""
+    """Bin is divisor, dividend constant larger."""
 
     def test_div_bin_divisor_left_larger_1(self):
         """(90 / $.bananas) > 10 → range(bananas, 1, 8)."""
@@ -652,7 +652,7 @@ class TestArithmeticFiltersDivBinDivisorLeftLarger:
 
 
 class TestArithmeticFiltersDivBinDivisorLeftSmaller:
-    """JFC div_binIsDivisor_leftNumberIsSmaller — all yield null."""
+    """Bin is divisor, dividend constant smaller — all yield null."""
 
     def test_div_bin_divisor_left_smaller_1(self):
         """(9 / $.bananas) > 10 — no integer numbers."""
@@ -764,7 +764,7 @@ class TestArithmeticFiltersDivBinDivisorLeftSmaller:
 
 
 class TestArithmeticFiltersDivBinDivisorLeftEquals:
-    """JFC div_binIsDivisor_leftNumberEqualsRight."""
+    """Bin is divisor, dividend constant equals divisor."""
 
     def test_div_bin_divisor_left_equals_1(self):
         """(90 / $.bananas) > 90 — no integer numbers."""

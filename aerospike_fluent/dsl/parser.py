@@ -25,11 +25,19 @@ from aerospike_async import CTX, Filter, FilterExpression
 from aerospike_fluent.dsl.filter_gen import Index, IndexContext, IndexTypeEnum, ParseResult
 
 from antlr4 import InputStream, CommonTokenStream
+from antlr4.error.ErrorListener import ErrorListener
 
 from aerospike_fluent.dsl.antlr4.generated.ConditionLexer import ConditionLexer
 from aerospike_fluent.dsl.antlr4.generated.ConditionParser import ConditionParser
 from aerospike_fluent.dsl.exceptions import DslParseException
-from aerospike_fluent.dsl.visitor import (
+
+
+class _DSLParseErrorListener(ErrorListener):
+    """Error listener that raises on first syntax error (no recovery)."""
+
+    def syntaxError(self, recognizer, offending_symbol, line, column, msg, e):
+        raise DslParseException(f"line {line}:{column} {msg}")
+from aerospike_fluent.dsl.exp_visitor import (
     CDTPath,
     ExpressionConditionVisitor,
     ListIndexPart,
@@ -139,8 +147,10 @@ class DSLParser:
             # 3. Create token stream
             token_stream = CommonTokenStream(lexer)
 
-            # 4. Create parser
+            # 4. Create parser and install error listener so syntax errors raise
             parser = ConditionParser(token_stream)
+            parser.removeErrorListeners()
+            parser.addErrorListener(_DSLParseErrorListener())
 
             # 5. Parse to get parse tree
             parse_tree = parser.parse()
@@ -222,6 +232,8 @@ def parse_ctx(path: str) -> List[CTX]:
         lexer = ConditionLexer(input_stream)
         token_stream = CommonTokenStream(lexer)
         parser = ConditionParser(token_stream)
+        parser.removeErrorListeners()
+        parser.addErrorListener(_DSLParseErrorListener())
         parse_tree = parser.parse()
 
         # Use visitor in ctx_only mode to preserve CDTPath without finalization
@@ -236,7 +248,7 @@ def parse_ctx(path: str) -> List[CTX]:
             )
 
         # Handle DeferredBin (bare bin name like $.listBin)
-        from aerospike_fluent.dsl.visitor import DeferredBin
+        from aerospike_fluent.dsl.exp_visitor import DeferredBin
         if isinstance(result, DeferredBin):
             raise DslParseException("CDT context is not provided")
 

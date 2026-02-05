@@ -55,7 +55,6 @@ class TestExplicitTypes:
             parse_dsl("$.stringBin1.get(type: STRING) == yes")
 
     # Blob comparison tests
-    @pytest.mark.skip(reason="Blob base64 decoding in DSL not yet implemented")
     def test_blob_comparison(self):
         """Test $.blobBin1.get(type: BLOB) == base64_encoded_data."""
         import base64
@@ -65,7 +64,6 @@ class TestExplicitTypes:
         result = parse_dsl(f'$.blobBin1.get(type: BLOB) == "{encoded}"')
         assert result == expected
 
-    @pytest.mark.skip(reason="Blob base64 decoding in DSL not yet implemented")
     def test_blob_comparison_reversed(self):
         """Test base64_encoded_data == $.blobBin1.get(type: BLOB)."""
         import base64
@@ -101,213 +99,200 @@ class TestExplicitTypes:
         result = parse_dsl("true == $.boolBin1.get(type: BOOL)")
         assert result == expected
 
-    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
     def test_boolean_comparison_negative_type_mismatch(self):
         """Test that BOOL compared to INT raises error."""
         with pytest.raises(DslParseException, match="Cannot compare BOOL to INT"):
             parse_dsl("$.boolBin1.get(type: BOOL) == 5")
 
     # List comparison tests - constant on right side
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_single_int(self):
         """Test $.listBin1.get(type: LIST) == [100]."""
         expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val([100]))
         result = parse_dsl("$.listBin1.get(type: LIST) == [100]")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_shorthand(self):
         """Test $.listBin1.[] == [100]."""
         expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val([100]))
         result = parse_dsl("$.listBin1.[] == [100]")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_multiple_ints(self):
         """Test $.listBin1.get(type: LIST) == [100, 200, 300, 400]."""
         expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val([100, 200, 300, 400]))
         result = parse_dsl("$.listBin1.get(type: LIST) == [100, 200, 300, 400]")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_single_string(self):
         """Test $.listBin1.get(type: LIST) == ['yes']."""
         expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val(["yes"]))
         result = parse_dsl("$.listBin1.get(type: LIST) == ['yes']")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_multiple_strings(self):
         """Test $.listBin1.get(type: LIST) == ['yes', 'of course']."""
         expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val(["yes", "of course"]))
         result = parse_dsl("$.listBin1.get(type: LIST) == ['yes', 'of course']")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_double_quote_strings(self):
         """Test $.listBin1.get(type: LIST) == ["yes", "of course"]."""
         expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val(["yes", "of course"]))
         result = parse_dsl('$.listBin1.get(type: LIST) == ["yes", "of course"]')
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_negative_unquoted_strings(self):
         """Test that unquoted strings in list raise error."""
         with pytest.raises(DslParseException):
             parse_dsl("$.listBin1.get(type: LIST) == [yes, of course]")
 
     # List comparison tests - constant on left side
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_left_single_int(self):
         """Test [100] == $.listBin1.get(type: LIST)."""
         expected = Exp.eq(Exp.list_val([100]), Exp.list_bin("listBin1"))
         result = parse_dsl("[100] == $.listBin1.get(type: LIST)")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_left_shorthand(self):
         """Test [100] == $.listBin1.[]."""
         expected = Exp.eq(Exp.list_val([100]), Exp.list_bin("listBin1"))
         result = parse_dsl("[100] == $.listBin1.[]")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_left_multiple_ints(self):
         """Test [100, 200, 300, 400] == $.listBin1.get(type: LIST)."""
         expected = Exp.eq(Exp.list_val([100, 200, 300, 400]), Exp.list_bin("listBin1"))
         result = parse_dsl("[100, 200, 300, 400] == $.listBin1.get(type: LIST)")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_left_strings(self):
         """Test ['yes', 'of course'] == $.listBin1.get(type: LIST)."""
         expected = Exp.eq(Exp.list_val(["yes", "of course"]), Exp.list_bin("listBin1"))
         result = parse_dsl("['yes', 'of course'] == $.listBin1.get(type: LIST)")
         assert result == expected
 
-    @pytest.mark.skip(reason="List constants in expressions not yet supported")
     def test_list_comparison_left_negative_unquoted(self):
         """Test that unquoted strings on left raise error."""
         with pytest.raises(DslParseException):
             parse_dsl("[yes, of course] == $.listBin1.get(type: LIST)")
 
     # Map comparison tests - constant on right side
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_single_pair(self):
         """Test $.mapBin1.get(type: MAP) == {100:100}."""
         expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 100}))
         result = parse_dsl("$.mapBin1.get(type: MAP) == {100:100}")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_with_spaces(self):
         """Test $.mapBin1.get(type: MAP) == {100 : 100}."""
         expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 100}))
         result = parse_dsl("$.mapBin1.get(type: MAP) == {100 : 100}")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_shorthand(self):
         """Test $.mapBin1.{} == {100:100}."""
         expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 100}))
         result = parse_dsl("$.mapBin1.{} == {100:100}")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_multiple_pairs(self):
         """Test $.mapBin1.get(type: MAP) == {100:200, 300:400}."""
         expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({100: 200, 300: 400}))
         result = parse_dsl("$.mapBin1.get(type: MAP) == {100:200, 300:400}")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_blob_key_right(self):
+        """Test $.mapBin1.{} == {base64_encoded_key: 100} (blob as map key)."""
+        import base64
+        blob_key = bytes([1, 2, 3])
+        encoded = base64.b64encode(blob_key).decode("ascii")
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({encoded: 100}))
+        result = parse_dsl(f'$.mapBin1.{{}} == {{\'{encoded}\':100}}')
+        assert result == expected
+
     def test_map_comparison_string_keys(self):
         """Test $.mapBin1.get(type: MAP) == {'yes?':'yes!'}."""
         expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"yes?": "yes!"}))
         result = parse_dsl("$.mapBin1.get(type: MAP) == {'yes?':'yes!'}")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_double_quote_strings(self):
         """Test $.mapBin1.get(type: MAP) == {"yes" : "yes"}."""
         expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"yes": "yes"}))
         result = parse_dsl('$.mapBin1.get(type: MAP) == {"yes" : "yes"}')
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_nested_list_value(self):
         """Test $.mapBin1.get(type: MAP) == {"yes" : ["yes", "of course"]}."""
         expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"yes": ["yes", "of course"]}))
         result = parse_dsl('$.mapBin1.get(type: MAP) == {"yes" : ["yes", "of course"]}')
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_negative_unquoted_strings(self):
         """Test that unquoted strings in map raise error."""
         with pytest.raises(DslParseException):
             parse_dsl("$.mapBin1.get(type: MAP) == {yes, of course}")
 
-    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
     def test_map_comparison_negative_list_type(self):
         """Test that comparing MAP to LIST raises error."""
         with pytest.raises(DslParseException, match="Cannot compare MAP to LIST"):
             parse_dsl("$.mapBin1.get(type: MAP) == ['yes', 'of course']")
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_negative_list_key(self):
         """Test that list as map key raises error."""
         with pytest.raises(DslParseException):
             parse_dsl("$.mapBin1.get(type: MAP) == {[100]:[100]}")
 
     # Map comparison tests - constant on left side
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
+    def test_map_comparison_left_blob_key(self):
+        """Test {base64_encoded_key: 100} == $.mapBin1.{} (blob as map key)."""
+        import base64
+        blob_key = bytes([1, 2, 3])
+        encoded = base64.b64encode(blob_key).decode("ascii")
+        expected = Exp.eq(Exp.map_val({encoded: 100}), Exp.map_bin("mapBin1"))
+        result = parse_dsl(f"{{'{encoded}':100}} == $.mapBin1.{{}}")
+        assert result == expected
+
     def test_map_comparison_left_single_pair(self):
         """Test {100:100} == $.mapBin1.get(type: MAP)."""
         expected = Exp.eq(Exp.map_val({100: 100}), Exp.map_bin("mapBin1"))
         result = parse_dsl("{100:100} == $.mapBin1.get(type: MAP)")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_left_shorthand(self):
         """Test {100:100} == $.mapBin1.{}."""
         expected = Exp.eq(Exp.map_val({100: 100}), Exp.map_bin("mapBin1"))
         result = parse_dsl("{100:100} == $.mapBin1.{}")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_left_multiple_pairs(self):
         """Test {100:200, 300:400} == $.mapBin1.get(type: MAP)."""
         expected = Exp.eq(Exp.map_val({100: 200, 300: 400}), Exp.map_bin("mapBin1"))
         result = parse_dsl("{100:200, 300:400} == $.mapBin1.get(type: MAP)")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_left_string_keys(self):
         """Test {'yes?':'yes!'} == $.mapBin1.get(type: MAP)."""
         expected = Exp.eq(Exp.map_val({"yes?": "yes!"}), Exp.map_bin("mapBin1"))
         result = parse_dsl("{'yes?':'yes!'} == $.mapBin1.get(type: MAP)")
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_left_nested_list(self):
         """Test {"yes" : ["yes", "of course"]} == $.mapBin1.get(type: MAP)."""
         expected = Exp.eq(Exp.map_val({"yes": ["yes", "of course"]}), Exp.map_bin("mapBin1"))
         result = parse_dsl('{"yes" : ["yes", "of course"]} == $.mapBin1.get(type: MAP)')
         assert result == expected
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_left_negative_unquoted(self):
         """Test that unquoted strings on left raise error."""
         with pytest.raises(DslParseException):
             parse_dsl("{yes, of course} == $.mapBin1.get(type: MAP)")
 
-    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
     def test_map_comparison_left_negative_list_type(self):
         """Test that comparing LIST to MAP raises error."""
         with pytest.raises(DslParseException, match="Cannot compare MAP to LIST"):
             parse_dsl("['yes', 'of course'] == $.mapBin1.get(type: MAP)")
 
-    @pytest.mark.skip(reason="Map constants in expressions not yet supported")
     def test_map_comparison_left_negative_list_key(self):
         """Test that list as map key on left raises error."""
         with pytest.raises(DslParseException):
@@ -338,7 +323,6 @@ class TestExplicitTypes:
         result = parse_dsl("$.blobBin1.get(type: BLOB) == $.blobBin2.get(type: BLOB)")
         assert result == expected
 
-    @pytest.mark.skip(reason="Type mismatch validation not yet implemented")
     def test_two_different_types_negative(self):
         """Test that comparing STRING to FLOAT raises error."""
         with pytest.raises(DslParseException, match="Cannot compare STRING to FLOAT"):

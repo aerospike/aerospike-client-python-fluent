@@ -1,4 +1,4 @@
-"""Example demonstrating Session usage, matching Java fluent client API."""
+"""Example demonstrating Session usage."""
 
 import asyncio
 from datetime import timedelta
@@ -8,15 +8,15 @@ from aerospike_fluent import Behavior, DataSet, FluentClient
 
 async def main():
     """Demonstrate Session usage."""
-    # Create a client (similar to Cluster in Java)
+    # Create a client (cluster connection)
     async with FluentClient("localhost:3000") as client:
-        # Create a session with default behavior (like Java: cluster.createSession(Behavior.DEFAULT))
+        # Create a session with default behavior
         session = client.create_session(Behavior.DEFAULT)
 
         # Create a DataSet
         users = DataSet.of("test", "users")
 
-        # Java-style operations using Session
+        # Operations using Session
         # 1. Upsert (create or update)
         key = users.id("user123")
         await session.upsert(key=key).put({"name": "John", "age": 30, "city": "New York"})
