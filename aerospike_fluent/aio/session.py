@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import typing
-from typing import List, Optional, Union
+from typing import Awaitable, Dict, List, Optional, overload, Union
 
 from aerospike_async import Key, RecordExistsAction, WritePolicy
 
@@ -378,20 +378,46 @@ class Session:
         """
         return self._client.transaction_session()
 
-    def info(self) -> InfoCommands:
+    @overload
+    def info(self) -> InfoCommands: ...
+
+    @overload
+    def info(self, command: str) -> Awaitable[Dict[str, str]]: ...
+
+    def info(
+        self, command: Optional[str] = None
+    ) -> Union[InfoCommands, Awaitable[Dict[str, str]]]:
         """
-        Get an InfoCommands interface for executing info commands.
+        Execute info commands or get the InfoCommands helper.
+
+        With no argument, returns an InfoCommands instance for high-level
+        helpers (namespaces(), namespace_details(), etc.) and for
+        info_on_all_nodes().
+
+        With a command string, runs the raw info command and returns its
+        result (awaitable).
+
+        Args:
+            command: Optional. If given, the raw info command to run
+                (e.g. "sindex-list", "build").
 
         Returns:
-            An InfoCommands instance for querying cluster metadata.
+            If command is None: InfoCommands instance.
+            If command is given: awaitable dict (node -> response).
 
         Example:
             ```python
+            # Raw command (no double .info)
+            response = await session.info("sindex-list")
+
+            # High-level helpers
             info = session.info()
             namespaces = await info.namespaces()
-            ns_detail = await info.namespace_details("test")
+            by_node = await info.info_on_all_nodes("build")
             ```
         """
+        if command is not None:
+            return self._client._async_client.info(command)
         from aerospike_fluent.aio.info import InfoCommands
         return InfoCommands(self)
 

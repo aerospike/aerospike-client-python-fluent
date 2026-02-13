@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List, Optional, Union
+from typing import Any, List, Optional, overload, Union
 
 from aerospike_async import (
     BasePolicy,
@@ -148,26 +148,56 @@ class QueryBuilder:
         self._filter_expression = expression
         return self
     
-    def where(self, expression: str) -> QueryBuilder:
+    @overload
+    def where(self, expression: str) -> QueryBuilder: ...
+
+    @overload
+    def where(self, expression: str, *params: Any) -> QueryBuilder: ...
+
+    @overload
+    def where(self, expression: FilterExpression) -> QueryBuilder: ...
+
+    def where(
+        self,
+        expression: Union[str, FilterExpression],
+        *params: Any,
+    ) -> QueryBuilder:
         """
-        Add a DSL expression to the query.
-        
-        This method accepts a text DSL string that is parsed into a FilterExpression.
-        
+        Set the query filter from a DSL string (optionally with format params) or a FilterExpression.
+
         Args:
-            expression: A DSL string (e.g., "$.country == 'US' and $.order_total > 500")
-        
+            expression: Either a DSL string (e.g., "$.country == 'US' and $.order_total > 500"),
+                a DSL string with format placeholders (e.g., "$.age > %s", "$.name == '%s'"),
+                or a FilterExpression (e.g., Exp.gt(Exp.int_bin("a"), Exp.int_val(100))).
+            *params: Optional values substituted into the DSL string via % formatting (same as JFC
+                where(String dsl, Object... params)). Only used when expression is a str; ignored
+                when expression is a FilterExpression. For string literals in DSL, include quotes
+                in the template (e.g., "$.name == '%s'" with param "Tim").
+
         Returns:
             self for method chaining.
-        
+
         Example:
             ```python
             # Using text DSL
             query = session.query(dataset).where("$.country == 'US' and $.order_total > 500")
+
+            # Using DSL with params (aligns with JFC where(String dsl, Object... params))
+            query = session.query(dataset).where("$.age > %s", 21)
+            query = session.query(dataset).where("$.age > %s and $.name == '%s'", 30, "John")
+
+            # Using FilterExpression (Exp)
+            query = session.query(dataset).where(Exp.gt(Exp.int_bin("a"), Exp.int_val(100)))
             ```
         """
-        filter_expr = parse_dsl(expression)
-        self._filter_expression = filter_expr
+        if isinstance(expression, str):
+            if params:
+                dsl = expression % params
+                self._filter_expression = parse_dsl(dsl)
+            else:
+                self._filter_expression = parse_dsl(expression)
+        else:
+            self._filter_expression = expression
         return self
 
     def with_policy(self, policy: QueryPolicy) -> QueryBuilder:

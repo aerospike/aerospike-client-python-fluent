@@ -188,7 +188,7 @@ async def test_is_cluster_stable(session):
 
 @pytest.mark.asyncio
 async def test_info_build(session):
-    """Test executing raw info command for build information."""
+    """Test executing raw info command for build information (InfoCommands style)."""
     info = session.info()
     response = await info.info("build")
 
@@ -198,12 +198,53 @@ async def test_info_build(session):
 
 @pytest.mark.asyncio
 async def test_info_statistics(session):
-    """Test executing raw info command for statistics."""
+    """Test executing raw info command for statistics (InfoCommands style)."""
     info = session.info()
     response = await info.info("statistics")
 
     assert isinstance(response, dict)
     assert len(response) > 0, "Statistics should contain data"
+
+
+@pytest.mark.asyncio
+async def test_info_direct_build(session):
+    """Test session.info(command) style for build (new style, no .info().info())."""
+    response = await session.info("build")
+
+    assert isinstance(response, dict)
+    assert len(response) > 0, "Build info should contain data"
+
+
+@pytest.mark.asyncio
+async def test_info_direct_statistics(session):
+    """Test session.info(command) style for statistics (new style)."""
+    response = await session.info("statistics")
+
+    assert isinstance(response, dict)
+    assert len(response) > 0, "Statistics should contain data"
+
+
+@pytest.mark.asyncio
+async def test_info_direct_sindex_list(session):
+    """Test session.info(command) style for sindex-list (new style)."""
+    response = await session.info("sindex-list")
+
+    assert isinstance(response, dict)
+    assert len(response) > 0, "sindex-list should return data from at least one node"
+
+
+@pytest.mark.asyncio
+async def test_info_both_styles_equivalent(session):
+    """Test that session.info(cmd) and session.info().info(cmd) return equivalent results."""
+    direct = await session.info("build")
+    via_commands = await session.info().info("build")
+
+    assert isinstance(direct, dict)
+    assert isinstance(via_commands, dict)
+    assert len(direct) == len(via_commands), "Both styles should return same number of node entries"
+    assert set(direct.keys()) == set(via_commands.keys()), "Same node keys"
+    for key in direct:
+        assert direct[key] == via_commands[key], f"Same content for node {key}"
 
 
 @pytest.mark.asyncio

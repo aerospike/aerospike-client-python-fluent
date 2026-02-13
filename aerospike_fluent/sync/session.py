@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import typing
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, overload, Union
 
 from aerospike_async import Key
 
@@ -153,8 +153,33 @@ class SyncSession:
 
         self._loop_manager.run_async(_truncate())
 
-    def info(self) -> "SyncInfoCommands":
-        """Get an InfoCommands interface for executing info commands (synchronous)."""
+    @overload
+    def info(self) -> "SyncInfoCommands": ...
+
+    @overload
+    def info(self, command: str) -> Dict[str, str]: ...
+
+    def info(
+        self, command: Optional[str] = None
+    ) -> Union["SyncInfoCommands", Dict[str, str]]:
+        """
+        Execute info commands or get the SyncInfoCommands helper (synchronous).
+
+        With no argument, returns SyncInfoCommands for high-level helpers and
+        info_on_all_nodes(). With a command string, runs the raw info command
+        and returns its result.
+
+        Example:
+            ```python
+            response = session.info("sindex-list")
+            info = session.info()
+            by_node = info.info_on_all_nodes("build")
+            ```
+        """
+        if command is not None:
+            async def _info():
+                return await self._async_session.info(command)
+            return self._loop_manager.run_async(_info())
         from aerospike_fluent.sync.info import SyncInfoCommands
         return SyncInfoCommands(self._async_session.info(), self._loop_manager)
 

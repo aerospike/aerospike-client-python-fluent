@@ -116,6 +116,33 @@ class FluentClient:
             raise RuntimeError("Client is not connected. Call connect() first or use async with.")
         return self._client
 
+    @property
+    def underlying_client(self) -> AsyncClient:
+        """
+        The underlying aerospike_async (PAC) Client for direct API access.
+
+        Use this when you need PAC calls that are not wrapped by the fluent API,
+        e.g. info(), nodes(), get_node(). The returned client is the same
+        instance used internally by the fluent API.
+
+        Example:
+            ```python
+            async with FluentClient("localhost:3000") as client:
+                pac = client.underlying_client
+                response = await pac.info("sindex-list")
+                nodes = await pac.nodes()
+                node = await pac.get_node(nodes[0].name)
+                response = await node.info("build")
+            ```
+
+        Returns:
+            The aerospike_async Client instance.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+        """
+        return self._async_client
+
     @overload
     def key_value(
         self,
