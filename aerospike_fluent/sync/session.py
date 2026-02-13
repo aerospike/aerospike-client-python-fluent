@@ -413,6 +413,63 @@ class SyncSession:
         )
 
     @typing.overload
+    def replace_if_exists(
+        self,
+        key: Key,
+    ) -> "SyncKeyValueOperation":
+        """Create a replace-if-exists operation builder for a single Key."""
+        ...
+
+    @typing.overload
+    def replace_if_exists(
+        self,
+        keys: List[Key],
+    ) -> "SyncKeyValueOperation":
+        """Create a replace-if-exists operation builder for multiple Keys (returns first key's operation)."""
+        ...
+
+    @typing.overload
+    def replace_if_exists(
+        self,
+        key1: Key,
+        key2: Key,
+        *keys: Key,
+    ) -> "SyncKeyValueOperation":
+        """Create a replace-if-exists operation builder for multiple Keys (varargs, returns first key's operation)."""
+        ...
+
+    def replace_if_exists(
+        self,
+        arg1: Optional[Union[Key, List[Key]]] = None,
+        arg2: Optional[Key] = None,
+        *keys: Key,
+        dataset: Optional[DataSet] = None,
+        namespace: Optional[str] = None,
+        set_name: Optional[str] = None,
+        key_value: Optional[Union[str, int, bytes]] = None,
+    ) -> "SyncKeyValueOperation":
+        """Convenience method for replace-if-exists operations (synchronous)."""
+        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
+
+        async_op = self._async_session.replace_if_exists(
+            arg1=arg1,
+            arg2=arg2,
+            *keys,
+            dataset=dataset,
+            namespace=namespace,
+            set_name=set_name,
+            key_value=key_value,
+        )
+        return SyncKeyValueOperation(
+            async_client=self._async_session._client,
+            namespace=async_op._namespace,
+            set_name=async_op._set_name,
+            key=async_op._key,
+            loop_manager=self._loop_manager,
+            write_policy=async_op._write_policy,
+        )
+
+    @typing.overload
     def delete(
         self,
         key: Key,

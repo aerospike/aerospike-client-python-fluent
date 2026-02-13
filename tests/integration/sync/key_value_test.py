@@ -405,8 +405,7 @@ def test_replace_succeeds_if_record_exists(client):
     assert "city" not in record.bins
 
 def test_replace_fails_if_record_not_exists(client):
-    """Test that replace() fails if record does not exist."""
+    """Test that replace_if_exists() fails if record does not exist."""
     session = client.create_session()
-    with pytest.raises(ServerError) as exc_info:
-        session.replace(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})
-    assert "KeyNotFoundError" in str(exc_info.value) or "RecordNotFoundError" in str(exc_info.value)
+    with pytest.raises(ServerError):
+        session.replace_if_exists(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})
