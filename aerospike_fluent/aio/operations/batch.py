@@ -13,6 +13,8 @@ from aerospike_async import (
     RecordExistsAction,
 )
 
+from aerospike_fluent.exceptions import convert_pac_exception
+
 if TYPE_CHECKING:
     from aerospike_async import BatchRecord
 
@@ -359,26 +361,29 @@ class BatchOperationBuilder:
         
         results: List[BatchRecord] = []
         
-        # Execute delete operations
-        if delete_keys:
-            delete_results = await self._client.batch_delete(
-                None,  # batch_policy
-                None,  # delete_policy
-                delete_keys,
-            )
-            results.extend(delete_results)
-        
-        # Execute other operations
-        if operate_keys:
-            # Create write policies based on operation types
-            # Note: batch_operate uses a single policy for all, so we use the most permissive
-            # For more control, users should use separate batch calls
-            operate_results = await self._client.batch_operate(
-                None,  # batch_policy
-                None,  # write_policy
-                operate_keys,
-                operate_ops,
-            )
-            results.extend(operate_results)
-        
+        try:
+            # Execute delete operations
+            if delete_keys:
+                delete_results = await self._client.batch_delete(
+                    None,  # batch_policy
+                    None,  # delete_policy
+                    delete_keys,
+                )
+                results.extend(delete_results)
+
+            # Execute other operations
+            if operate_keys:
+                # Create write policies based on operation types
+                # Note: batch_operate uses a single policy for all, so we use the most permissive
+                # For more control, users should use separate batch calls
+                operate_results = await self._client.batch_operate(
+                    None,  # batch_policy
+                    None,  # write_policy
+                    operate_keys,
+                    operate_ops,
+                )
+                results.extend(operate_results)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
+
         return results

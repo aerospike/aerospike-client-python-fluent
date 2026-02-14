@@ -21,6 +21,7 @@ from aerospike_async import (
     Statement,
 )
 from aerospike_fluent.dsl.parser import parse_dsl
+from aerospike_fluent.exceptions import convert_pac_exception
 
 
 class QueryBuilder:
@@ -561,7 +562,10 @@ class QueryBuilder:
             # Note: with_no_bins is handled by passing empty list [] as bins parameter to get()
             # Note: fail_on_filtered_out and respond_all_keys may not be available on ReadPolicy in Python client
             # These attributes would need to be added to the Rust client if needed
-            record = await self._client.get(read_policy, self._single_key, self._bins)
+            try:
+                record = await self._client.get(read_policy, self._single_key, self._bins)
+            except Exception as e:
+                raise convert_pac_exception(e) from e
             # Create a simple recordset wrapper for single record
             from aerospike_fluent.aio.operations._recordset_wrapper import SingleRecordRecordset
             return SingleRecordRecordset(record, self._single_key)
@@ -602,4 +606,7 @@ class QueryBuilder:
         partition_filter = self._partition_filter or PartitionFilter.all()
         statement = self._build_statement()
 
-        return await self._client.query(policy, partition_filter, statement)
+        try:
+            return await self._client.query(policy, partition_filter, statement)
+        except Exception as e:
+            raise convert_pac_exception(e) from e

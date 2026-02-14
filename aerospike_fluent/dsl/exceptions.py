@@ -12,3 +12,14 @@ class DslParseException(Exception):
     """
 
     pass
+
+
+class NoApplicableFilterError(Exception):
+    """No applicable secondary-index filter could be derived from a DSL expression.
+
+    This is an internal exception used by the DSL filter visitor to signal that
+    the expression cannot be converted into a secondary-index ``Filter``.  It is
+    not part of the public API.
+    """
+
+    pass

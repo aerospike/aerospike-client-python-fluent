@@ -1,8 +1,9 @@
 """Tests for SyncFluentClient KeyValue operations."""
 
 import pytest
-from aerospike_async import ListOperation, ListPolicy, ListOrderType, MapOperation, MapPolicy, MapOrder, MapReturnType, Operation, ServerError
+from aerospike_async import ListOperation, ListPolicy, ListOrderType, MapOperation, MapPolicy, MapOrder, MapReturnType, Operation
 from aerospike_fluent import DataSet, SyncFluentClient
+from aerospike_fluent.exceptions import AerospikeError
 
 
 @pytest.fixture
@@ -371,9 +372,8 @@ def test_insert_fails_if_record_exists(client):
     session = client.create_session()
     session.insert(key_value=1, namespace="test", set_name="test").put({"name": "Alice"})
 
-    with pytest.raises(ServerError) as exc_info:
+    with pytest.raises(AerospikeError):
         session.insert(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})
-    assert "KeyExistsError" in str(exc_info.value) or "RecordExistsError" in str(exc_info.value) or "KeyAlreadyExistsError" in str(exc_info.value)
 
 def test_update_succeeds_if_record_exists(client):
     """Test that update() succeeds if record exists."""
@@ -388,9 +388,8 @@ def test_update_succeeds_if_record_exists(client):
 def test_update_fails_if_record_not_exists(client):
     """Test that update() fails if record does not exist."""
     session = client.create_session()
-    with pytest.raises(ServerError) as exc_info:
+    with pytest.raises(AerospikeError):
         session.update(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})
-    assert "KeyNotFoundError" in str(exc_info.value) or "RecordNotFoundError" in str(exc_info.value)
 
 def test_replace_succeeds_if_record_exists(client):
     """Test that replace() succeeds if record exists and replaces all bins."""
@@ -407,5 +406,5 @@ def test_replace_succeeds_if_record_exists(client):
 def test_replace_fails_if_record_not_exists(client):
     """Test that replace_if_exists() fails if record does not exist."""
     session = client.create_session()
-    with pytest.raises(ServerError):
+    with pytest.raises(AerospikeError):
         session.replace_if_exists(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})

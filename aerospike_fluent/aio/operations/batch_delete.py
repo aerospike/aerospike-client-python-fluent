@@ -6,6 +6,8 @@ from typing import List, Optional, TYPE_CHECKING
 
 from aerospike_async import Client, Key, WritePolicy
 
+from aerospike_fluent.exceptions import convert_pac_exception
+
 if TYPE_CHECKING:
     from aerospike_async import BatchRecord
 
@@ -91,11 +93,13 @@ class BatchDeleteOperation:
         Returns:
             List of BatchRecord results, one for each key.
         """
-        # Use the async client's batch_delete for optimal performance
-        results = await self._client.batch_delete(
-            None,  # batch_policy
-            None,  # delete_policy  
-            self._keys,
-        )
+        try:
+            results = await self._client.batch_delete(
+                None,  # batch_policy
+                None,  # delete_policy
+                self._keys,
+            )
+        except Exception as e:
+            raise convert_pac_exception(e) from e
         return results
 

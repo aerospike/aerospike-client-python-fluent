@@ -6,6 +6,8 @@ from typing import List
 
 from aerospike_async import Client, Key
 
+from aerospike_fluent.exceptions import convert_pac_exception
+
 
 class BatchExistsOperation:
     """
@@ -58,10 +60,12 @@ class BatchExistsOperation:
         Returns:
             List of boolean values indicating if each key exists.
         """
-        # Use the async client's batch_exists for optimal performance
-        results = await self._client.batch_exists(
-            None,  # batch_policy
-            None,  # read_policy
-            self._keys,
-        )
+        try:
+            results = await self._client.batch_exists(
+                None,  # batch_policy
+                None,  # read_policy
+                self._keys,
+            )
+        except Exception as e:
+            raise convert_pac_exception(e) from e
         return results

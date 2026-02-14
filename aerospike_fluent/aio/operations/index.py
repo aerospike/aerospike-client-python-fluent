@@ -10,6 +10,8 @@ from aerospike_async import (
     IndexType,
 )
 
+from aerospike_fluent.exceptions import convert_pac_exception
+
 
 class IndexBuilder:
     """
@@ -115,14 +117,17 @@ class IndexBuilder:
         if not self._index_type:
             raise ValueError("index_type is required. Call numeric() or string() first.")
 
-        await self._client.create_index(
-            self._namespace,
-            self._set_name,
-            self._bin_name,
-            self._index_name,
-            self._index_type,
-            self._collection_index_type,
-        )
+        try:
+            await self._client.create_index(
+                self._namespace,
+                self._set_name,
+                self._bin_name,
+                self._index_name,
+                self._index_type,
+                self._collection_index_type,
+            )
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     async def drop(self) -> None:
         """
@@ -134,8 +139,11 @@ class IndexBuilder:
         if not self._index_name:
             raise ValueError("index_name is required. Call named() first.")
 
-        await self._client.drop_index(
-            self._namespace, self._set_name, self._index_name
-        )
+        try:
+            await self._client.drop_index(
+                self._namespace, self._set_name, self._index_name
+            )
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
 

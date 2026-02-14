@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.dataset import DataSet
-from aerospike_async.exceptions import ServerError
+from aerospike_fluent.exceptions import GenerationError
 
 
 @pytest_asyncio.fixture
@@ -100,15 +100,11 @@ class TestGeneration:
         await session.upsert(key).bin(bin_name).set_to("genvalue1").execute()
 
         # Try to update with wrong generation - should fail
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(GenerationError):
             await session.upsert(key) \
                 .ensure_generation_is(9999) \
                 .bin(bin_name).set_to("genvalue_should_fail") \
                 .execute()
-
-        # Verify it's a generation error
-        error_str = str(exc_info.value).lower()
-        assert "generation" in error_str or "gen" in error_str
 
         # Verify original value unchanged
         record = await session.key_value(key=key).get()

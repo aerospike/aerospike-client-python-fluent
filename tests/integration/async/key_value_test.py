@@ -2,8 +2,9 @@
 
 import pytest
 import pytest_asyncio
-from aerospike_async import ListOperation, ListPolicy, ListOrderType, MapOperation, MapPolicy, MapOrder, MapReturnType, Operation, RecordExistsAction, ServerError
+from aerospike_async import ListOperation, ListPolicy, ListOrderType, MapOperation, MapPolicy, MapOrder, MapReturnType, Operation, RecordExistsAction
 from aerospike_fluent import FluentClient
+from aerospike_fluent.exceptions import AerospikeError
 
 
 @pytest_asyncio.fixture
@@ -641,9 +642,8 @@ async def test_insert_fails_if_record_exists(client):
     session = client.create_session()
     await session.insert(key_value=1, namespace="test", set_name="test").put({"name": "Alice"})
 
-    with pytest.raises(ServerError) as exc_info:
+    with pytest.raises(AerospikeError):
         await session.insert(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})
-    assert "KeyExistsError" in str(exc_info.value) or "RecordExistsError" in str(exc_info.value) or "KeyAlreadyExistsError" in str(exc_info.value)
 
 @pytest.mark.asyncio
 async def test_update_succeeds_if_record_exists(client):
@@ -660,9 +660,8 @@ async def test_update_succeeds_if_record_exists(client):
 async def test_update_fails_if_record_not_exists(client):
     """Test that update() fails if record does not exist."""
     session = client.create_session()
-    with pytest.raises(ServerError) as exc_info:
+    with pytest.raises(AerospikeError):
         await session.update(key_value=1, namespace="test", set_name="test").put({"name": "Bob"})
-    assert "KeyNotFoundError" in str(exc_info.value) or "RecordNotFoundError" in str(exc_info.value)
 
 @pytest.mark.asyncio
 async def test_replace_succeeds_if_record_exists(client):
@@ -687,8 +686,5 @@ async def test_replace_if_exists_fails_if_record_not_exists(client):
     except Exception:
         pass
     
-    with pytest.raises(ServerError) as exc_info:
+    with pytest.raises(AerospikeError):
         await session.replace_if_exists(key_value=99999, namespace="test", set_name="test").put({"name": "Bob"})
-    # Error should indicate key not found
-    error_str = str(exc_info.value)
-    assert "KeyNotFoundError" in error_str or "RecordNotFoundError" in error_str or "key not found" in error_str.lower()

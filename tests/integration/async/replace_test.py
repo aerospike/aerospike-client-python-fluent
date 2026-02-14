@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.dataset import DataSet
-from aerospike_async.exceptions import ServerError
+from aerospike_fluent.exceptions import AerospikeError
 
 
 @pytest_asyncio.fixture
@@ -84,7 +84,7 @@ class TestReplaceOperations:
             pass
         
         # replace_if_exists() should fail
-        with pytest.raises(ServerError):
+        with pytest.raises(AerospikeError):
             await session.replace_if_exists(key).put({"name": "Should Fail"})
 
     async def test_replace_if_exists_replaces_existing_record(self, client: FluentClient, users: DataSet):

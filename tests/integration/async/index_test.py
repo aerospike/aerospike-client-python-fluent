@@ -4,8 +4,8 @@ import os
 import pytest
 import pytest_asyncio
 from aerospike_async import CollectionIndexType
-from aerospike_async.exceptions import AerospikeError, ServerError
 from aerospike_fluent import FluentClient
+from aerospike_fluent.exceptions import AerospikeError
 
 
 @pytest_asyncio.fixture
@@ -164,7 +164,7 @@ async def test_create_duplicate_index_fails(client):
     await client.index("test", "test").on_bin("age").named(index_name).numeric().create()
 
     # Try to create another index with same name should fail
-    with pytest.raises((AerospikeError, ServerError)):
+    with pytest.raises(AerospikeError):
         await client.index("test", "test").on_bin("name").named(index_name).string().create()
 
     # Clean up

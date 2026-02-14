@@ -18,6 +18,8 @@ from aerospike_async import (
 )
 from aerospike_async.exceptions import ServerError
 
+from aerospike_fluent.exceptions import convert_pac_exception
+
 
 class BinBuilder:
     """
@@ -409,10 +411,9 @@ class KeyValueOperation:
         try:
             return await self._client.get(policy, key, self._bins)
         except ServerError as e:
-            # Return None if key not found, re-raise other server errors
             if "KeyNotFoundError" in str(e):
                 return None
-            raise
+            raise convert_pac_exception(e) from e
 
     async def put(self, bins: Dict[str, Any]) -> None:
         """
@@ -425,7 +426,10 @@ class KeyValueOperation:
         if self._durable_delete is not None:
             policy.durable_delete = self._durable_delete
         key = self._get_key()
-        await self._client.put(policy, key, bins)
+        try:
+            await self._client.put(policy, key, bins)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     def set_bins(self, bins: Dict[str, Any]) -> KeyValueOperation:
         """
@@ -495,7 +499,10 @@ class KeyValueOperation:
         if self._durable_delete is not None:
             policy.durable_delete = self._durable_delete
         key = self._get_key()
-        return await self._client.delete(policy, key)
+        try:
+            return await self._client.delete(policy, key)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     async def exists(self) -> bool:
         """
@@ -506,7 +513,10 @@ class KeyValueOperation:
         """
         policy = self._read_policy or ReadPolicy()
         key = self._get_key()
-        return await self._client.exists(policy, key)
+        try:
+            return await self._client.exists(policy, key)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     async def add(self, bins: Dict[str, int]) -> None:
         """
@@ -517,7 +527,10 @@ class KeyValueOperation:
         """
         policy = self._write_policy or WritePolicy()
         key = self._get_key()
-        await self._client.add(policy, key, bins)
+        try:
+            await self._client.add(policy, key, bins)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     async def append(self, bins: Dict[str, str]) -> None:
         """
@@ -528,7 +541,10 @@ class KeyValueOperation:
         """
         policy = self._write_policy or WritePolicy()
         key = self._get_key()
-        await self._client.append(policy, key, bins)
+        try:
+            await self._client.append(policy, key, bins)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     async def prepend(self, bins: Dict[str, str]) -> None:
         """
@@ -539,7 +555,10 @@ class KeyValueOperation:
         """
         policy = self._write_policy or WritePolicy()
         key = self._get_key()
-        await self._client.prepend(policy, key, bins)
+        try:
+            await self._client.prepend(policy, key, bins)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     async def touch(self) -> None:
         """
@@ -547,7 +566,10 @@ class KeyValueOperation:
         """
         policy = self._write_policy or WritePolicy()
         key = self._get_key()
-        await self._client.touch(policy, key)
+        try:
+            await self._client.touch(policy, key)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     async def operate(
         self,
@@ -593,7 +615,6 @@ class KeyValueOperation:
         try:
             return await self._client.operate(policy, key, operations)
         except ServerError as e:
-            # Return None if key not found, re-raise other server errors
             if "KeyNotFoundError" in str(e):
                 return None
-            raise
+            raise convert_pac_exception(e) from e
