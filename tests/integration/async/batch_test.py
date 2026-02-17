@@ -3,12 +3,16 @@
 Tests both:
 1. Heterogeneous batch operations (different ops on different keys) - session.batch()
 2. Homogeneous batch operations (same op on multiple keys) - session.exists/delete/query with multiple keys
+3. RecordResult/RecordStream integration (result codes, or_raise, failures, first)
 """
 
 import pytest
 import pytest_asyncio
+from aerospike_async.exceptions import ResultCode
+
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.dataset import DataSet
+from aerospike_fluent.exceptions import AerospikeError
 
 
 @pytest_asyncio.fixture
@@ -44,12 +48,13 @@ class TestBatchOperations:
             pass
         
         # Insert multiple records with chained operations
-        results = await session.batch() \
+        stream = await session.batch() \
             .insert(key1).bin("name").set_to("Alice").bin("age").set_to(25) \
             .insert(key2).bin("name").set_to("Bob").bin("age").set_to(30) \
             .insert(key3).put({"name": "Charlie", "age": 35}) \
             .execute()
-        
+        results = await stream.collect()
+
         assert len(results) == 3
         
         # Verify records were created
@@ -92,12 +97,13 @@ class TestBatchOperations:
             pass
         
         # Execute mixed batch operations
-        results = await session.batch() \
+        stream = await session.batch() \
             .update(key1).bin("counter").increment_by(5) \
             .delete(key2) \
             .insert(key3).bin("status").set_to("new") \
             .execute()
-        
+        results = await stream.collect()
+
         assert len(results) == 3
         
         # Verify update worked
@@ -173,12 +179,13 @@ class TestBatchOperations:
         await session.key_value(key=key3).put({"data": "3"})
         
         # Delete all in one batch
-        results = await session.batch() \
+        stream = await session.batch() \
             .delete(key1) \
             .delete(key2) \
             .delete(key3) \
             .execute()
-        
+        results = await stream.collect()
+
         assert len(results) == 3
         
         # Verify all deleted
@@ -290,11 +297,11 @@ class TestHomogeneousBatchOperations:
         keys = users.ids(*[f"{key_prefix}{i}" for i in range(1, size + 1)])
         
         # Check existence of all keys
-        results = await session.exists(keys).respond_all_keys().execute()
-        
+        results = await (await session.exists(keys).respond_all_keys().execute()).collect()
+
         assert len(results) == size
-        for i, exists in enumerate(results):
-            assert exists is True, f"exists[{i}] is False"
+        for i, result in enumerate(results):
+            assert result.as_bool() is True, f"exists[{i}] is False"
 
     async def test_batch_reads_homogeneous(
         self, client: FluentClient, users: DataSet, setup_batch_data
@@ -313,15 +320,14 @@ class TestHomogeneousBatchOperations:
         keys = users.ids(*[f"{key_prefix}{i}" for i in range(1, size + 1)])
         
         # Read all keys with specific bin
-        recordset = await session.query(keys).bins(["bbin"]).execute()
-        
-        records = []
-        async for record in recordset:
-            records.append(record)
-        
-        assert len(records) == size
-        
-        for i, rec in enumerate(records):
+        stream = await session.query(keys).bins(["bbin"]).execute()
+
+        results = await stream.collect()
+
+        assert len(results) == size
+
+        for i, rr in enumerate(results):
+            rec = rr.record_or_raise()
             if i != 5:  # Record 6 (index 5) has integer value
                 val = rec.bins.get("bbin")
                 assert val == f"{value_prefix}{i + 1}", f"record[{i}] has wrong value"
@@ -345,16 +351,14 @@ class TestHomogeneousBatchOperations:
         keys = users.ids(*[f"{key_prefix}{i}" for i in range(1, size + 1)])
         
         # Read headers only (no bins)
-        recordset = await session.query(keys).with_no_bins().execute()
-        
-        records = []
-        async for record in recordset:
-            records.append(record)
-        
-        assert len(records) == size
-        
-        for i, rec in enumerate(records):
-            assert rec is not None
+        stream = await session.query(keys).with_no_bins().execute()
+
+        results = await stream.collect()
+
+        assert len(results) == size
+
+        for i, rr in enumerate(results):
+            rec = rr.record_or_raise()
             assert rec.generation != 0, f"record[{i}] generation is 0"
 
     async def test_batch_delete_homogeneous(
@@ -375,20 +379,20 @@ class TestHomogeneousBatchOperations:
             await session.key_value(key=key).put({"bbin": first_key + i})
         
         # Ensure keys exist
-        exists_results = await session.exists(keys).respond_all_keys().execute()
+        exists_results = await (await session.exists(keys).respond_all_keys().execute()).collect()
         assert len(exists_results) == num_keys
-        for status in exists_results:
-            assert status is True
-        
+        for result in exists_results:
+            assert result.as_bool() is True
+
         # Delete all keys using homogeneous batch delete
-        delete_results = await session.delete(keys).respond_all_keys().execute()
+        delete_results = await (await session.delete(keys).respond_all_keys().execute()).collect()
         assert len(delete_results) == num_keys
-        
+
         # Ensure keys no longer exist
-        exists_after = await session.exists(keys).respond_all_keys().execute()
+        exists_after = await (await session.exists(keys).respond_all_keys().execute()).collect()
         assert len(exists_after) == num_keys
-        for status in exists_after:
-            assert status is False
+        for result in exists_after:
+            assert result.as_bool() is False
 
     async def test_batch_exists_with_varargs(
         self, client: FluentClient, users: DataSet
@@ -406,12 +410,12 @@ class TestHomogeneousBatchOperations:
         # key3 intentionally not created
         
         # Check exists using varargs
-        results = await session.exists(key1, key2, key3).execute()
-        
+        results = await (await session.exists(key1, key2, key3).execute()).collect()
+
         assert len(results) == 3
-        assert results[0] is True   # key1 exists
-        assert results[1] is True   # key2 exists
-        assert results[2] is False  # key3 does not exist
+        assert results[0].as_bool() is True   # key1 exists
+        assert results[1].as_bool() is True   # key2 exists
+        assert results[2].as_bool() is False  # key3 does not exist
         
         # Cleanup
         await session.delete(key1).delete()
@@ -433,11 +437,149 @@ class TestHomogeneousBatchOperations:
         await session.key_value(key=key3).put({"data": "3"})
         
         # Delete using varargs
-        results = await session.delete(key1, key2, key3).execute()
-        
+        results = await (await session.delete(key1, key2, key3).execute()).collect()
+
         assert len(results) == 3
-        
+
         # Verify all deleted
-        exists_results = await session.exists(key1, key2, key3).execute()
-        for exists in exists_results:
-            assert exists is False
+        exists_results = await (await session.exists(key1, key2, key3).execute()).collect()
+        for result in exists_results:
+            assert result.as_bool() is False
+
+
+class TestRecordResultIntegration:
+    """Verify RecordResult / RecordStream behavior against a live server."""
+
+    async def test_exists_mixed_result_codes(
+        self, client: FluentClient, users: DataSet
+    ):
+        """Exists with mixed present/absent keys yields per-key result codes."""
+        session = client.create_session()
+        key_exists = users.id("rr_exists_yes")
+        key_missing = users.id("rr_exists_no")
+
+        await session.key_value(key=key_exists).put({"v": 1})
+        try:
+            await session.delete(key_missing).delete()
+        except Exception:
+            pass
+
+        stream = await session.exists(key_exists, key_missing) \
+            .respond_all_keys().execute()
+        results = await stream.collect()
+
+        assert len(results) == 2
+        assert results[0].is_ok
+        assert results[0].result_code == ResultCode.OK
+        assert not results[1].is_ok
+        assert results[1].result_code == ResultCode.KEY_NOT_FOUND_ERROR
+
+        await session.delete(key_exists).delete()
+
+    async def test_or_raise_on_not_found_result(
+        self, client: FluentClient, users: DataSet
+    ):
+        """or_raise() raises a PFC exception for a KEY_NOT_FOUND result."""
+        session = client.create_session()
+        key_exists = users.id("rr_or_raise_ok")
+        key_missing = users.id("rr_or_raise_fail")
+
+        await session.key_value(key=key_exists).put({"v": 1})
+        try:
+            await session.delete(key_missing).delete()
+        except Exception:
+            pass
+
+        stream = await session.exists(key_exists, key_missing) \
+            .respond_all_keys().execute()
+        results = await stream.collect()
+
+        # OK result returns self
+        assert results[0].or_raise() is results[0]
+
+        # Not-found result raises
+        with pytest.raises(AerospikeError) as exc_info:
+            results[1].or_raise()
+        assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
+
+        await session.delete(key_exists).delete()
+
+    async def test_failures_filters_stream(
+        self, client: FluentClient, users: DataSet
+    ):
+        """failures() returns only non-OK results from a mixed stream."""
+        session = client.create_session()
+        key1 = users.id("rr_fail_filt_1")
+        key2 = users.id("rr_fail_filt_2")
+        key3 = users.id("rr_fail_filt_3")
+
+        await session.key_value(key=key1).put({"v": 1})
+        await session.key_value(key=key2).put({"v": 2})
+        try:
+            await session.delete(key3).delete()
+        except Exception:
+            pass
+
+        stream = await session.exists(key1, key2, key3) \
+            .respond_all_keys().execute()
+        fails = await stream.failures()
+
+        assert len(fails) == 1
+        assert fails[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
+
+        await session.delete(key1).delete()
+        await session.delete(key2).delete()
+
+    async def test_first_on_query_stream(
+        self, client: FluentClient, users: DataSet
+    ):
+        """first() returns the first RecordResult from a single-key query."""
+        session = client.create_session()
+        key = users.id("rr_first")
+
+        await session.key_value(key=key).put({"v": 42})
+
+        stream = await session.query(key).execute()
+        result = await stream.first()
+
+        assert result is not None
+        assert result.is_ok
+        assert result.record_or_raise().bins["v"] == 42
+
+        await session.delete(key).delete()
+
+    async def test_first_or_raise_on_batch_query_with_missing_key(
+        self, client: FluentClient, users: DataSet
+    ):
+        """first_or_raise() raises when the first batch-query result is not OK."""
+        session = client.create_session()
+        key_missing = users.id("rr_first_or_raise_miss")
+
+        try:
+            await session.delete(key_missing).delete()
+        except Exception:
+            pass
+
+        # Batch-key query wraps results in RecordStream (no early throw)
+        keys = users.ids("rr_first_or_raise_miss")
+        stream = await session.query(keys).execute()
+
+        with pytest.raises(AerospikeError):
+            await stream.first_or_raise()
+
+    async def test_batch_delete_returns_results_for_all_keys(
+        self, client: FluentClient, users: DataSet
+    ):
+        """Batch delete returns a RecordResult per key."""
+        session = client.create_session()
+        keys = users.ids(*[f"rr_del_{i}" for i in range(3)])
+
+        for key in keys:
+            await session.key_value(key=key).put({"v": 1})
+
+        stream = await session.delete(*keys).execute()
+        results = await stream.collect()
+
+        assert len(results) == 3
+        for r in results:
+            assert r.is_ok

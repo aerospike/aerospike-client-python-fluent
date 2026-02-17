@@ -63,8 +63,9 @@ async def test_session_upsert_with_key(session):
     await session.upsert(key=key).set_bins({"name": "John", "age": 30}).execute()
 
     # Verify it was written
-    record = await session.query(key=key).execute()
-    async for rec in record:
+    stream = await session.query(key=key).execute()
+    async for result in stream:
+        rec = result.record
         assert rec.bins == {"name": "John", "age": 30}
 
 
@@ -80,8 +81,9 @@ async def test_session_upsert_with_dataset(session):
 
     # Verify it was written
     key = users.id("user456")
-    record = await session.query(key=key).execute()
-    async for rec in record:
+    stream = await session.query(key=key).execute()
+    async for result in stream:
+        rec = result.record
         assert rec.bins == {"name": "Jane", "age": 25}
 
 
@@ -96,8 +98,9 @@ async def test_session_upsert_with_namespace_set(session):
     ).set_bins({"name": "Bob", "age": 35}).execute()
 
     # Verify it was written by querying the specific key
-    recordset = await session.query(key=key).execute()
-    async for rec in recordset:
+    stream = await session.query(key=key).execute()
+    async for result in stream:
+        rec = result.record
         assert rec.bins == {"name": "Bob", "age": 35}
 
 
@@ -111,8 +114,9 @@ async def test_session_insert(session):
     await session.insert(key=key).set_bins({"name": "Insert", "value": 1}).execute()
 
     # Verify it was written
-    record = await session.query(key=key).execute()
-    async for rec in record:
+    stream = await session.query(key=key).execute()
+    async for result in stream:
+        rec = result.record
         assert rec.bins == {"name": "Insert", "value": 1}
 
 
@@ -129,8 +133,9 @@ async def test_session_update(session):
     await session.update(key=key).set_bins({"age": 21}).execute()
 
     # Verify the update
-    record = await session.query(key=key).execute()
-    async for rec in record:
+    stream = await session.query(key=key).execute()
+    async for result in stream:
+        rec = result.record
         assert rec.bins["age"] == 21
         # Note: update may or may not preserve other bins depending on implementation
         # This test just verifies the method works
@@ -206,8 +211,9 @@ async def test_session_query_delegation(session):
     await session.upsert(key=key).set_bins({"name": "QueryTest", "value": 42}).execute()
 
     # Query using session
-    recordset = await session.query(key=key).execute()
-    async for rec in recordset:
+    stream = await session.query(key=key).execute()
+    async for result in stream:
+        rec = result.record
         assert rec.bins == {"name": "QueryTest", "value": 42}
 
 
@@ -309,8 +315,9 @@ async def test_session_query_with_dataset(session):
     await session.upsert(key=key).set_bins({"name": "DatasetQuery"}).execute()
 
     # Query using DataSet by specific key
-    recordset = await session.query(key=key).execute()
-    async for rec in recordset:
+    stream = await session.query(key=key).execute()
+    async for result in stream:
+        rec = result.record
         assert rec.bins == {"name": "DatasetQuery"}
 
 
@@ -326,8 +333,9 @@ async def test_session_query_with_multiple_keys(session):
 
     # Query with multiple keys (positional argument)
     count = 0
-    recordset = await session.query(keys).execute()
-    async for rec in recordset:
+    stream = await session.query(keys).execute()
+    async for result in stream:
+        rec = result.record
         count += 1
         assert "Batch" in rec.bins["name"]
 

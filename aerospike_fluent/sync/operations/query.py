@@ -11,7 +11,6 @@ from aerospike_async import (
     PartitionFilter,
     QueryDuration,
     QueryPolicy,
-    Recordset,
     Replica,
 )
 from aerospike_fluent.dsl.parser import parse_dsl
@@ -19,6 +18,7 @@ from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.aio.operations.query import QueryBuilder
 from aerospike_fluent.sync.client import _EventLoopManager
+from aerospike_fluent.sync.record_stream import SyncRecordStream
 
 
 class SyncQueryBuilder:
@@ -444,68 +444,16 @@ class SyncQueryBuilder:
         self._respond_all_keys = True
         return self
 
-    def execute(self) -> Recordset:
-        """
-        Execute the query synchronously.
+    def execute(self) -> SyncRecordStream:
+        """Execute the query synchronously.
 
         Returns:
-            A Recordset that can be iterated synchronously.
-            Note: The Recordset itself may still use async internally,
-            but iteration will be synchronous.
+            A :class:`SyncRecordStream` that can be iterated synchronously.
         """
         builder = self._get_async_builder()
-        # Execute the async query and get the recordset
-        # The recordset iteration will need to be handled synchronously
+
         async def _execute():
             return await builder.execute()
 
-        recordset = self._loop_manager.run_async(_execute())
-        # Wrap the recordset to make iteration synchronous
-        return _SyncRecordsetWrapper(recordset, self._loop_manager)
-
-
-class _SyncRecordsetWrapper:
-    """Wrapper to make async Recordset iteration synchronous."""
-
-    def __init__(self, recordset: Recordset, loop_manager: _EventLoopManager) -> None:
-        self._recordset = recordset
-        self._loop_manager = loop_manager
-        self._iterator = None
-
-    def __iter__(self):
-        """Make the recordset iterable synchronously."""
-        return self
-
-    def __next__(self):
-        """Get the next record synchronously."""
-        if self._iterator is None:
-            # Create async iterator
-            async def _get_iterator():
-                return self._recordset.__aiter__()
-
-            self._iterator = self._loop_manager.run_async(_get_iterator())
-
-        # Get next item from async iterator
-        async def _get_next():
-            return await self._iterator.__anext__()
-
-        try:
-            return self._loop_manager.run_async(_get_next())
-        except StopAsyncIteration:
-            raise StopIteration
-
-    def __aiter__(self):
-        """Support async iteration as well."""
-        return self._recordset.__aiter__()
-
-    async def __anext__(self):
-        """Support async iteration as well."""
-        return await self._recordset.__anext__()
-
-    def close(self) -> None:
-        """Close the recordset."""
-        if self._recordset is not None:
-            async def _close():
-                self._recordset.close()
-
-            self._loop_manager.run_async(_close())
+        stream = self._loop_manager.run_async(_execute())
+        return SyncRecordStream(stream, self._loop_manager)

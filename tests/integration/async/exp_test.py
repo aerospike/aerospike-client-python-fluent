@@ -390,15 +390,15 @@ class TestExpWithQuery:
         """Test query with equality filter expression."""
         filter_exp = Exp.eq(Exp.int_bin("A"), val(1))
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] == 1
@@ -407,15 +407,15 @@ class TestExpWithQuery:
         """Test query with greater-than filter expression."""
         filter_exp = Exp.gt(Exp.int_bin("A"), val(1))
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] == 2
@@ -427,15 +427,15 @@ class TestExpWithQuery:
             Exp.eq(Exp.int_bin("D"), val(1))
         ])
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] == 1
@@ -448,15 +448,15 @@ class TestExpWithQuery:
             Exp.eq(Exp.int_bin("A"), val(2))
         ])
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
 
@@ -464,15 +464,15 @@ class TestExpWithQuery:
         """Test query with NOT filter expression."""
         filter_exp = Exp.not_(Exp.eq(Exp.int_bin("A"), val(0)))
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -485,15 +485,15 @@ class TestExpWithQuery:
             val(2)
         )
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] + records[0].bins["D"] == 2
@@ -502,15 +502,15 @@ class TestExpWithQuery:
         """Test query filtering on string bin."""
         filter_exp = Exp.eq(Exp.string_bin("C"), val("abcde"))
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["C"] == "abcde"
@@ -519,15 +519,15 @@ class TestExpWithQuery:
         """Test query that matches no records."""
         filter_exp = Exp.eq(Exp.int_bin("A"), val(999))
 
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 0
 
@@ -543,146 +543,146 @@ class TestExpWithDsl:
 
     async def test_where_eq_int(self, client_with_data):
         """Test DSL equality with automatic int inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A == 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] == 1
 
     async def test_where_gt_int(self, client_with_data):
         """Test DSL greater-than with automatic int inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A > 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] == 2
 
     async def test_where_and_int(self, client_with_data):
         """Test DSL AND expression with automatic int inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A == 1 and $.D == 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] == 1
 
     async def test_where_or_int(self, client_with_data):
         """Test DSL OR expression with automatic int inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A == 1 or $.A == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
 
     async def test_where_not_int(self, client_with_data):
         """Test DSL NOT expression with automatic int inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("not ($.A == 0)")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
 
     async def test_where_arithmetic_int(self, client_with_data):
         """Test DSL arithmetic expression with automatic int inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("($.A + $.D) == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
 
     async def test_where_string(self, client_with_data):
         """Test DSL string comparison with automatic string inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.C == 'abcde'")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["C"] == "abcde"
 
     async def test_where_complex_int(self, client_with_data):
         """Test complex DSL expression with automatic int inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("($.A > 0 and $.D == 1) or $.A == 0")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 3
 
     async def test_where_explicit_cast_still_works(self, client_with_data):
         """Test that explicit casts still work when needed."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A.asInt() == 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["A"] == 1
 
     async def test_where_float_comparison(self, client_with_data):
         """Test DSL float comparison with automatic float inference."""
-        recordset = await (
+        stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.B > 1.0")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -756,15 +756,15 @@ class TestCdtPathWithExp:
             val(10),
         )
 
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["numbers"][0] == 10
@@ -785,15 +785,15 @@ class TestCdtPathWithExp:
             val(30),
         )
 
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .filter_expression(filter_exp)
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["info"]["age"] == 30
@@ -808,15 +808,15 @@ class TestCdtPathWithDsl:
         
         Note: The DSL grammar requires a dot before brackets: .[0] not [0]
         """
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.numbers.[0] == 10")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["numbers"][0] == 10
@@ -826,45 +826,45 @@ class TestCdtPathWithDsl:
         
         Note: The DSL grammar requires a dot before brackets: .[-1] not [-1]
         """
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.numbers.[-1] == 50")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["numbers"][-1] == 50
 
     async def test_map_key_access(self, client_with_cdt_data):
         """Test DSL map key access: $.info.age == 30"""
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.info.age == 30")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["info"]["age"] == 30
 
     async def test_map_key_string_comparison(self, client_with_cdt_data):
         """Test DSL map key access with string comparison: $.info.city == 'NYC'"""
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.info.city == 'NYC'")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -875,30 +875,30 @@ class TestCdtPathWithDsl:
         
         Note: The DSL grammar requires a dot before brackets: .[0] not [0]
         """
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.numbers.[0] > 50")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["numbers"][0] > 50
 
     async def test_map_key_with_and(self, client_with_cdt_data):
         """Test DSL map key with AND: $.info.age > 25 and $.info.city == 'NYC'"""
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.info.age > 25 and $.info.city == 'NYC'")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -913,30 +913,30 @@ class TestExistsAndCount:
     async def test_bin_exists(self, client_with_cdt_data):
         """Test $.binName.exists() for checking bin existence."""
         # All records have "numbers" bin
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.numbers.exists()")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 3
 
     async def test_list_count_comparison(self, client_with_cdt_data):
         """Test $.listBin.count() for getting list size."""
         # rec1 has 5 numbers, rec2 has 5 numbers, rec3 has 3 numbers
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.numbers.count() > 3")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -945,15 +945,15 @@ class TestExistsAndCount:
     async def test_list_count_equals(self, client_with_cdt_data):
         """Test $.listBin.count() == value."""
         # rec3 has exactly 3 numbers
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.numbers.count() == 3")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert len(records[0].bins["numbers"]) == 3
@@ -961,15 +961,15 @@ class TestExistsAndCount:
     async def test_names_list_count(self, client_with_cdt_data):
         """Test count on names list."""
         # rec1: 3 names, rec2: 2 names, rec3: 1 name
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.names.count() >= 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -977,15 +977,15 @@ class TestExistsAndCount:
 
     async def test_exists_with_and(self, client_with_cdt_data):
         """Test exists() combined with other conditions."""
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.numbers.exists() and $.info.age > 30")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["info"]["age"] > 30
@@ -994,15 +994,15 @@ class TestExistsAndCount:
         """Test count() in arithmetic expressions."""
         # Count of numbers + count of names > 5
         # rec1: 5+3=8, rec2: 5+2=7, rec3: 3+1=4
-        recordset = await (
+        stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("($.numbers.count() + $.names.count()) > 5")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
 
@@ -1051,15 +1051,15 @@ class TestAdvancedListDsl:
         """Test $.list.[#-1] to get largest value (by rank)."""
         # [#-1] gets the largest value
         # rec1: 50, rec2: 45, rec3: 200, rec4: 5
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.values.[#-1] > 100")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert max(records[0].bins["values"]) > 100
@@ -1068,15 +1068,15 @@ class TestAdvancedListDsl:
         """Test $.list.[#0] to get smallest value (by rank)."""
         # [#0] gets the smallest value
         # rec1: 10, rec2: 5, rec3: 30, rec4: 1
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.values.[#0] < 5")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert min(records[0].bins["values"]) < 5
@@ -1084,15 +1084,15 @@ class TestAdvancedListDsl:
     async def test_list_by_value(self, client_with_list_data):
         """Test $.list.[=value] to find items containing specific value."""
         # rec1 and rec3 have 30 in their values list
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.values.[=30].count() > 0")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -1103,15 +1103,15 @@ class TestAdvancedListDsl:
         # [1:3] gets indices 1 and 2 (count=2)
         # We can't directly compare the returned list in DSL,
         # but we can verify it parses and executes without error
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.values.[1:3].count() == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # All records should have at least 3 elements, so [1:3] returns 2 items
         assert len(records) == 4
@@ -1123,15 +1123,15 @@ class TestAdvancedListDsl:
         # rec2: [25, 35, 45] (3 items)
         # rec3: [200] (1 item - only 3 elements total)
         # rec4: [3, 4, 5] (3 items)
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.values.[2:].count() == 3")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 3
 
@@ -1140,30 +1140,30 @@ class TestAdvancedListDsl:
         # [=10:40] gets values >= 10 and < 40
         # rec1: [10, 20, 30, 40, 50] -> [10, 20, 30] (3 items)
         # rec2: [5, 15, 25, 35, 45] -> [15, 25, 35] (3 items)
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.values.[=10:40].count() == 3")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
 
     async def test_list_rank_range(self, client_with_list_data):
         """Test $.list.[#0:2] to get smallest 2 items by rank."""
         # [#0:2] gets rank 0 and 1 (2 smallest items)
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.values.[#0:2].count() == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # All records have at least 2 items
         assert len(records) == 4
@@ -1171,15 +1171,15 @@ class TestAdvancedListDsl:
     async def test_list_value_list(self, client_with_list_data):
         """Test $.list.[=a,b,c] to find items matching value list."""
         # Find records where tags contain "alpha"
-        recordset = await (
+        stream = await (
             client_with_list_data.query("test", "list_dsl_test")
             .where("$.tags.[=alpha].count() > 0")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 2
         for rec in records:
@@ -1221,15 +1221,15 @@ class TestAdvancedMapDsl:
     async def test_map_by_value(self, client_with_map_data):
         """Test $.map.{=value} to find entries with specific value."""
         # Find records where scores contains value 100
-        recordset = await (
+        stream = await (
             client_with_map_data.query("test", "map_dsl_test")
             .where("$.scores.{=100}.count() > 0")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert 100 in records[0].bins["scores"].values()
@@ -1237,15 +1237,15 @@ class TestAdvancedMapDsl:
     async def test_map_index_range(self, client_with_map_data):
         """Test $.map.{0:2} to get first 2 entries by index."""
         # Get first 2 entries (count=2)
-        recordset = await (
+        stream = await (
             client_with_map_data.query("test", "map_dsl_test")
             .where("$.scores.{0:2}.count() == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # rec2 has only 2 entries, others have 3
         assert len(records) == 3
@@ -1256,30 +1256,30 @@ class TestAdvancedMapDsl:
         # rec1: bob=85, alice=90 (2 items)
         # rec2: eve=80 (1 item)
         # rec3: heidi=88 (1 item)
-        recordset = await (
+        stream = await (
             client_with_map_data.query("test", "map_dsl_test")
             .where("$.scores.{=80:95}.count() == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
 
     async def test_map_rank_range(self, client_with_map_data):
         """Test $.map.{#0:2} to get smallest 2 values by rank."""
         # Get 2 smallest values
-        recordset = await (
+        stream = await (
             client_with_map_data.query("test", "map_dsl_test")
             .where("$.scores.{#0:2}.count() == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 3
 
@@ -1328,15 +1328,15 @@ class TestNestedCdtDsl:
     async def test_nested_list_access(self, client_with_nested_data):
         """Test $.list.[0].[1] - nested list index access."""
         # nested_list[0][1] = 20 for rec1, 10 for rec2
-        recordset = await (
+        stream = await (
             client_with_nested_data.query("test", "nested_dsl_test")
             .where("$.nested_list.[0].[1] == 20")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["nested_list"][0][1] == 20
@@ -1344,15 +1344,15 @@ class TestNestedCdtDsl:
     async def test_nested_map_access(self, client_with_nested_data):
         """Test $.map.a.aa - nested map key access."""
         # nested_map.a.aa = 100 for rec1, 50 for rec2
-        recordset = await (
+        stream = await (
             client_with_nested_data.query("test", "nested_dsl_test")
             .where("$.nested_map.a.aa == 100")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert records[0].bins["nested_map"]["a"]["aa"] == 100
@@ -1360,45 +1360,45 @@ class TestNestedCdtDsl:
     async def test_nested_list_count(self, client_with_nested_data):
         """Test $.list.[0].count() - count of nested list."""
         # nested_list[0] has 3 elements for rec1, 2 for rec2
-        recordset = await (
+        stream = await (
             client_with_nested_data.query("test", "nested_dsl_test")
             .where("$.nested_list.[0].count() == 3")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
         assert len(records[0].bins["nested_list"][0]) == 3
 
     async def test_list_size_simple(self, client_with_nested_data):
         """Test $.list.count() - basic list size."""
-        recordset = await (
+        stream = await (
             client_with_nested_data.query("test", "nested_dsl_test")
             .where("$.simple_list.count() == 5")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
 
     async def test_nested_list_with_rank(self, client_with_nested_data):
         """Test $.list.[0].[#-1] - rank in nested list."""
         # nested_list[0] largest: 30 for rec1, 10 for rec2
-        recordset = await (
+        stream = await (
             client_with_nested_data.query("test", "nested_dsl_test")
             .where("$.nested_list.[0].[#-1] == 30")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) == 1
 
@@ -1410,15 +1410,15 @@ class TestMapKeyOperationsDsl:
     async def test_map_key_list(self, client_with_map_data):
         """Test $.map.{a,b,c} - get entries by key list."""
         # Get entries for keys alice and bob from scores
-        recordset = await (
+        stream = await (
             client_with_map_data.query("test", "map_dsl_test")
             .where("$.scores.{alice,bob}.count() == 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # Only rec1 has both alice and bob
         assert len(records) == 1
@@ -1426,15 +1426,15 @@ class TestMapKeyOperationsDsl:
     async def test_map_key_range(self, client_with_map_data):
         """Test $.map.{a-d} - get entries by key range."""
         # Get entries with keys from 'a' to 'd' (alice, bob, charlie)
-        recordset = await (
+        stream = await (
             client_with_map_data.query("test", "map_dsl_test")
             .where("$.scores.{alice-dave}.count() >= 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # rec1 has alice, bob, charlie (3 in range a-d)
         # rec2 has dave (1 in range - boundary)
@@ -1481,15 +1481,15 @@ class TestRelativeRangeDsl:
         """Test $.list.[#rank:end~value] - list value-relative rank range."""
         # Get items with rank 0 to 2 (count=2) relative to value 5
         # For rec1 [0, 4, 5, 9, 11, 15]: value 5 is at index 2, rank 0-2 relative gets [5,9]
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.numbers.[#0:2~5].count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # Just verify it executes without error - relative rank semantics are complex
         assert isinstance(records, list)
@@ -1497,15 +1497,15 @@ class TestRelativeRangeDsl:
     async def test_list_rank_range_relative_no_count(self, client_with_relative_range_data):
         """Test $.list.[#rank:~value] - list value-relative rank range without end count."""
         # Get all items from rank 0 relative to value 5
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.numbers.[#0:~5].count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # Just verify it executes without error
         assert isinstance(records, list)
@@ -1513,15 +1513,15 @@ class TestRelativeRangeDsl:
     async def test_list_rank_range_relative_inverted(self, client_with_relative_range_data):
         """Test $.list.[!#rank:end~value] - inverted list value-relative rank range."""
         # Get items NOT in rank range
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.numbers.[!#0:2~5].count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         # Just verify it executes without error
         assert isinstance(records, list)
@@ -1529,86 +1529,86 @@ class TestRelativeRangeDsl:
     async def test_map_rank_range_relative(self, client_with_relative_range_data):
         """Test $.map.{#rank:end~value} - map value-relative rank range."""
         # Get map entries with rank relative to value 80
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.scores.{#-1:1~80}.count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) >= 1
 
     async def test_map_rank_range_relative_no_count(self, client_with_relative_range_data):
         """Test $.map.{#rank:~value} - map value-relative rank range without end count."""
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.scores.{#-2:~80}.count() >= 2")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) >= 1
 
     async def test_map_rank_range_relative_inverted(self, client_with_relative_range_data):
         """Test $.map.{!#rank:end~value} - inverted map value-relative rank range."""
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.scores.{!#-1:1~80}.count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) >= 1
 
     async def test_map_index_range_relative(self, client_with_relative_range_data):
         """Test $.map.{start:end~key} - map key-relative index range."""
         # Get map entries at index 0 to 1 relative to key "bob"
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.scores.{0:1~bob}.count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) >= 1
 
     async def test_map_index_range_relative_no_count(self, client_with_relative_range_data):
         """Test $.map.{start:~key} - map key-relative index range without end count."""
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.scores.{0:~bob}.count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) >= 1
 
     async def test_map_index_range_relative_inverted(self, client_with_relative_range_data):
         """Test $.map.{!start:end~key} - inverted map key-relative index range."""
-        recordset = await (
+        stream = await (
             client_with_relative_range_data.query("test", "rel_range_test")
             .where("$.scores.{!0:1~bob}.count() >= 1")
             .execute()
         )
         records = []
-        async for record in recordset:
-            records.append(record)
-        recordset.close()
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
 
         assert len(records) >= 1
 

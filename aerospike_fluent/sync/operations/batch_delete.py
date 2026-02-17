@@ -9,6 +9,7 @@ from aerospike_async import WritePolicy
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.aio.operations.batch_delete import BatchDeleteOperation
 from aerospike_fluent.sync.client import _EventLoopManager
+from aerospike_fluent.sync.record_stream import SyncRecordStream
 
 
 class SyncBatchDeleteOperation:
@@ -66,13 +67,14 @@ class SyncBatchDeleteOperation:
         self._write_policy.durable_delete = durable
         return self
 
-    def execute(self) -> None:
-        """
-        Execute the batch delete operation.
-        
-        This deletes all keys in the batch synchronously.
+    def execute(self) -> SyncRecordStream:
+        """Execute the batch delete operation synchronously.
+
+        Returns:
+            A :class:`SyncRecordStream` of per-key :class:`RecordResult` items.
         """
         op = self._get_async_operation()
-        self._loop_manager.run_async(op.execute())
+        stream = self._loop_manager.run_async(op.execute())
+        return SyncRecordStream(stream, self._loop_manager)
 
 

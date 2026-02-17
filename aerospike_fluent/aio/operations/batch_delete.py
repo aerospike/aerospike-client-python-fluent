@@ -7,9 +7,7 @@ from typing import List, Optional, TYPE_CHECKING
 from aerospike_async import Client, Key, WritePolicy
 
 from aerospike_fluent.exceptions import convert_pac_exception
-
-if TYPE_CHECKING:
-    from aerospike_async import BatchRecord
+from aerospike_fluent.record_stream import RecordStream
 
 
 class BatchDeleteOperation:
@@ -86,12 +84,11 @@ class BatchDeleteOperation:
         self._respond_all_keys = True
         return self
 
-    async def execute(self) -> List["BatchRecord"]:
-        """
-        Execute the batch delete operation.
-        
+    async def execute(self) -> RecordStream:
+        """Execute the batch delete operation.
+
         Returns:
-            List of BatchRecord results, one for each key.
+            A :class:`RecordStream` of per-key :class:`RecordResult` items.
         """
         try:
             results = await self._client.batch_delete(
@@ -101,5 +98,5 @@ class BatchDeleteOperation:
             )
         except Exception as e:
             raise convert_pac_exception(e) from e
-        return results
+        return RecordStream.from_batch_records(results)
 

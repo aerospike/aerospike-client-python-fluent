@@ -173,11 +173,11 @@ async def test_java_example_dataset_ids(session, customer_dataset):
     keys = customer_dataset.ids(1, 2, 3)
     assert len(keys) == 3
     # Verify we can query with these keys
-    recordset = await session.query(keys).execute()
+    stream = await session.query(keys).execute()
     count = 0
-    async for record in recordset:
+    async for _ in stream:
         count += 1
-    recordset.close()
+    stream.close()
     assert count == 3
 
 
@@ -203,46 +203,50 @@ async def test_java_example_dataset_id_from_digest(customer_dataset):
 @pytest.mark.asyncio
 async def test_java_example_query_point_read(session, customer_dataset):
     """Java: session.query(customerDataSet.id(1)).execute();"""
-    recordset = await session.query(customer_dataset.id(1)).execute()
-    record = await recordset.__anext__()
+    stream = await session.query(customer_dataset.id(1)).execute()
+    result = await stream.__anext__()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
-    recordset.close()
+    stream.close()
 
 
 @pytest.mark.asyncio
 async def test_java_example_query_set_no_bins(session, customer_dataset):
     """Java: session.query(customerDataSet).withNoBins().execute();"""
     # Use with_no_bins() method (Java-compatible API)
-    recordset = await session.query(customer_dataset).with_no_bins().execute()
-    record = await recordset.__anext__()
+    stream = await session.query(customer_dataset).with_no_bins().execute()
+    result = await stream.__anext__()
+    record = result.record
     assert record is not None
     # With no bins, bins should be empty or minimal
-    recordset.close()
+    stream.close()
 
 
 @pytest.mark.asyncio
 async def test_java_example_query_reading_only_bins(session, customer_dataset):
     """Java: session.query(customerDataSet).readingOnlyBins("name", "custId").execute();"""
-    recordset = await session.query(customer_dataset).bins(["name", "age"]).execute()
-    record = await recordset.__anext__()
+    stream = await session.query(customer_dataset).bins(["name", "age"]).execute()
+    result = await stream.__anext__()
+    record = result.record
     assert record is not None
     # Should only have name and age bins
     assert "name" in record.bins
     assert "age" in record.bins
-    recordset.close()
+    stream.close()
 
 
 @pytest.mark.asyncio
 async def test_java_example_query_batch_reading_only_bins(session, customer_dataset):
     """Java: session.query(customerDataSet.ids(1,2,3,4)).readingOnlyBins("name", "custId").execute();"""
-    recordset = await session.query(customer_dataset.ids(1, 2, 3)).bins(["name", "age"]).execute()
+    stream = await session.query(customer_dataset.ids(1, 2, 3)).bins(["name", "age"]).execute()
     count = 0
-    async for record in recordset:
+    async for result in stream:
+        record = result.record
         assert "name" in record.bins
         assert "age" in record.bins
         count += 1
-    recordset.close()
+    stream.close()
     assert count == 3
 
 
@@ -252,24 +256,24 @@ async def test_java_example_query_varargs_keys(session, customer_dataset):
     key1 = customer_dataset.id(1)
     key2 = customer_dataset.id(2)
     key3 = customer_dataset.id(3)
-    recordset = await session.query(key1, key2, key3).execute()
+    stream = await session.query(key1, key2, key3).execute()
     count = 0
-    async for record in recordset:
+    async for _ in stream:
         count += 1
-    recordset.close()
+    stream.close()
     assert count == 3
 
 
 @pytest.mark.asyncio
 async def test_java_example_query_namespace_set(session, customer_dataset):
     """Java: session.query("test", "users")"""
-    recordset = await session.query("test", "Customers").execute()
+    stream = await session.query("test", "Customers").execute()
     count = 0
-    async for record in recordset:
+    async for _ in stream:
         count += 1
         if count >= 3:
             break
-    recordset.close()
+    stream.close()
     assert count > 0
 
 
@@ -396,7 +400,7 @@ async def test_java_example_delete_durably(session, customer_dataset):
 async def test_java_example_filter_control_with_chunk_size(session, customer_dataset):
     """Java: session.query(dataSet1).chunkSize(100)..."""
     # Test that chunk_size can be called
-    myquery = await (
+    stream = await (
         session.query(customer_dataset)
         .chunk_size(100)
         .execute()
@@ -404,17 +408,17 @@ async def test_java_example_filter_control_with_chunk_size(session, customer_dat
 
     # Verify it executes and can be iterated
     count = 0
-    async for record in myquery:
+    async for _ in stream:
         count += 1
     assert count >= 0  # At least 0 records
-    myquery.close()
+    stream.close()
 
 
 @pytest.mark.asyncio
 async def test_java_example_filter_control_on_partitions(session, customer_dataset):
     """Java: session.query(dataSet1).onPartitions(1, 2, 3)..."""
     # Test that on_partitions can be called with partition IDs
-    myquery = await (
+    stream = await (
         session.query(customer_dataset)
         .on_partitions(1, 2, 3)
         .execute()
@@ -422,40 +426,40 @@ async def test_java_example_filter_control_on_partitions(session, customer_datas
 
     # Verify it executes and can be iterated
     count = 0
-    async for record in myquery:
+    async for _ in stream:
         count += 1
     assert count >= 0  # At least 0 records
-    myquery.close()
+    stream.close()
 
 
 @pytest.mark.asyncio
 async def test_java_example_filter_control_on_partition(session, customer_dataset):
     """Java: query.onPartition(5)"""
     # Test that on_partition can be called with a single partition ID
-    myquery = await (
+    stream = await (
         session.query(customer_dataset)
         .on_partition(5)
         .execute()
     )
     # Just verify it doesn't raise an error
-    async for _ in myquery:
+    async for _ in stream:
         break  # Consume at least one record if available
-    myquery.close()
+    stream.close()
 
 
 @pytest.mark.asyncio
 async def test_java_example_filter_control_on_partition_range(session, customer_dataset):
     """Java: query.onPartitionRange(0, 2048)"""
     # Test that on_partition_range can be called with a partition range
-    myquery = await (
+    stream = await (
         session.query(customer_dataset)
         .on_partition_range(0, 2048)
         .execute()
     )
     # Just verify it doesn't raise an error
-    async for _ in myquery:
+    async for _ in stream:
         break  # Consume at least one record if available
-    myquery.close()
+    stream.close()
 
 
 @pytest.mark.asyncio
@@ -506,23 +510,25 @@ async def test_java_example_query_operations(session, customer_dataset):
     """Java: RecordSet rs = session.query(customerDataSet).execute();
               RecordSet rs2 = session.query(customerDataSet).readingOnlyBins("name", "age").execute();
     """
-    recordset = await session.query(customer_dataset).execute()
+    stream = await session.query(customer_dataset).execute()
     count = 0
-    async for record in recordset:
+    async for result in stream:
+        record = result.record
         count += 1
         assert record is not None
     assert count > 0
-    recordset.close()
+    stream.close()
 
-    recordset = await session.query(customer_dataset).bins(["name", "age"]).execute()
+    stream = await session.query(customer_dataset).bins(["name", "age"]).execute()
     count = 0
-    async for record in recordset:
+    async for result in stream:
+        record = result.record
         count += 1
         assert record is not None
         # Should only have name and age bins
         assert "name" in record.bins or "age" in record.bins
     assert count > 0
-    recordset.close()
+    stream.close()
 
 
 @pytest.mark.asyncio

@@ -163,9 +163,9 @@ def test_java_example_dataset_ids(session, customer_dataset):
     keys = customer_dataset.ids(1, 2, 3)
     assert len(keys) == 3
     # Verify we can query with these keys
-    recordset = session.query(keys).execute()
+    stream = session.query(keys).execute()
     count = 0
-    for record in recordset:
+    for result in stream:
         count += 1
     assert count == 3
 
@@ -190,8 +190,9 @@ def test_java_example_dataset_id_from_digest(customer_dataset):
 
 def test_java_example_query_point_read(session, customer_dataset):
     """Java: session.query(customerDataSet.id(1)).execute();"""
-    recordset = session.query(customer_dataset.id(1)).execute()
-    record = next(recordset)
+    stream = session.query(customer_dataset.id(1)).execute()
+    result = next(stream)
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
 
@@ -199,16 +200,18 @@ def test_java_example_query_point_read(session, customer_dataset):
 def test_java_example_query_set_no_bins(session, customer_dataset):
     """Java: session.query(customerDataSet).withNoBins().execute();"""
     # Use with_no_bins() method (Java-compatible API)
-    recordset = session.query(customer_dataset).with_no_bins().execute()
-    record = next(recordset)
+    stream = session.query(customer_dataset).with_no_bins().execute()
+    result = next(stream)
+    record = result.record
     assert record is not None
     # With no bins, bins should be empty or minimal
 
 
 def test_java_example_query_reading_only_bins(session, customer_dataset):
     """Java: session.query(customerDataSet).readingOnlyBins("name", "custId").execute();"""
-    recordset = session.query(customer_dataset).bins(["name", "age"]).execute()
-    record = next(recordset)
+    stream = session.query(customer_dataset).bins(["name", "age"]).execute()
+    result = next(stream)
+    record = result.record
     assert record is not None
     # Should only have name and age bins
     assert "name" in record.bins
@@ -217,9 +220,10 @@ def test_java_example_query_reading_only_bins(session, customer_dataset):
 
 def test_java_example_query_batch_reading_only_bins(session, customer_dataset):
     """Java: session.query(customerDataSet.ids(1,2,3,4)).readingOnlyBins("name", "custId").execute();"""
-    recordset = session.query(customer_dataset.ids(1, 2, 3)).bins(["name", "age"]).execute()
+    stream = session.query(customer_dataset.ids(1, 2, 3)).bins(["name", "age"]).execute()
     count = 0
-    for record in recordset:
+    for result in stream:
+        record = result.record
         assert "name" in record.bins
         assert "age" in record.bins
         count += 1
@@ -231,18 +235,18 @@ def test_java_example_query_varargs_keys(session, customer_dataset):
     key1 = customer_dataset.id(1)
     key2 = customer_dataset.id(2)
     key3 = customer_dataset.id(3)
-    recordset = session.query(key1, key2, key3).execute()
+    stream = session.query(key1, key2, key3).execute()
     count = 0
-    for record in recordset:
+    for result in stream:
         count += 1
     assert count == 3
 
 
 def test_java_example_query_namespace_set(session, customer_dataset):
     """Java: session.query("test", "users")"""
-    recordset = session.query("test", "Customers").execute()
+    stream = session.query("test", "Customers").execute()
     count = 0
-    for record in recordset:
+    for result in stream:
         count += 1
         if count >= 3:
             break
@@ -419,7 +423,7 @@ def test_java_example_delete_durably(session, customer_dataset):
 def test_java_example_filter_control_with_chunk_size(session, customer_dataset):
     """Java: session.query(dataSet1).chunkSize(100)..."""
     # Test that chunk_size can be called
-    myquery = (
+    stream = (
         session.query(customer_dataset)
         .chunk_size(100)
         .execute()
@@ -427,16 +431,16 @@ def test_java_example_filter_control_with_chunk_size(session, customer_dataset):
 
     # Verify it executes and can be iterated
     count = 0
-    for record in myquery:
+    for result in stream:
         count += 1
     assert count >= 0  # At least 0 records
-    myquery.close()
+    stream.close()
 
 
 def test_java_example_filter_control_on_partitions(session, customer_dataset):
     """Java: session.query(dataSet1).onPartitions(1, 2, 3)..."""
     # Test that on_partitions can be called with partition IDs
-    myquery = (
+    stream = (
         session.query(customer_dataset)
         .on_partitions(1, 2, 3)
         .execute()
@@ -444,38 +448,38 @@ def test_java_example_filter_control_on_partitions(session, customer_dataset):
 
     # Verify it executes and can be iterated
     count = 0
-    for record in myquery:
+    for result in stream:
         count += 1
     assert count >= 0  # At least 0 records
-    myquery.close()
+    stream.close()
 
 
 def test_java_example_filter_control_on_partition(session, customer_dataset):
     """Java: query.onPartition(5)"""
     # Test that on_partition can be called with a single partition ID
-    myquery = (
+    stream = (
         session.query(customer_dataset)
         .on_partition(5)
         .execute()
     )
     # Just verify it doesn't raise an error
-    for _ in myquery:
+    for _ in stream:
         break  # Consume at least one record if available
-    myquery.close()
+    stream.close()
 
 
 def test_java_example_filter_control_on_partition_range(session, customer_dataset):
     """Java: query.onPartitionRange(0, 2048)"""
     # Test that on_partition_range can be called with a partition range
-    myquery = (
+    stream = (
         session.query(customer_dataset)
         .on_partition_range(0, 2048)
         .execute()
     )
     # Just verify it doesn't raise an error
-    for _ in myquery:
+    for _ in stream:
         break  # Consume at least one record if available
-    myquery.close()
+    stream.close()
 
 
 def test_java_example_filter_control_full(session, customer_dataset):
@@ -523,23 +527,24 @@ def test_java_example_query_operations(session, customer_dataset):
     """Java: RecordSet rs = session.query(customerDataSet).execute();
               RecordSet rs2 = session.query(customerDataSet).readingOnlyBins("name", "age").execute();
     """
-    recordset = session.query(customer_dataset).execute()
+    stream = session.query(customer_dataset).execute()
     count = 0
-    for record in recordset:
+    for result in stream:
         count += 1
-        assert record is not None
+        assert result.record is not None
     assert count > 0
-    recordset.close()
+    stream.close()
 
-    recordset = session.query(customer_dataset).bins(["name", "age"]).execute()
+    stream = session.query(customer_dataset).bins(["name", "age"]).execute()
     count = 0
-    for record in recordset:
+    for result in stream:
         count += 1
+        record = result.record
         assert record is not None
         # Should only have name and age bins
         assert "name" in record.bins or "age" in record.bins
     assert count > 0
-    recordset.close()
+    stream.close()
 
 
 def test_java_example_index_operations(session, customer_dataset):

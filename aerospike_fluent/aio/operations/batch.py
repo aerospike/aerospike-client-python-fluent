@@ -14,9 +14,7 @@ from aerospike_async import (
 )
 
 from aerospike_fluent.exceptions import convert_pac_exception
-
-if TYPE_CHECKING:
-    from aerospike_async import BatchRecord
+from aerospike_fluent.record_stream import RecordStream
 
 
 class BatchOpType(Enum):
@@ -178,7 +176,7 @@ class BatchKeyOperationBuilder:
         """Add a delete operation for another key."""
         return self._batch.delete(key)
     
-    async def execute(self) -> List[BatchRecord]:
+    async def execute(self) -> RecordStream:
         """Execute all batch operations."""
         return await self._batch.execute()
 
@@ -317,29 +315,23 @@ class BatchOperationBuilder:
         self._key_operations.append(op)
         return op
     
-    async def execute(self) -> List[BatchRecord]:
-        """
-        Execute all batch operations.
-        
+    async def execute(self) -> RecordStream:
+        """Execute all batch operations.
+
         Returns:
-            List of BatchRecord results, one for each key operation.
-        
+            A :class:`RecordStream` of per-key :class:`RecordResult` items.
+
         Raises:
             ValueError: If no operations have been added.
-        
-        Example:
-            results = await batch.execute()
-            for result in results:
-                print(f"Key: {result.key}, Success: {result.result_code == 0}")
         """
         if not self._key_operations:
             raise ValueError("No operations to execute. Add operations with insert(), update(), etc.")
-        
+
         # Separate delete operations from others (they use batch_delete)
         delete_keys: List[Key] = []
         operate_keys: List[Key] = []
         operate_ops: List[List[Operation]] = []
-        
+
         for key_op in self._key_operations:
             if key_op._op_type == BatchOpType.DELETE:
                 delete_keys.append(key_op._key)
@@ -347,43 +339,38 @@ class BatchOperationBuilder:
                 operate_keys.append(key_op._key)
                 # Build operations list for this key
                 ops = key_op._operations.copy()
-                
+
                 # If no operations but we have bins, convert to put operations
                 if not ops and key_op._bins:
                     for bin_name, value in key_op._bins.items():
                         ops.append(Operation.put(bin_name, value))
-                
+
                 # If still no operations, add a touch to make it valid
                 if not ops:
                     ops.append(Operation.touch())
-                
+
                 operate_ops.append(ops)
-        
-        results: List[BatchRecord] = []
-        
+
+        raw_results: list = []
+
         try:
-            # Execute delete operations
             if delete_keys:
                 delete_results = await self._client.batch_delete(
                     None,  # batch_policy
                     None,  # delete_policy
                     delete_keys,
                 )
-                results.extend(delete_results)
+                raw_results.extend(delete_results)
 
-            # Execute other operations
             if operate_keys:
-                # Create write policies based on operation types
-                # Note: batch_operate uses a single policy for all, so we use the most permissive
-                # For more control, users should use separate batch calls
                 operate_results = await self._client.batch_operate(
                     None,  # batch_policy
                     None,  # write_policy
                     operate_keys,
                     operate_ops,
                 )
-                results.extend(operate_results)
+                raw_results.extend(operate_results)
         except Exception as e:
             raise convert_pac_exception(e) from e
 
-        return results
+        return RecordStream.from_batch_records(raw_results)

@@ -21,9 +21,10 @@ def client(aerospike_host, client_policy):
 
 def test_query_basic(client):
     """Test basic query operation without filters."""
-    recordset = client.query("test", "query_test").execute()
+    stream = client.query("test", "query_test").execute()
     count = 0
-    for record in recordset:
+    for result in stream:
+        record = result.record
         assert record is not None
         assert "id" in record.bins
         count += 1
@@ -33,9 +34,10 @@ def test_query_basic(client):
 def test_query_with_dataset(client):
     """Test query using DataSet."""
     users = DataSet.of("test", "query_test")
-    recordset = client.query(dataset=users).execute()
+    stream = client.query(dataset=users).execute()
     count = 0
-    for record in recordset:
+    for result in stream:
+        record = result.record
         assert record is not None
         assert "id" in record.bins
         count += 1
@@ -54,9 +56,10 @@ def test_query_with_multiple_keys(client):
 
 def test_query_with_bins(client):
     """Test query with specific bin selection."""
-    recordset = client.query("test", "query_test").bins(["name", "age"]).execute()
+    stream = client.query("test", "query_test").bins(["name", "age"]).execute()
     count = 0
-    for record in recordset:
+    for result in stream:
+        record = result.record
         assert record is not None
         # Verify that at least one of the requested bins is present
         assert "name" in record.bins or "age" in record.bins
@@ -64,7 +67,7 @@ def test_query_with_bins(client):
         if count >= 3:
             break
 
-    recordset.close()
+    stream.close()
     assert count > 0
 
 def test_query_with_filter_expression(client):
@@ -75,13 +78,14 @@ def test_query_with_filter_expression(client):
         Exp.int_val(25)
     )
 
-    recordset = (
+    stream = (
         client.query("test", "query_test")
         .filter_expression(filter_exp)
         .execute()
     )
     count = 0
-    for record in recordset:
+    for result in stream:
+        record = result.record
         assert record is not None
         assert "age" in record.bins
         assert record.bins["age"] >= 25
@@ -89,7 +93,7 @@ def test_query_with_filter_expression(client):
         if count >= 5:
             break
 
-    recordset.close()
+    stream.close()
     assert count > 0
 
 def test_query_with_filter_expression_and(client):
@@ -100,13 +104,14 @@ def test_query_with_filter_expression_and(client):
         Exp.le(Exp.int_bin("age"), Exp.int_val(27))
     ])
 
-    recordset = (
+    stream = (
         client.query("test", "query_test")
         .filter_expression(filter_exp)
         .execute()
     )
     count = 0
-    for record in recordset:
+    for result in stream:
+        record = result.record
         assert record is not None
         assert "age" in record.bins
         assert 25 <= record.bins["age"] <= 27
@@ -114,5 +119,5 @@ def test_query_with_filter_expression_and(client):
         if count >= 5:
             break
 
-    recordset.close()
+    stream.close()
     assert count > 0

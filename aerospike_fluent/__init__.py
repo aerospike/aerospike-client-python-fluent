@@ -23,7 +23,10 @@ from aerospike_fluent.exceptions import (
 )
 from aerospike_fluent.exp import Exp, val
 from aerospike_fluent.policy.behavior import Behavior
+from aerospike_fluent.record_result import RecordResult
+from aerospike_fluent.record_stream import RecordStream
 from aerospike_fluent.sync import SyncFluentClient
+from aerospike_fluent.sync.record_stream import SyncRecordStream
 
 __version__ = "0.1.0"
 
@@ -55,10 +58,13 @@ __all__ = [
     "PlaceholderValues",
     "QueryTerminatedError",
     "QuotaError",
+    "RecordResult",
+    "RecordStream",
     "SecurityError",
     "SerializationError",
     "Session",
     "SyncFluentClient",
+    "SyncRecordStream",
     "TimeoutError",
     "TransactionalSession",
     "val",

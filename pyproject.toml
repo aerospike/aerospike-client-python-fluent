@@ -49,6 +49,9 @@ python_functions = ["test_*"]
 log_cli = true
 log_cli_level = "DEBUG"
 
+[tool.basedpyright]
+reportMissingImports = false
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

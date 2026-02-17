@@ -53,15 +53,16 @@ async def test_query_with_dataset(aerospike_host, client_policy):
         await client.key_value(dataset=users, key="q2").put({"id": "q2", "value": 20})
 
         # Query using DataSet
-        recordset = await client.query(dataset=users).execute()
+        stream = await client.query(dataset=users).execute()
         count = 0
-        async for record in recordset:
+        async for result in stream:
+            record = result.record
             assert record is not None
             assert "id" in record.bins
             count += 1
             if count >= 2:
                 break
-        recordset.close()
+        stream.close()
 
         # Clean up
         await client.key_value(dataset=users, key="q1").delete()
@@ -78,13 +79,14 @@ async def test_query_with_single_key(aerospike_host, client_policy):
         await client.key_value(key=key).put({"name": "Bob", "age": 35})
 
         # Query using single Key
-        recordset = await client.query(key=key).execute()
+        stream = await client.query(key=key).execute()
         count = 0
-        async for record in recordset:
+        async for result in stream:
+            record = result.record
             assert record is not None
             assert record.bins["name"] == "Bob"
             count += 1
-        recordset.close()
+        stream.close()
         assert count == 1
 
         # Clean up
@@ -102,14 +104,15 @@ async def test_query_with_multiple_keys(aerospike_host, client_policy):
         await client.key_value(key=keys[1]).put({"name": "Charlie", "age": 32})
 
         # Query using multiple Keys (positional argument)
-        recordset = await client.query(keys).execute()
+        stream = await client.query(keys).execute()
         count = 0
         names = []
-        async for record in recordset:
+        async for result in stream:
+            record = result.record
             assert record is not None
             names.append(record.bins["name"])
             count += 1
-        recordset.close()
+        stream.close()
         assert count == 2
         assert "Alice" in names
         assert "Charlie" in names

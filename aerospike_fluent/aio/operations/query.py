@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any, List, Optional, overload, Union
 
 from aerospike_async import (
@@ -15,13 +14,12 @@ from aerospike_async import (
     QueryDuration,
     QueryPolicy,
     ReadPolicy,
-    Record,
-    Recordset,
     Replica,
     Statement,
 )
 from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.record_stream import RecordStream
 
 
 class QueryBuilder:
@@ -374,9 +372,7 @@ class QueryBuilder:
             query = session.query(dataset).records_per_second(1000)
             ```
         """
-        if self._policy is None:
-            self._policy = QueryPolicy()
-        self._policy.records_per_second = rps
+        self._ensure_policy().records_per_second = rps
         return self
 
     def max_records(self, max_records: int) -> QueryBuilder:
@@ -394,9 +390,7 @@ class QueryBuilder:
             query = session.query(dataset).max_records(10000)
             ```
         """
-        if self._policy is None:
-            self._policy = QueryPolicy()
-        self._policy.max_records = max_records
+        self._ensure_policy().max_records = max_records
         return self
 
     def limit(self, limit: int) -> QueryBuilder:
@@ -441,9 +435,7 @@ class QueryBuilder:
             query = session.query(dataset).expected_duration(QueryDuration.SHORT)
             ```
         """
-        if self._policy is None:
-            self._policy = QueryPolicy()
-        self._policy.expected_duration = duration
+        self._ensure_policy().expected_duration = duration
         return self
 
     def replica(self, replica: "Replica") -> QueryBuilder:
@@ -462,9 +454,7 @@ class QueryBuilder:
             query = session.query(dataset).replica(Replica.SEQUENCE)
             ```
         """
-        if self._policy is None:
-            self._policy = QueryPolicy()
-        self._policy.replica = replica
+        self._ensure_policy().replica = replica
         return self
 
     def base_policy(self, base_policy: "BasePolicy") -> QueryBuilder:
@@ -484,9 +474,7 @@ class QueryBuilder:
             query = session.query(dataset).base_policy(base)
             ```
         """
-        if self._policy is None:
-            self._policy = QueryPolicy()
-        self._policy.base_policy = base_policy
+        self._ensure_policy().base_policy = base_policy
         return self
     
     def fail_on_filtered_out(self) -> QueryBuilder:
@@ -517,6 +505,12 @@ class QueryBuilder:
         self._respond_all_keys = True
         return self
 
+    def _ensure_policy(self) -> QueryPolicy:
+        """Return the existing policy or create a default one."""
+        if self._policy is None:
+            self._policy = QueryPolicy()
+        return self._policy
+
     def _build_statement(self) -> Statement:
         """Build a Statement object from the builder configuration."""
         # If bins is None, pass None to Statement (which means all bins)
@@ -529,84 +523,49 @@ class QueryBuilder:
         # Note: filter_expression is set on the policy, not the statement
         return statement
 
-    async def execute(self) -> Recordset:
-        """
-        Execute the query and return a Recordset.
-        
-        For single key queries, this performs a direct get() operation.
-        For batch key queries, this performs a get_many() operation.
-        For dataset queries, this performs a standard query() operation.
-        
+    async def execute(self) -> RecordStream:
+        """Execute the query and return a :class:`RecordStream`.
+
+        For single key queries, this performs a direct ``get()`` operation.
+        For batch key queries, this performs a ``batch_read()`` operation.
+        For dataset queries, this performs a standard ``query()`` operation.
+
         Returns:
-            A Recordset that can be iterated asynchronously.
-            
-        Example:
-            ```python
-            # Dataset query
-            recordset = await client.query("test", "users").execute()
-            async for record in recordset:
-                # process record
-            recordset.close()
-            
-            # Single key query
-            key = users.id("user123")
-            recordset = await client.query(key=key).execute()
-            async for record in recordset:
-                # process record
-            recordset.close()
-            ```
+            A :class:`RecordStream` of :class:`RecordResult` items.
         """
         # Handle single key query
         if self._single_key is not None:
             read_policy = self._read_policy or ReadPolicy()
-            # Note: with_no_bins is handled by passing empty list [] as bins parameter to get()
-            # Note: fail_on_filtered_out and respond_all_keys may not be available on ReadPolicy in Python client
-            # These attributes would need to be added to the Rust client if needed
             try:
                 record = await self._client.get(read_policy, self._single_key, self._bins)
             except Exception as e:
                 raise convert_pac_exception(e) from e
-            # Create a simple recordset wrapper for single record
-            from aerospike_fluent.aio.operations._recordset_wrapper import SingleRecordRecordset
-            return SingleRecordRecordset(record, self._single_key)
-        
-        # Handle batch key query
+            return RecordStream.from_single(self._single_key, record)
+
+        # Handle batch key query via batch_read for full per-key result codes
         if self._keys is not None:
-            read_policy = self._read_policy or ReadPolicy()
-            # Note: with_no_bins is handled by passing empty list [] as bins parameter to get()
-            # Note: fail_on_filtered_out and respond_all_keys may not be available on ReadPolicy in Python client
-            # These attributes would need to be added to the Rust client if needed
-            # Execute multiple get() operations concurrently
-            tasks = [self._client.get(read_policy, key, self._bins) for key in self._keys]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            # Convert results to (Key, Record) tuples
-            # get() returns None if record not found, or raises exception on error
-            records = []
-            for key, result in zip(self._keys, results):
-                if isinstance(result, Exception):
-                    # Error occurred - skip it (record will be None)
-                    records.append((key, None))
-                else:
-                    # result is either a Record or None (if not found)
-                    records.append((key, result))
-            # Create a recordset wrapper for multiple records
-            from aerospike_fluent.aio.operations._recordset_wrapper import BatchRecordset
-            return BatchRecordset(records)
-        
+            try:
+                batch_records = await self._client.batch_read(
+                    None,  # batch_policy
+                    None,  # read_policy
+                    self._keys,
+                    self._bins,
+                )
+            except Exception as e:
+                raise convert_pac_exception(e) from e
+            return RecordStream.from_batch_records(batch_records)
+
         # Handle dataset query (standard query)
         policy = self._policy or QueryPolicy()
-        # Apply chunk size to policy.max_records
         if self._chunk_size is not None and self._chunk_size > 0:
             policy.max_records = self._chunk_size
         if self._filter_expression is not None:
             policy.filter_expression = self._filter_expression
-        # Note: with_no_bins is handled by passing empty list [] to Statement constructor
-        # Note: fail_on_filtered_out and respond_all_keys may not be available on QueryPolicy in Python client
-        # They are primarily for key-based queries and are handled below for single/batch key queries
         partition_filter = self._partition_filter or PartitionFilter.all()
         statement = self._build_statement()
 
         try:
-            return await self._client.query(policy, partition_filter, statement)
+            recordset = await self._client.query(policy, partition_filter, statement)
         except Exception as e:
             raise convert_pac_exception(e) from e
+        return RecordStream.from_recordset(recordset)
