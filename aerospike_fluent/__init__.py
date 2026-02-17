@@ -15,6 +15,8 @@
 
 """Aerospike Fluent Client - A fluent API wrapper for the Aerospike async Python client."""
 
+from aerospike_async import AuthMode
+
 from aerospike_fluent.aio import FluentClient, KeyValueService, Session, TransactionalSession, ClusterDefinition, Host
 from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.dsl.exceptions import DslParseException
@@ -48,6 +50,7 @@ __version__ = "0.1.0"
 __all__ = [
     "AerospikeError",
     "AuthenticationError",
+    "AuthMode",
     "AuthorizationError",
     "BackoffError",
     "Behavior",

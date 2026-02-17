@@ -17,9 +17,11 @@
 
 from __future__ import annotations
 
+import typing
 from typing import Optional, Any
 
-from aerospike_fluent.aio.cluster_definition import ClusterDefinition
+if typing.TYPE_CHECKING:
+    from aerospike_fluent.aio.cluster_definition import ClusterDefinition
 
 
 class TlsBuilder:

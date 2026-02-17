@@ -33,4 +33,10 @@ dev:
 	pip install -e ".[dev]"
 
 test:
-	pytest
+	pytest tests
+
+test-unit:
+	pytest tests/unit
+
+test-int:
+	pytest tests/integration

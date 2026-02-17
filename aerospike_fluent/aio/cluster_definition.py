@@ -20,12 +20,10 @@ from __future__ import annotations
 import typing
 from typing import List, Optional, Union
 
-from aerospike_async import ClientPolicy
+from aerospike_async import AuthMode, ClientPolicy
 
 from aerospike_fluent.aio.cluster import Cluster
-
-if typing.TYPE_CHECKING:
-    from aerospike_fluent.aio.tls_builder import TlsBuilder
+from aerospike_fluent.aio.tls_builder import TlsBuilder
 
 
 class Host:
@@ -118,11 +116,13 @@ class ClusterDefinition:
         else:
             raise ValueError("Either (hostname, port) or hosts must be provided")
         
+        self._auth_mode: AuthMode = AuthMode.NONE
         self._user_name: Optional[str] = None
         self._password: Optional[str] = None
         self._cluster_name: Optional[str] = None
         self._preferred_racks: Optional[List[int]] = None
         self._use_services_alternate = False
+        self._ip_map: Optional[dict[str, str]] = None
         self._tls_builder: Optional[TlsBuilder] = None
     
     def with_native_credentials(
@@ -131,22 +131,83 @@ class ClusterDefinition:
         password: str,
     ) -> ClusterDefinition:
         """
-        Sets authentication credentials for the cluster connection.
-        
-        This method configures username/password authentication using Aerospike's
-        internal authentication mode. Pass empty strings to disable authentication.
-        
+        Sets authentication credentials using Aerospike's internal authentication.
+
+        Hashed password is stored on the server. Pass empty strings for both
+        parameters to disable authentication.
+
         Args:
             user_name: The username for authentication
             password: The password for authentication
-        
+
         Returns:
             This ClusterDefinition for method chaining
         """
-        self._user_name = user_name if user_name else None
-        self._password = password if password else None
+        if not user_name:
+            self._auth_mode = AuthMode.NONE
+            self._user_name = None
+            self._password = None
+        else:
+            self._auth_mode = AuthMode.INTERNAL
+            self._user_name = user_name
+            self._password = password
         return self
     
+    def with_external_credentials(
+        self,
+        user_name: str,
+        password: str,
+    ) -> ClusterDefinition:
+        """
+        Sets authentication credentials using external authentication (e.g. LDAP).
+
+        External authentication is configured on the server. If TLS is configured,
+        the clear password is sent on node login via TLS. Raises an error at
+        connect time if TLS is not configured.
+
+        Args:
+            user_name: The username for authentication
+            password: The password for authentication
+
+        Returns:
+            This ClusterDefinition for method chaining
+        """
+        if not user_name:
+            self._auth_mode = AuthMode.NONE
+            self._user_name = None
+            self._password = None
+        else:
+            self._auth_mode = AuthMode.EXTERNAL
+            self._user_name = user_name
+            self._password = password
+        return self
+    
+    def with_certificate_credentials(self) -> ClusterDefinition:
+        """
+        Configures certificate-based (PKI) authentication.
+
+        Uses client certificates instead of username/password credentials.
+        Automatically enables TLS if not already configured. Requires
+        server version 5.7.0+.
+
+        Returns:
+            This ClusterDefinition for method chaining
+
+        Raises:
+            ValueError: If any host is missing a TLS name
+        """
+        self._auth_mode = AuthMode.PKI
+        self._user_name = None
+        self._password = None
+        if not self._tls_builder:
+            self._tls_builder = TlsBuilder(self)
+        return self
+    
+    @property
+    def auth_mode(self) -> AuthMode:
+        """The current authentication mode."""
+        return self._auth_mode
+
     def validate_cluster_name_is(self, cluster_name: str) -> ClusterDefinition:
         """
         Validates that the cluster name matches the expected value.
@@ -194,7 +255,28 @@ class ClusterDefinition:
         """
         self._use_services_alternate = True
         return self
-    
+
+    def with_ip_map(self, ip_map: dict[str, str]) -> ClusterDefinition:
+        """
+        Sets an IP address translation table for cluster node discovery.
+
+        Used when clients from different networks need different IP addresses
+        to reach the same server nodes (e.g. inside vs. outside a VPN or NAT).
+        The key is the IP address returned from server info requests; the value
+        is the actual IP address the client should connect to.
+
+        Consider using ``using_services_alternate()`` instead, which lets the
+        server handle address translation without client-side configuration.
+
+        Args:
+            ip_map: Mapping of server-reported IPs to actual connection IPs
+
+        Returns:
+            This ClusterDefinition for method chaining
+        """
+        self._ip_map = ip_map if ip_map else None
+        return self
+
     def with_tls_config_of(self) -> TlsBuilder:
         """
         Begins TLS configuration using a fluent builder pattern.
@@ -207,30 +289,31 @@ class ClusterDefinition:
         Returns:
             A TlsBuilder for configuring TLS settings
         """
-        from aerospike_fluent.aio.tls_builder import TlsBuilder
         self._tls_builder = TlsBuilder(self)
         return self._tls_builder
     
     def _get_policy(self) -> ClientPolicy:
         """Build a ClientPolicy from the configuration."""
         policy = ClientPolicy()
-        
+
         # Services alternate (default to True to match FluentClient behavior)
         policy.use_services_alternate = self._use_services_alternate if self._use_services_alternate else True
-        
+
         # Authentication
-        if self._user_name is not None:
-            policy.user = self._user_name
-            policy.password = self._password
-        
+        policy.set_auth_mode(self._auth_mode, self._user_name, self._password)
+
         # Rack awareness (setting rack_ids automatically enables rack awareness)
         if self._preferred_racks:
             policy.rack_ids = self._preferred_racks
-        
+
         # Cluster name validation (setting cluster_name enables validation)
         if self._cluster_name:
             policy.cluster_name = self._cluster_name
-        
+
+        # IP address translation
+        if self._ip_map:
+            policy.ip_map = self._ip_map
+
         # TLS configuration
         # Note: TLS policy support in Python async client may be limited
         # This is a placeholder for when TLS support is fully implemented
@@ -238,7 +321,7 @@ class ClusterDefinition:
             # TODO: Set TLS policy when Python async client fully supports it
             # For now, TLS configuration is stored but not applied
             pass
-        
+
         return policy
     
     def _get_effective_hosts(self) -> List[Host]:
@@ -268,24 +351,39 @@ class ClusterDefinition:
         effective_hosts = self._get_effective_hosts()
         return ",".join(f"{host.name}:{host.port}" for host in effective_hosts)
     
+    def _validate(self) -> None:
+        """Validate the configuration before connecting."""
+        if self._auth_mode == AuthMode.PKI:
+            effective = self._get_effective_hosts()
+            missing = [h.name for h in effective if not h.tls_name]
+            if missing:
+                raise ValueError(
+                    f"PKI authentication requires TLS names on all hosts. "
+                    f"Missing TLS name for: {', '.join(missing)}"
+                )
+
     async def connect(self) -> Cluster:
         """
         Establishes a connection to the Aerospike cluster.
-        
+
         This method creates and returns a Cluster instance using the configured
         parameters. The returned Cluster should be closed when no longer needed
         to properly release resources.
-        
+
         Example with async context manager:
             ```python
             async with await ClusterDefinition("localhost", 3100).connect() as cluster:
                 session = cluster.create_session(Behavior.DEFAULT)
                 # Use the session...
             ```
-        
+
         Returns:
             A connected Cluster instance
+
+        Raises:
+            ValueError: If PKI auth is configured but hosts are missing TLS names
         """
+        self._validate()
         policy = self._get_policy()
         seeds = self._build_seeds_string()
         return await Cluster._create(policy, seeds)

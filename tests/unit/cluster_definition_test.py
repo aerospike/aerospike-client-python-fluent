@@ -1,0 +1,213 @@
+# Copyright 2025-2026 Aerospike, Inc.
+#
+# Portions may be licensed to Aerospike, Inc. under one or more contributor
+# license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+"""Unit tests for ClusterDefinition auth mode support."""
+
+import pytest
+from aerospike_async import AuthMode
+
+from aerospike_fluent.aio.cluster_definition import ClusterDefinition, Host
+
+
+class TestAuthMode:
+    def test_default_auth_mode_is_none(self):
+        cd = ClusterDefinition("localhost", 3000)
+        assert cd.auth_mode == AuthMode.NONE
+
+    def test_native_credentials_sets_internal(self):
+        cd = ClusterDefinition("localhost", 3000).with_native_credentials("admin", "pass")
+        assert cd.auth_mode == AuthMode.INTERNAL
+        assert cd._user_name == "admin"
+        assert cd._password == "pass"
+
+    def test_native_credentials_empty_user_resets_to_none(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_native_credentials("admin", "pass")
+            .with_native_credentials("", "")
+        )
+        assert cd.auth_mode == AuthMode.NONE
+        assert cd._user_name is None
+        assert cd._password is None
+
+    def test_external_credentials_sets_external(self):
+        cd = ClusterDefinition("localhost", 3000).with_external_credentials("ldap_user", "ldap_pass")
+        assert cd.auth_mode == AuthMode.EXTERNAL
+        assert cd._user_name == "ldap_user"
+        assert cd._password == "ldap_pass"
+
+    def test_external_credentials_empty_user_resets_to_none(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_external_credentials("user", "pass")
+            .with_external_credentials("", "")
+        )
+        assert cd.auth_mode == AuthMode.NONE
+        assert cd._user_name is None
+
+    def test_certificate_credentials_sets_pki(self):
+        cd = ClusterDefinition("localhost", 3000).with_certificate_credentials()
+        assert cd.auth_mode == AuthMode.PKI
+        assert cd._user_name is None
+        assert cd._password is None
+
+    def test_certificate_credentials_auto_enables_tls(self):
+        cd = ClusterDefinition("localhost", 3000)
+        assert cd._tls_builder is None
+        cd.with_certificate_credentials()
+        assert cd._tls_builder is not None
+        assert cd._tls_builder.is_tls_enabled()
+
+    def test_certificate_credentials_preserves_existing_tls(self):
+        cd = ClusterDefinition("localhost", 3000)
+        tls = cd.with_tls_config_of().tls_name("myTls").done()
+        original_builder = cd._tls_builder
+        cd.with_certificate_credentials()
+        assert cd._tls_builder is original_builder
+
+    def test_switching_auth_modes(self):
+        cd = ClusterDefinition("localhost", 3000)
+        cd.with_native_credentials("u", "p")
+        assert cd.auth_mode == AuthMode.INTERNAL
+        cd.with_external_credentials("e", "p")
+        assert cd.auth_mode == AuthMode.EXTERNAL
+        cd.with_certificate_credentials()
+        assert cd.auth_mode == AuthMode.PKI
+        assert cd._user_name is None
+        cd.with_native_credentials("u2", "p2")
+        assert cd.auth_mode == AuthMode.INTERNAL
+        assert cd._user_name == "u2"
+
+
+class TestAuthModePolicy:
+    def test_native_credentials_policy(self):
+        cd = ClusterDefinition("localhost", 3000).with_native_credentials("admin", "pass")
+        policy = cd._get_policy()
+        assert policy.auth_mode == AuthMode.INTERNAL
+
+    def test_external_credentials_policy(self):
+        cd = ClusterDefinition("localhost", 3000).with_external_credentials("user", "pass")
+        policy = cd._get_policy()
+        assert policy.auth_mode == AuthMode.EXTERNAL
+
+    def test_pki_credentials_policy(self):
+        cd = ClusterDefinition("localhost", 3000).with_certificate_credentials()
+        policy = cd._get_policy()
+        assert policy.auth_mode == AuthMode.PKI
+
+    def test_no_credentials_policy(self):
+        cd = ClusterDefinition("localhost", 3000)
+        policy = cd._get_policy()
+        assert policy.auth_mode == AuthMode.NONE
+
+
+class TestPkiValidation:
+    def test_pki_without_tls_names_raises(self):
+        cd = ClusterDefinition("localhost", 3000).with_certificate_credentials()
+        with pytest.raises(ValueError, match="Missing TLS name"):
+            cd._validate()
+
+    def test_pki_with_tls_names_passes(self):
+        cd = ClusterDefinition(
+            hosts=[Host("localhost", 3000, tls_name="myTls")]
+        ).with_certificate_credentials()
+        cd._validate()
+
+    def test_pki_with_tls_builder_name_passes(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_tls_config_of()
+                .tls_name("myTls")
+            .done()
+            .with_certificate_credentials()
+        )
+        cd._validate()
+
+    def test_non_pki_without_tls_names_passes(self):
+        cd = ClusterDefinition("localhost", 3000).with_native_credentials("u", "p")
+        cd._validate()
+
+
+class TestFluentChaining:
+    def test_full_chain_with_native_credentials(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_native_credentials("admin", "password")
+            .using_services_alternate()
+            .preferring_racks(1, 2)
+            .validate_cluster_name_is("my-cluster")
+        )
+        assert cd.auth_mode == AuthMode.INTERNAL
+        assert cd._use_services_alternate is True
+        assert cd._preferred_racks == [1, 2]
+        assert cd._cluster_name == "my-cluster"
+
+    def test_full_chain_with_external_credentials(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_external_credentials("ldap_user", "ldap_pass")
+            .using_services_alternate()
+        )
+        assert cd.auth_mode == AuthMode.EXTERNAL
+
+    def test_full_chain_with_certificate_credentials(self):
+        cd = (
+            ClusterDefinition(hosts=[Host("localhost", 3000, tls_name="myTls")])
+            .with_certificate_credentials()
+            .using_services_alternate()
+        )
+        assert cd.auth_mode == AuthMode.PKI
+        assert cd._tls_builder is not None
+
+
+class TestIpMap:
+    def test_default_ip_map_is_none(self):
+        cd = ClusterDefinition("localhost", 3000)
+        assert cd._ip_map is None
+
+    def test_set_ip_map(self):
+        mapping = {"10.0.0.1": "3.72.54.187", "10.0.0.2": "3.72.54.188"}
+        cd = ClusterDefinition("localhost", 3000).with_ip_map(mapping)
+        assert cd._ip_map == mapping
+
+    def test_empty_dict_clears_ip_map(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_ip_map({"10.0.0.1": "1.2.3.4"})
+            .with_ip_map({})
+        )
+        assert cd._ip_map is None
+
+    def test_ip_map_propagates_to_policy(self):
+        mapping = {"10.0.0.1": "3.72.54.187"}
+        cd = ClusterDefinition("localhost", 3000).with_ip_map(mapping)
+        policy = cd._get_policy()
+        assert policy.ip_map == mapping
+
+    def test_no_ip_map_policy_is_none(self):
+        cd = ClusterDefinition("localhost", 3000)
+        policy = cd._get_policy()
+        assert policy.ip_map is None
+
+    def test_ip_map_fluent_chaining(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_native_credentials("admin", "pass")
+            .with_ip_map({"10.0.0.1": "1.2.3.4"})
+            .using_services_alternate()
+        )
+        assert cd._ip_map == {"10.0.0.1": "1.2.3.4"}
+        assert cd.auth_mode == AuthMode.INTERNAL
+        assert cd._use_services_alternate is True
