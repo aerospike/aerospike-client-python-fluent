@@ -2,115 +2,113 @@
 
 A fluent API wrapper for the Aerospike async Python client, providing a more intuitive and chainable interface for database operations.
 
-## Requirements
+> **Status:** Pre-alpha -- internal development.
 
-- Python 3.10, 3.11, 3.12, 3.13, or 3.14
-- Aerospike async Python client (installed as a local dependency)
+## Prerequisites
 
-## Setup
+- **Python** 3.10 - 3.14
+- **Rust toolchain** (rustc + cargo) -- required to build the async client dependency
+- **Aerospike server** -- required for integration tests
+- **Java 11+** -- only needed if regenerating the ANTLR DSL parser
 
-### Configure Aerospike Connection
+## Install the Python Async Client
 
-Edit the `aerospike.env` file to match your Aerospike database node configuration:
+The fluent client depends on the [Aerospike async Python client](https://github.com/aerospike/aerospike-client-python-async) (`rust-async` branch). Build and install it first:
+
 ```bash
-export AEROSPIKE_HOST=localhost:3101
+git clone git@github.com:aerospike/aerospike-client-python-async.git
+cd aerospike-client-python-async
+git checkout rust-async
+pip install -r requirements.txt
+make dev
 ```
 
-For manual runs (outside of pytest), source the environment file:
+Requires Rust. See the [async client README](https://github.com/aerospike/aerospike-client-python-async/blob/rust-async/README.md) for detailed Rust setup instructions.
+
+Alternatively, `pip install -e .` in this repo will attempt to pull and build the async client automatically via SSH, but a local build is recommended for development.
+
+## Install the Fluent Client
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Configuration
+
+Edit `aerospike.env` to match your Aerospike server:
+
+```bash
+export AEROSPIKE_HOST=127.0.0.1:3100
+```
+
+For manual runs (outside of pytest), source it:
+
 ```bash
 source aerospike.env
 ```
 
-Note: Tests automatically load `aerospike.env` via `conftest.py`.
+Tests automatically load `aerospike.env` via `conftest.py`.
 
-## Installation
-
-### Option 1: Install from source (recommended for development)
+## Running Tests
 
 ```bash
-# Install the fluent client and its dependencies
-pip install -e .
-
-# Or install with development dependencies
-pip install -e ".[dev]"
-```
-
-### Option 2: Install using requirements.txt
-
-```bash
-# Install runtime dependencies
-pip install -r requirements.txt
-
-# Or install development dependencies
-pip install -r requirements-dev.txt
-```
-
-**Note:** The `aerospike-client-python-async` dependency is configured to use the remote git repository via SSH (`git@github.com:aerospike/aerospike-client-python-async.git`) on the `rust-async` branch. This is automatically installed when you run `pip install -e .`. To use a different branch, tag, or commit, update the dependency in `pyproject.toml` (e.g., `@main`, `@v0.2.0`, or `@<commit-hash>`).
-
-## Development
-
-```bash
-# Install with development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Lint code
-ruff check .
+make test          # all tests
+make test-unit     # unit tests only
+make test-int      # integration tests only (requires running Aerospike server)
 ```
 
 ### macOS File Descriptor Limit
 
-On macOS, you may encounter `OSError: [Errno 24] Too many open files` errors when running the full test suite. This occurs because:
-
-- **Default macOS limit**: The default file descriptor limit on macOS is 256 (`ulimit -n` shows the current limit)
-- **Why it's not enough**: The fluent client creates multiple connections, event loops, and file handles during testing. Running the full test suite can easily exceed 256 open file descriptors, especially with async operations that maintain multiple concurrent connections.
-
-**Solution**: Increase the file descriptor limit before running tests:
+On macOS, you may encounter `OSError: [Errno 24] Too many open files` when running the full test suite. The default limit (256) is not enough for the concurrent async connections created during testing.
 
 ```bash
-# Check current limit
-ulimit -n
-
-# Increase limit (recommended: 4096)
 ulimit -n 4096
-
-# Verify the new limit
-ulimit -n
-
-# Now run tests
-pytest
 ```
 
-**Note**: This change is temporary for the current shell session. To make it permanent, add `ulimit -n 4096` to your shell profile (e.g., `~/.zshrc` or `~/.bash_profile`).
+To make this permanent, add it to your shell profile (`~/.zshrc` or `~/.bash_profile`).
+
+## Development
+
+```bash
+# Regenerate the ANTLR DSL parser (requires Java 11+)
+make generate-dsl
+
+# Lint
+ruff check .
+```
 
 ## Usage
 
 ```python
 import asyncio
-import os
-from aerospike_fluent import FluentClient
+from aerospike_fluent import Behavior, DataSet, FluentClient
 
 async def main():
-    # Get host from environment (set in aerospike.env)
-    host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
-    
-    # Use context manager for automatic connection management
-    async with FluentClient(seeds=host) as client:
-        # Fluent API operations
-        record = await client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).get()
-        
-        print(record.bins if record else "Record not found")
+    async with FluentClient("localhost:3100") as client:
+        session = client.create_session(Behavior.DEFAULT)
+        users = DataSet.of("test", "users")
+
+        # Fluent key-value operations
+        await session.upsert(key=users.id(1)).put({"name": "Alice", "age": 28, "country": "UK"})
+        await session.upsert(key=users.id(2)).put({"name": "Bob", "age": 35, "country": "US"})
+
+        # Query with string DSL -- stream results one at a time (memory-efficient)
+        results = await (
+            session.query(users)
+            .where("$.age > %s and $.country == '%s'", 25, "US")
+            .execute()
+        )
+        async for rec in results:
+            print(rec.bins)
+
+        # execute() returns a lazy async stream
+        all_users = await session.query(users).execute()
+        # collect() drains the stream into a list
+        user_list = await all_users.collect()
 
 asyncio.run(main())
 ```
 
 ## License
 
-[To be determined]
-
+Apache License 2.0. See [LICENSE](LICENSE) for details.
