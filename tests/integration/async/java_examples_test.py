@@ -241,14 +241,15 @@ async def test_java_example_query_set_no_bins(session, customer_dataset):
 @pytest.mark.asyncio
 async def test_java_example_query_reading_only_bins(session, customer_dataset):
     """Java: session.query(customerDataSet).readingOnlyBins("name", "custId").execute();"""
-    stream = await session.query(customer_dataset).bins(["name", "age"]).execute()
-    result = await stream.__anext__()
-    record = result.record
-    assert record is not None
-    # Should only have name and age bins
-    assert "name" in record.bins
-    assert "age" in record.bins
-    stream.close()
+    stream = await session.query(customer_dataset.ids(1, 2, 3)).bins(["name", "age"]).execute()
+    count = 0
+    async for result in stream:
+        record = result.record
+        assert record is not None
+        assert "name" in record.bins
+        assert "age" in record.bins
+        count += 1
+    assert count == 3
 
 
 @pytest.mark.asyncio

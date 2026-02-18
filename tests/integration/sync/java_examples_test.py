@@ -224,13 +224,15 @@ def test_java_example_query_set_no_bins(session, customer_dataset):
 
 def test_java_example_query_reading_only_bins(session, customer_dataset):
     """Java: session.query(customerDataSet).readingOnlyBins("name", "custId").execute();"""
-    stream = session.query(customer_dataset).bins(["name", "age"]).execute()
-    result = next(stream)
-    record = result.record
-    assert record is not None
-    # Should only have name and age bins
-    assert "name" in record.bins
-    assert "age" in record.bins
+    stream = session.query(customer_dataset.ids(1, 2, 3)).bins(["name", "age"]).execute()
+    count = 0
+    for result in stream:
+        record = result.record
+        assert record is not None
+        assert "name" in record.bins
+        assert "age" in record.bins
+        count += 1
+    assert count == 3
 
 
 def test_java_example_query_batch_reading_only_bins(session, customer_dataset):
