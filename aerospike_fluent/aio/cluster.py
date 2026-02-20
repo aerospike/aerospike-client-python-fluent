@@ -23,6 +23,7 @@ from typing import Optional
 from aerospike_async import ClientPolicy, new_client
 
 from aerospike_fluent.aio.client import FluentClient
+from aerospike_fluent.exceptions import ConnectionError
 from aerospike_fluent.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
@@ -69,9 +70,19 @@ class Cluster:
         
         Returns:
             A new Cluster instance
+        
+        Raises:
+            ConnectionError: If post-connect validation fails
         """
         fluent_client = FluentClient(seeds=seeds, policy=policy)
         await fluent_client.connect()
+
+        if not await fluent_client.underlying_client.is_connected():
+            await fluent_client.close()
+            raise ConnectionError(
+                f"Connected to seeds '{seeds}' but cluster reports not connected"
+            )
+
         return cls(fluent_client)
     
     async def __aenter__(self) -> Cluster:

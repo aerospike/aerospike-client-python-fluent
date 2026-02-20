@@ -199,3 +199,29 @@ async def test_host_of():
     assert host.port == 3000
 
 
+@pytest.mark.asyncio
+async def test_fail_if_not_connected_default_bad_host():
+    """Default fail_if_not_connected=True raises on unreachable host."""
+    cd = ClusterDefinition("127.0.0.1", 19999)
+    with pytest.raises(Exception):
+        await cd.connect()
+
+
+@pytest.mark.asyncio
+async def test_fail_if_not_connected_explicit_true(aerospike_host):
+    """Explicit fail_if_not_connected(True) still connects to a live cluster."""
+    if ":" in aerospike_host:
+        hostname, port_str = aerospike_host.split(":", 1)
+        port = int(port_str)
+    else:
+        hostname = aerospike_host
+        port = 3000
+
+    cd = ClusterDefinition(hostname, port).fail_if_not_connected(True)
+    cluster = await cd.connect()
+    try:
+        assert cluster.is_connected()
+    finally:
+        await cluster.close()
+
+

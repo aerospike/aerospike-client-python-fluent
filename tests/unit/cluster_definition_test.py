@@ -211,3 +211,42 @@ class TestIpMap:
         assert cd._ip_map == {"10.0.0.1": "1.2.3.4"}
         assert cd.auth_mode == AuthMode.INTERNAL
         assert cd._use_services_alternate is True
+
+
+class TestFailIfNotConnected:
+    def test_default_is_true(self):
+        cd = ClusterDefinition("localhost", 3000)
+        assert cd._fail_if_not_connected is True
+
+    def test_set_false(self):
+        cd = ClusterDefinition("localhost", 3000).fail_if_not_connected(False)
+        assert cd._fail_if_not_connected is False
+
+    def test_set_true_explicit(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .fail_if_not_connected(False)
+            .fail_if_not_connected(True)
+        )
+        assert cd._fail_if_not_connected is True
+
+    def test_propagates_to_policy_true(self):
+        cd = ClusterDefinition("localhost", 3000)
+        policy = cd._get_policy()
+        assert policy.fail_if_not_connected is True
+
+    def test_propagates_to_policy_false(self):
+        cd = ClusterDefinition("localhost", 3000).fail_if_not_connected(False)
+        policy = cd._get_policy()
+        assert policy.fail_if_not_connected is False
+
+    def test_fluent_chaining(self):
+        cd = (
+            ClusterDefinition("localhost", 3000)
+            .with_native_credentials("admin", "pass")
+            .fail_if_not_connected(False)
+            .using_services_alternate()
+        )
+        assert cd._fail_if_not_connected is False
+        assert cd.auth_mode == AuthMode.INTERNAL
+        assert cd._use_services_alternate is True
