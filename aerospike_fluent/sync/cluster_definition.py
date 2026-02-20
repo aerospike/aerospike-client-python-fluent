@@ -124,6 +124,7 @@ class ClusterDefinition:
         self._cluster_name: Optional[str] = None
         self._preferred_racks: Optional[List[int]] = None
         self._use_services_alternate = False
+        self._fail_if_not_connected = True
         self._ip_map: Optional[dict[str, str]] = None
         self._tls_builder: Optional[TlsBuilder] = None
     
@@ -258,6 +259,27 @@ class ClusterDefinition:
         self._use_services_alternate = True
         return self
 
+    def fail_if_not_connected(self, fail: bool) -> ClusterDefinition:
+        """
+        Controls whether ``connect()`` raises if the cluster is unreachable.
+
+        If ``True`` (the default), ``connect()`` raises a ``ConnectionError``
+        when all seed connections fail or a seed connects but none of its
+        peers are reachable.
+
+        If ``False``, a partial cluster is created and the client will
+        automatically connect to the remaining nodes when they become
+        available.
+
+        Args:
+            fail: Whether to raise on connection failure.
+
+        Returns:
+            This ClusterDefinition for method chaining
+        """
+        self._fail_if_not_connected = fail
+        return self
+
     def with_ip_map(self, ip_map: dict[str, str]) -> ClusterDefinition:
         """
         Sets an IP address translation table for cluster node discovery.
@@ -300,6 +322,8 @@ class ClusterDefinition:
 
         # Services alternate (default to True to match FluentClient behavior)
         policy.use_services_alternate = self._use_services_alternate if self._use_services_alternate else True
+
+        policy.fail_if_not_connected = self._fail_if_not_connected
 
         # Authentication
         policy.set_auth_mode(self._auth_mode, self._user_name, self._password)
@@ -384,6 +408,8 @@ class ClusterDefinition:
 
         Raises:
             ValueError: If PKI auth is configured but hosts are missing TLS names
+            ConnectionError: If ``fail_if_not_connected`` is True (default) and
+                the cluster is unreachable
         """
         self._validate()
         policy = self._get_policy()
