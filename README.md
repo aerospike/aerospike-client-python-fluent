@@ -7,25 +7,35 @@ A fluent API wrapper for the Aerospike async Python client, providing a more int
 ## Prerequisites
 
 - **Python** 3.10 - 3.14
-- **Rust toolchain** (rustc + cargo) -- required to build the async client dependency
 - **Aerospike server** -- required for integration tests
+- **Rust toolchain** (rustc + cargo) -- only needed if building the async client from source
 - **Java 11+** -- only needed if regenerating the ANTLR DSL parser
 
 ## Install the Python Async Client
 
-The fluent client depends on the [Aerospike async Python client](https://github.com/aerospike/aerospike-client-python-async) (`rust-async` branch). Build and install it first:
+The fluent client depends on the [Aerospike async Python client](https://github.com/aerospike/aerospike-client-python-async).
+
+### Option 1: Pre-built wheel (recommended -- no Rust needed)
+
+Download the wheel for your platform and Python version from the
+[GitHub Releases page](https://github.com/aerospike/aerospike-client-python-async/releases),
+then install it:
+
+```bash
+pip install aerospike_async-0.3.0a2-cp313-cp313-macosx_11_0_arm64.whl  # example
+```
+
+### Option 2: Build from source (requires Rust)
 
 ```bash
 git clone git@github.com:aerospike/aerospike-client-python-async.git
 cd aerospike-client-python-async
-git checkout rust-async
+git checkout v0.3.0-alpha.2
 pip install -r requirements.txt
 make dev
 ```
 
-Requires Rust. See the [async client README](https://github.com/aerospike/aerospike-client-python-async/blob/rust-async/README.md) for detailed Rust setup instructions.
-
-Alternatively, `pip install -e .` in this repo will attempt to pull and build the async client automatically via SSH, but a local build is recommended for development.
+See the [async client README](https://github.com/aerospike/aerospike-client-python-async/blob/rust-async/README.md) for detailed Rust setup instructions.
 
 ## Install the Fluent Client
 
