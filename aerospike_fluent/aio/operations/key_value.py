@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from aerospike_async import (
     BitOperation,
@@ -33,7 +33,13 @@ from aerospike_async import (
 )
 from aerospike_async.exceptions import ServerError
 
+from aerospike_fluent.policy.policy_mapper import to_read_policy, to_write_policy
+
 from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
+
+if TYPE_CHECKING:
+    from aerospike_fluent.policy.behavior import Behavior
 
 
 class BinBuilder:
@@ -309,20 +315,23 @@ class KeyValueOperation:
         namespace: str,
         set_name: str,
         key: Union[str, int],
+        behavior: Optional[Behavior] = None,
     ) -> None:
         """
         Initialize a KeyValueOperation builder.
-        
+
         Args:
             client: The underlying async client.
             namespace: The namespace name.
             set_name: The set name.
             key: The record key (string or integer).
+            behavior: Optional Behavior for deriving policies.
         """
         self._client = client
         self._namespace = namespace
         self._set_name = set_name
         self._key = key
+        self._behavior = behavior
         self._read_policy: Optional[ReadPolicy] = None
         self._write_policy: Optional[WritePolicy] = None
         self._bins: Optional[List[str]] = None
@@ -331,6 +340,24 @@ class KeyValueOperation:
     def _get_key(self) -> Key:
         """Create a Key object from the namespace, set, and key."""
         return Key(self._namespace, self._set_name, self._key)
+
+    def _resolve_read_policy(self) -> ReadPolicy:
+        """Return the explicit read policy, or derive one from Behavior."""
+        if self._read_policy is not None:
+            return self._read_policy
+        if self._behavior is not None:
+            settings = self._behavior.get_settings(OpKind.READ, OpShape.POINT)
+            return to_read_policy(settings)
+        return ReadPolicy()
+
+    def _resolve_write_policy(self, kind: OpKind = OpKind.WRITE_NON_RETRYABLE) -> WritePolicy:
+        """Return the explicit write policy, or derive one from Behavior."""
+        if self._write_policy is not None:
+            return self._write_policy
+        if self._behavior is not None:
+            settings = self._behavior.get_settings(kind, OpShape.POINT)
+            return to_write_policy(settings)
+        return WritePolicy()
 
     def with_read_policy(self, policy: ReadPolicy) -> KeyValueOperation:
         """
@@ -421,7 +448,7 @@ class KeyValueOperation:
         Returns:
             The record if found, None otherwise.
         """
-        policy = self._read_policy or ReadPolicy()
+        policy = self._resolve_read_policy()
         key = self._get_key()
         try:
             return await self._client.get(policy, key, self._bins)
@@ -437,7 +464,7 @@ class KeyValueOperation:
         Args:
             bins: Dictionary of bin name to value mappings.
         """
-        policy = self._write_policy or WritePolicy()
+        policy = self._resolve_write_policy()
         if self._durable_delete is not None:
             policy.durable_delete = self._durable_delete
         key = self._get_key()
@@ -510,7 +537,7 @@ class KeyValueOperation:
         Returns:
             True if the record existed, False otherwise.
         """
-        policy = self._write_policy or WritePolicy()
+        policy = self._resolve_write_policy(OpKind.WRITE_RETRYABLE)
         if self._durable_delete is not None:
             policy.durable_delete = self._durable_delete
         key = self._get_key()
@@ -526,7 +553,7 @@ class KeyValueOperation:
         Returns:
             True if the record exists, False otherwise.
         """
-        policy = self._read_policy or ReadPolicy()
+        policy = self._resolve_read_policy()
         key = self._get_key()
         try:
             return await self._client.exists(policy, key)
@@ -540,7 +567,7 @@ class KeyValueOperation:
         Args:
             bins: Dictionary of bin name to integer increment values.
         """
-        policy = self._write_policy or WritePolicy()
+        policy = self._resolve_write_policy(OpKind.WRITE_NON_RETRYABLE)
         key = self._get_key()
         try:
             await self._client.add(policy, key, bins)
@@ -554,7 +581,7 @@ class KeyValueOperation:
         Args:
             bins: Dictionary of bin name to string values to append.
         """
-        policy = self._write_policy or WritePolicy()
+        policy = self._resolve_write_policy(OpKind.WRITE_NON_RETRYABLE)
         key = self._get_key()
         try:
             await self._client.append(policy, key, bins)
@@ -568,7 +595,7 @@ class KeyValueOperation:
         Args:
             bins: Dictionary of bin name to string values to prepend.
         """
-        policy = self._write_policy or WritePolicy()
+        policy = self._resolve_write_policy(OpKind.WRITE_NON_RETRYABLE)
         key = self._get_key()
         try:
             await self._client.prepend(policy, key, bins)
@@ -579,7 +606,7 @@ class KeyValueOperation:
         """
         Touch (update TTL) a record without modifying its data.
         """
-        policy = self._write_policy or WritePolicy()
+        policy = self._resolve_write_policy(OpKind.WRITE_NON_RETRYABLE)
         key = self._get_key()
         try:
             await self._client.touch(policy, key)
@@ -625,7 +652,7 @@ class KeyValueOperation:
                 MapOperation.get_by_key("map_bin", "key1", MapReturnType.VALUE)
             ])
         """
-        policy = self._write_policy or WritePolicy()
+        policy = self._resolve_write_policy(OpKind.WRITE_NON_RETRYABLE)
         key = self._get_key()
         try:
             return await self._client.operate(policy, key, operations)

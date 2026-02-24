@@ -127,11 +127,11 @@ class Session:
             ```
         """
         from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
-        
+
         if self._client._client is None:
             raise RuntimeError("Client is not connected")
-        
-        return BatchOperationBuilder(self._client._client)
+
+        return BatchOperationBuilder(self._client._client, self._behavior)
 
     @typing.overload
     def key_value(
@@ -176,11 +176,11 @@ class Session:
         See FluentClient.key_value() for full documentation.
         """
         if isinstance(key, Key):
-            return self._client.key_value(key=key)
+            return self._client.key_value(key=key, behavior=self._behavior)
         elif dataset is not None and key is not None:
-            return self._client.key_value(dataset=dataset, key=key)
+            return self._client.key_value(dataset=dataset, key=key, behavior=self._behavior)
         elif namespace is not None and set_name is not None and key is not None:
-            return self._client.key_value(namespace, set_name, key)
+            return self._client.key_value(namespace, set_name, key, behavior=self._behavior)
         else:
             raise ValueError(
                 "Invalid arguments. Use one of:\n"
@@ -255,14 +255,12 @@ class Session:
 
         See FluentClient.query() for full documentation.
         """
+        b = self._behavior
         # Handle positional arguments (fluent API)
         if arg1 is not None:
-            # Check if it's a DataSet
             if isinstance(arg1, DataSet):
-                return self._client.query(dataset=arg1)
-            # Check if it's a Key
+                return self._client.query(dataset=arg1, behavior=b)
             elif isinstance(arg1, Key):
-                # If arg2 is also a Key, or there are varargs, treat as multiple keys
                 all_keys = [arg1]
                 if isinstance(arg2, Key):
                     all_keys.append(arg2)
@@ -270,37 +268,31 @@ class Session:
                 elif keys:
                     all_keys.extend(keys)
                 else:
-                    # Single key
-                    return self._client.query(key=arg1)
-                # Multiple keys - pass as keyword argument
-                return self._client.query(keys=all_keys)
-            # Check if it's a List[Key]
+                    return self._client.query(key=arg1, behavior=b)
+                return self._client.query(keys=all_keys, behavior=b)
             elif isinstance(arg1, list):
                 if len(arg1) == 0:
                     raise ValueError("keys list cannot be empty")
                 if not isinstance(arg1[0], Key):
                     raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                return self._client.query(keys=arg1)
-            # Check if it's a string (namespace) with second arg as set_name
+                return self._client.query(keys=arg1, behavior=b)
             elif isinstance(arg1, str) and arg2 is not None:
-                return self._client.query(namespace=arg1, set_name=arg2)
+                return self._client.query(namespace=arg1, set_name=arg2, behavior=b)
 
-        # Handle varargs (multiple Keys)
         if keys:
-            # Convert to list and pass as keyword argument
             keys_list = list(keys)
             if arg1 is not None and isinstance(arg1, Key):
                 keys_list.insert(0, arg1)
             if arg2 is not None and isinstance(arg2, Key):
                 keys_list.insert(1 if arg1 is not None and isinstance(arg1, Key) else 0, arg2)
-            return self._client.query(keys=keys_list)
+            return self._client.query(keys=keys_list, behavior=b)
 
-        # Fall back to keyword arguments (legacy style)
         return self._client.query(
             namespace=namespace,
             set_name=set_name,
             dataset=dataset,
             key=key,
+            behavior=b,
         )
 
     @typing.overload
@@ -1082,19 +1074,15 @@ class Session:
                         all_keys.append(arg2)
                     if keys:
                         all_keys.extend(keys)
-                    # Multiple keys - return BatchDeleteOperation
-                    return BatchDeleteOperation(self._client._async_client, all_keys)
+                    return BatchDeleteOperation(self._client._async_client, all_keys, self._behavior)
                 else:
-                    # Single key - return KeyValueOperation
                     return self.key_value(key=arg1)
-            # Check if it's a List[Key]
             elif isinstance(arg1, list):
                 if len(arg1) == 0:
                     raise ValueError("keys list cannot be empty")
                 if not isinstance(arg1[0], Key):
                     raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                # Multiple keys - return BatchDeleteOperation
-                return BatchDeleteOperation(self._client._async_client, arg1)
+                return BatchDeleteOperation(self._client._async_client, arg1, self._behavior)
 
         # Fall back to keyword arguments (legacy style)
         if key is not None:
@@ -1292,19 +1280,15 @@ class Session:
                         all_keys.append(arg2)
                     if keys:
                         all_keys.extend(keys)
-                    # Multiple keys - return BatchExistsOperation
-                    return BatchExistsOperation(self._client._client, all_keys)
+                    return BatchExistsOperation(self._client._client, all_keys, self._behavior)
                 else:
-                    # Single key - return KeyValueOperation
                     return self.key_value(key=arg1)
-            # Check if it's a List[Key]
             elif isinstance(arg1, list):
                 if len(arg1) == 0:
                     raise ValueError("keys list cannot be empty")
                 if not isinstance(arg1[0], Key):
                     raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                # Multiple keys - return BatchExistsOperation
-                return BatchExistsOperation(self._client._client, arg1)
+                return BatchExistsOperation(self._client._client, arg1, self._behavior)
             else:
                 raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
 

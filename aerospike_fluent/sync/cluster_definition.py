@@ -24,6 +24,7 @@ from aerospike_async import AuthMode, ClientPolicy
 
 from aerospike_fluent.sync.cluster import Cluster
 from aerospike_fluent.sync.tls_builder import TlsBuilder
+from aerospike_fluent.policy.system_settings import SystemSettings
 
 
 class Host:
@@ -127,6 +128,7 @@ class ClusterDefinition:
         self._fail_if_not_connected = True
         self._ip_map: Optional[dict[str, str]] = None
         self._tls_builder: Optional[TlsBuilder] = None
+        self._system_settings: Optional[SystemSettings] = None
     
     def with_native_credentials(
         self,
@@ -301,52 +303,55 @@ class ClusterDefinition:
         self._ip_map = ip_map if ip_map else None
         return self
 
+    def with_system_settings(self, settings: SystemSettings) -> ClusterDefinition:
+        """
+        Set cluster-wide system settings (connection pool, tend interval, etc.).
+
+        Args:
+            settings: The SystemSettings to apply.
+
+        Returns:
+            This ClusterDefinition for method chaining.
+        """
+        self._system_settings = settings
+        return self
+
     def with_tls_config_of(self) -> TlsBuilder:
         """
         Begins TLS configuration using a fluent builder pattern.
-        
+
         This method returns a TlsBuilder that allows you to configure various
         TLS settings such as TLS name, CA file, protocols, ciphers, and other
         TLS-specific options. Call done() on the TlsBuilder to return
         to this ClusterDefinition for further configuration.
-        
+
         Returns:
             A TlsBuilder for configuring TLS settings
         """
         self._tls_builder = TlsBuilder(self)
         return self._tls_builder
-    
+
     def _get_policy(self) -> ClientPolicy:
         """Build a ClientPolicy from the configuration."""
         policy = ClientPolicy()
 
-        # Services alternate (default to True to match FluentClient behavior)
         policy.use_services_alternate = self._use_services_alternate if self._use_services_alternate else True
-
         policy.fail_if_not_connected = self._fail_if_not_connected
-
-        # Authentication
         policy.set_auth_mode(self._auth_mode, self._user_name, self._password)
 
-        # Rack awareness (setting rack_ids automatically enables rack awareness)
         if self._preferred_racks:
             policy.rack_ids = self._preferred_racks
-
-        # Cluster name validation (setting cluster_name enables validation)
         if self._cluster_name:
             policy.cluster_name = self._cluster_name
-
-        # IP address translation
         if self._ip_map:
             policy.ip_map = self._ip_map
 
-        # TLS configuration
-        # Note: TLS policy support in Python async client may be limited
-        # This is a placeholder for when TLS support is fully implemented
         if self._tls_builder and self._tls_builder.is_tls_enabled():
             # TODO: Set TLS policy when Python async client fully supports it
-            # For now, TLS configuration is stored but not applied
             pass
+
+        if self._system_settings is not None:
+            self._system_settings.apply_to(policy)
 
         return policy
     

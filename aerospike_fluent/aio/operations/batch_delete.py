@@ -22,7 +22,12 @@ from typing import List, Optional, TYPE_CHECKING
 from aerospike_async import Client, Key, WritePolicy
 
 from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
+from aerospike_fluent.policy.policy_mapper import to_batch_policy
 from aerospike_fluent.record_stream import RecordStream
+
+if TYPE_CHECKING:
+    from aerospike_fluent.policy.behavior import Behavior
 
 
 class BatchDeleteOperation:
@@ -47,16 +52,19 @@ class BatchDeleteOperation:
         self,
         client: Client,
         keys: List[Key],
+        behavior: Optional[Behavior] = None,
     ) -> None:
         """
         Initialize a BatchDeleteOperation.
-        
+
         Args:
             client: The underlying async client.
             keys: List of keys to delete.
+            behavior: Optional Behavior for deriving policies.
         """
         self._client = client
         self._keys = keys
+        self._behavior = behavior
         self._write_policy: Optional[WritePolicy] = None
         self._respond_all_keys: bool = False
 
@@ -105,10 +113,14 @@ class BatchDeleteOperation:
         Returns:
             A :class:`RecordStream` of per-key :class:`RecordResult` items.
         """
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
         try:
             results = await self._client.batch_delete(
-                None,  # batch_policy
-                None,  # delete_policy
+                batch_policy,
+                None,
                 self._keys,
             )
         except Exception as e:

@@ -1,0 +1,144 @@
+# Copyright 2025-2026 Aerospike, Inc.
+#
+# Portions may be licensed to Aerospike, Inc. under one or more contributor
+# license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+"""Map resolved Settings to PAC policy objects."""
+
+from __future__ import annotations
+
+from aerospike_async import (
+    BatchPolicy,
+    ReadPolicy,
+    QueryPolicy,
+    WritePolicy,
+)
+
+from aerospike_fluent.policy.behavior_settings import Settings
+
+
+def _ms(td) -> int:
+    """Convert a timedelta to integer milliseconds."""
+    return int(td.total_seconds() * 1000)
+
+
+def to_read_policy(settings: Settings) -> ReadPolicy:
+    """Build a ReadPolicy from resolved Settings."""
+    p = ReadPolicy()
+    if settings.total_timeout is not None:
+        p.total_timeout = _ms(settings.total_timeout)
+    if settings.socket_timeout is not None:
+        p.socket_timeout = _ms(settings.socket_timeout)
+    if settings.max_retries is not None:
+        p.max_retries = settings.max_retries
+    if settings.retry_delay is not None:
+        p.sleep_between_retries = _ms(settings.retry_delay)
+    if settings.replica is not None:
+        p.replica = settings.replica
+    if settings.consistency_level is not None:
+        p.consistency_level = settings.consistency_level
+    return p
+
+
+def to_write_policy(settings: Settings) -> WritePolicy:
+    """Build a WritePolicy from resolved Settings."""
+    p = WritePolicy()
+    if settings.total_timeout is not None:
+        p.total_timeout = _ms(settings.total_timeout)
+    if settings.socket_timeout is not None:
+        p.socket_timeout = _ms(settings.socket_timeout)
+    if settings.max_retries is not None:
+        p.max_retries = settings.max_retries
+    if settings.retry_delay is not None:
+        p.sleep_between_retries = _ms(settings.retry_delay)
+    if settings.send_key is not None:
+        p.send_key = settings.send_key
+    if settings.durable_delete is not None:
+        p.durable_delete = settings.durable_delete
+    if settings.commit_level is not None:
+        p.commit_level = settings.commit_level
+    return p
+
+
+def to_query_policy(settings: Settings) -> QueryPolicy:
+    """Build a QueryPolicy from resolved Settings."""
+    p = QueryPolicy()
+    if settings.total_timeout is not None:
+        p.total_timeout = _ms(settings.total_timeout)
+    if settings.socket_timeout is not None:
+        p.socket_timeout = _ms(settings.socket_timeout)
+    if settings.max_retries is not None:
+        p.max_retries = settings.max_retries
+    if settings.retry_delay is not None:
+        p.sleep_between_retries = _ms(settings.retry_delay)
+    if settings.replica is not None:
+        p.replica = settings.replica
+    if settings.max_concurrent_nodes is not None:
+        p.max_concurrent_nodes = settings.max_concurrent_nodes
+    if settings.record_queue_size is not None:
+        p.record_queue_size = settings.record_queue_size
+    return p
+
+
+def to_batch_policy(settings: Settings) -> BatchPolicy:
+    """Build a BatchPolicy from resolved Settings."""
+    p = BatchPolicy()
+    if settings.total_timeout is not None:
+        p.total_timeout = _ms(settings.total_timeout)
+    if settings.socket_timeout is not None:
+        p.socket_timeout = _ms(settings.socket_timeout)
+    if settings.max_retries is not None:
+        p.max_retries = settings.max_retries
+    if settings.retry_delay is not None:
+        p.sleep_between_retries = _ms(settings.retry_delay)
+    if settings.allow_inline is not None:
+        p.allow_inline = settings.allow_inline
+    if settings.allow_inline_ssd is not None:
+        p.allow_inline_ssd = settings.allow_inline_ssd
+    return p
+
+
+def apply_to_read_policy(settings: Settings, policy: ReadPolicy) -> ReadPolicy:
+    """Apply non-None Settings fields onto an existing ReadPolicy.
+
+    Used when an explicit policy was provided by the user and behavior
+    settings should fill in any fields the user did not set.
+    """
+    if settings.total_timeout is not None and policy.total_timeout == 0:
+        policy.total_timeout = _ms(settings.total_timeout)
+    if settings.socket_timeout is not None and policy.socket_timeout == 0:
+        policy.socket_timeout = _ms(settings.socket_timeout)
+    if settings.max_retries is not None and policy.max_retries == 0:
+        policy.max_retries = settings.max_retries
+    if settings.replica is not None:
+        policy.replica = settings.replica
+    return policy
+
+
+def apply_to_write_policy(settings: Settings, policy: WritePolicy) -> WritePolicy:
+    """Apply non-None Settings fields onto an existing WritePolicy.
+
+    Explicit user-set fields on the policy take precedence; behavior
+    settings act as defaults for unset fields.
+    """
+    if settings.total_timeout is not None and policy.total_timeout == 0:
+        policy.total_timeout = _ms(settings.total_timeout)
+    if settings.socket_timeout is not None and policy.socket_timeout == 0:
+        policy.socket_timeout = _ms(settings.socket_timeout)
+    if settings.max_retries is not None and policy.max_retries == 0:
+        policy.max_retries = settings.max_retries
+    if settings.send_key is not None:
+        policy.send_key = settings.send_key
+    if settings.commit_level is not None:
+        policy.commit_level = settings.commit_level
+    return policy
