@@ -42,8 +42,10 @@ jobs:
             --dir pac_wheel
           pip install pac_wheel/*.whl
 
-      - name: Install dev dependencies
-        run: pip install -r requirements-dev.txt
+      - name: Install PFC and dev dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install . --no-deps
 
       - name: Run unit tests
         run: python -m pytest tests/unit -v
@@ -96,8 +98,10 @@ jobs:
             --dir pac_wheel
           pip install pac_wheel/*.whl
 
-      - name: Install dev dependencies
-        run: pip install -r requirements-dev.txt
+      - name: Install PFC and dev dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install . --no-deps
 
       - name: Run integration tests
         env:
