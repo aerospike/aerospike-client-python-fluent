@@ -99,6 +99,7 @@ class SyncSession:
             set_name=set_name,
             key=key,
             loop_manager=self._loop_manager,
+            behavior=self._async_session.behavior,
         )
 
     def query(
@@ -254,6 +255,7 @@ class SyncSession:
             key=async_op._key,
             loop_manager=self._loop_manager,
             write_policy=async_op._write_policy,
+            behavior=self._async_session.behavior,
         )
 
     @typing.overload
@@ -311,6 +313,7 @@ class SyncSession:
             key=async_op._key,
             loop_manager=self._loop_manager,
             write_policy=async_op._write_policy,
+            behavior=self._async_session.behavior,
         )
 
     @typing.overload
@@ -368,6 +371,7 @@ class SyncSession:
             key=async_op._key,
             loop_manager=self._loop_manager,
             write_policy=async_op._write_policy,
+            behavior=self._async_session.behavior,
         )
 
     @typing.overload
@@ -425,6 +429,7 @@ class SyncSession:
             key=async_op._key,
             loop_manager=self._loop_manager,
             write_policy=async_op._write_policy,
+            behavior=self._async_session.behavior,
         )
 
     @typing.overload
@@ -482,6 +487,7 @@ class SyncSession:
             key=async_op._key,
             loop_manager=self._loop_manager,
             write_policy=async_op._write_policy,
+            behavior=self._async_session.behavior,
         )
 
     @typing.overload
@@ -536,14 +542,14 @@ class SyncSession:
             key_value=key_value,
         )
 
-        # Check if it's a BatchDeleteOperation
-        if hasattr(async_result, '_keys'):  # BatchDeleteOperation has _keys
+        if hasattr(async_result, '_keys'):
             return SyncBatchDeleteOperation(
                 async_client=self._async_session._client,
                 keys=async_result._keys,
                 loop_manager=self._loop_manager,
+                behavior=self._async_session.behavior,
             )
-        else:  # KeyValueOperation
+        else:
             return SyncKeyValueOperation(
                 async_client=self._async_session._client,
                 namespace=async_result._namespace,
@@ -551,6 +557,7 @@ class SyncSession:
                 key=async_result._key,
                 loop_manager=self._loop_manager,
                 write_policy=async_result._write_policy,
+                behavior=self._async_session.behavior,
             )
 
     def touch(

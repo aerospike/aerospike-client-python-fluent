@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, overload, Union
+from typing import TYPE_CHECKING, Any, List, Optional, overload, Union
 
 from aerospike_async import (
     BasePolicy,
@@ -32,9 +32,20 @@ from aerospike_async import (
     Replica,
     Statement,
 )
+
+from aerospike_fluent.policy.policy_mapper import (
+    to_batch_policy,
+    to_query_policy,
+    to_read_policy,
+)
+
 from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
 from aerospike_fluent.record_stream import RecordStream
+
+if TYPE_CHECKING:
+    from aerospike_fluent.policy.behavior import Behavior
 
 
 class QueryBuilder:
@@ -50,18 +61,21 @@ class QueryBuilder:
         client: Client,
         namespace: str,
         set_name: str,
+        behavior: Optional[Behavior] = None,
     ) -> None:
         """
         Initialize a QueryBuilder.
-        
+
         Args:
             client: The underlying async client.
             namespace: The namespace name.
             set_name: The set name.
+            behavior: Optional Behavior for deriving policies.
         """
         self._client = client
         self._namespace = namespace
         self._set_name = set_name
+        self._behavior = behavior
         self._bins: Optional[List[str]] = None
         self._with_no_bins: bool = False
         self._filters: List[Filter] = []
@@ -550,7 +564,13 @@ class QueryBuilder:
         """
         # Handle single key query
         if self._single_key is not None:
-            read_policy = self._read_policy or ReadPolicy()
+            if self._read_policy is not None:
+                read_policy = self._read_policy
+            elif self._behavior is not None:
+                read_policy = to_read_policy(
+                    self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+            else:
+                read_policy = ReadPolicy()
             try:
                 record = await self._client.get(read_policy, self._single_key, self._bins)
             except Exception as e:
@@ -559,10 +579,15 @@ class QueryBuilder:
 
         # Handle batch key query via batch_read for full per-key result codes
         if self._keys is not None:
+            batch_policy = None
+            read_policy = None
+            if self._behavior is not None:
+                batch_policy = to_batch_policy(
+                    self._behavior.get_settings(OpKind.READ, OpShape.BATCH))
             try:
                 batch_records = await self._client.batch_read(
-                    None,  # batch_policy
-                    None,  # read_policy
+                    batch_policy,
+                    read_policy,
                     self._keys,
                     self._bins,
                 )
@@ -571,7 +596,13 @@ class QueryBuilder:
             return RecordStream.from_batch_records(batch_records)
 
         # Handle dataset query (standard query)
-        policy = self._policy or QueryPolicy()
+        if self._policy is not None:
+            policy = self._policy
+        elif self._behavior is not None:
+            policy = to_query_policy(
+                self._behavior.get_settings(OpKind.READ, OpShape.QUERY))
+        else:
+            policy = QueryPolicy()
         if self._chunk_size is not None and self._chunk_size > 0:
             policy.max_records = self._chunk_size
         if self._filter_expression is not None:

@@ -16,6 +16,23 @@
 """Policy configuration for Aerospike Fluent Client."""
 
 from aerospike_fluent.policy.behavior import Behavior
+from aerospike_fluent.policy.behavior_registry import (
+    get_all_behaviors,
+    get_behavior,
+    get_behavior_or_default,
+)
+from aerospike_fluent.policy.behavior_settings import Mode, OpKind, OpShape, Scope, Settings
+from aerospike_fluent.policy.system_settings import SystemSettings
 
-__all__ = ["Behavior"]
-
+__all__ = [
+    "Behavior",
+    "Mode",
+    "OpKind",
+    "OpShape",
+    "Scope",
+    "Settings",
+    "SystemSettings",
+    "get_all_behaviors",
+    "get_behavior",
+    "get_behavior_or_default",
+]

@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from aerospike_async import (
     BitOperation,
@@ -32,6 +32,9 @@ from aerospike_async import (
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.aio.operations.key_value import BinBuilder, KeyValueOperation
 from aerospike_fluent.sync.client import _EventLoopManager
+
+if TYPE_CHECKING:
+    from aerospike_fluent.policy.behavior import Behavior
 
 
 class SyncBinBuilder:
@@ -95,10 +98,11 @@ class SyncKeyValueOperation:
         key: Union[str, int],
         loop_manager: _EventLoopManager,
         write_policy: Optional[WritePolicy] = None,
+        behavior: Optional[Behavior] = None,
     ) -> None:
         """
         Initialize a SyncKeyValueOperation.
-        
+
         Args:
             async_client: The async FluentClient instance.
             namespace: The namespace name.
@@ -106,12 +110,14 @@ class SyncKeyValueOperation:
             key: The record key (string or integer).
             loop_manager: The event loop manager for running async operations.
             write_policy: Optional write policy to use for this operation.
+            behavior: Optional Behavior for deriving policies.
         """
         self._async_client = async_client
         self._namespace = namespace
         self._set_name = set_name
         self._key = key
         self._loop_manager = loop_manager
+        self._behavior = behavior
         self._read_policy: Optional[ReadPolicy] = None
         self._write_policy: Optional[WritePolicy] = write_policy
         self._bins: Optional[List[str]] = None
@@ -124,6 +130,7 @@ class SyncKeyValueOperation:
             namespace=self._namespace,
             set_name=self._set_name,
             key=self._key,
+            behavior=self._behavior,
         )
         if self._read_policy:
             op.with_read_policy(self._read_policy)

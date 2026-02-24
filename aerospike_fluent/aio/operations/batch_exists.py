@@ -17,12 +17,17 @@
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 
 from aerospike_async import Client, Key
 
 from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
+from aerospike_fluent.policy.policy_mapper import to_batch_policy
 from aerospike_fluent.record_stream import RecordStream
+
+if TYPE_CHECKING:
+    from aerospike_fluent.policy.behavior import Behavior
 
 
 class BatchExistsOperation:
@@ -43,9 +48,11 @@ class BatchExistsOperation:
         self,
         client: Client,
         keys: List[Key],
+        behavior: Optional[Behavior] = None,
     ) -> None:
         self._client = client
         self._keys = keys
+        self._behavior = behavior
         self._respond_all_keys: bool = False
 
     def respond_all_keys(self) -> BatchExistsOperation:
@@ -64,12 +71,16 @@ class BatchExistsOperation:
             A :class:`RecordStream` of per-key :class:`RecordResult` items.
             Use :meth:`RecordResult.as_bool` for a simple existence check.
         """
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(OpKind.READ, OpShape.BATCH))
         try:
             results = await self._client.batch_read(
-                None,  # batch_policy
-                None,  # read_policy
+                batch_policy,
+                None,
                 self._keys,
-                [],    # empty bins list = header only
+                [],
             )
         except Exception as e:
             raise convert_pac_exception(e) from e

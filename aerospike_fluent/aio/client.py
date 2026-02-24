@@ -194,6 +194,7 @@ class FluentClient:
         key: Optional[Union[str, int, bytes, Key]] = None,
         *,
         dataset: Optional[DataSet] = None,
+        behavior: Optional[Behavior] = None,
     ) -> KeyValueOperation:
         """
         Create a key-value operation builder.
@@ -227,6 +228,7 @@ class FluentClient:
             set_name: The set name (if not using Key or DataSet).
             key: The record key. Can be a Key object, or string/int/bytes identifier.
             dataset: Optional DataSet to use for namespace/set.
+            behavior: Optional Behavior for deriving operation policies.
 
         Returns:
             A KeyValueOperation builder for chaining operations.
@@ -261,6 +263,7 @@ class FluentClient:
             namespace=namespace,
             set_name=set_name,
             key=key_value,
+            behavior=behavior,
         )
 
     @overload
@@ -308,6 +311,7 @@ class FluentClient:
         dataset: Optional[DataSet] = None,
         key: Optional[Key] = None,
         keys: Optional[List[Key]] = None,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """
         Create a query builder.
@@ -390,23 +394,24 @@ class FluentClient:
                 client=self._async_client,
                 namespace=namespace,
                 set_name=set_name,
+                behavior=behavior,
             )
-            builder._single_key = key  # Store for later use
+            builder._single_key = key
             return builder
 
         # Handle multiple Keys
         if keys is not None:
             if not keys:
                 raise ValueError("keys list cannot be empty")
-            # Use first key's namespace/set (all should be same)
             namespace = keys[0].namespace
             set_name = keys[0].set_name
             builder = QueryBuilder(
                 client=self._async_client,
                 namespace=namespace,
                 set_name=set_name,
+                behavior=behavior,
             )
-            builder._keys = keys  # Store for later use
+            builder._keys = keys
             return builder
 
         # Handle DataSet
@@ -429,6 +434,7 @@ class FluentClient:
             client=self._async_client,
             namespace=namespace,
             set_name=set_name,
+            behavior=behavior,
         )
 
     @overload

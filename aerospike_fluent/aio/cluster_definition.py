@@ -24,6 +24,7 @@ from aerospike_async import AuthMode, ClientPolicy
 
 from aerospike_fluent.aio.cluster import Cluster
 from aerospike_fluent.aio.tls_builder import TlsBuilder
+from aerospike_fluent.policy.system_settings import SystemSettings
 
 
 class Host:
@@ -125,6 +126,7 @@ class ClusterDefinition:
         self._fail_if_not_connected = True
         self._ip_map: Optional[dict[str, str]] = None
         self._tls_builder: Optional[TlsBuilder] = None
+        self._system_settings: Optional[SystemSettings] = None
     
     def with_native_credentials(
         self,
@@ -299,6 +301,28 @@ class ClusterDefinition:
         self._ip_map = ip_map if ip_map else None
         return self
 
+    def with_system_settings(self, settings: SystemSettings) -> ClusterDefinition:
+        """
+        Set cluster-wide system settings (connection pool, tend interval, etc.).
+
+        Args:
+            settings: The SystemSettings to apply.
+
+        Returns:
+            This ClusterDefinition for method chaining.
+
+        Example::
+
+            cluster = await ClusterDefinition("localhost", 3000) \\
+                .with_system_settings(SystemSettings(
+                    max_connections_per_node=200,
+                    tend_interval=timedelta(seconds=2),
+                )) \\
+                .connect()
+        """
+        self._system_settings = settings
+        return self
+
     def with_tls_config_of(self) -> TlsBuilder:
         """
         Begins TLS configuration using a fluent builder pattern.
@@ -339,12 +363,13 @@ class ClusterDefinition:
             policy.ip_map = self._ip_map
 
         # TLS configuration
-        # Note: TLS policy support in Python async client may be limited
-        # This is a placeholder for when TLS support is fully implemented
         if self._tls_builder and self._tls_builder.is_tls_enabled():
             # TODO: Set TLS policy when Python async client fully supports it
-            # For now, TLS configuration is stored but not applied
             pass
+
+        # System settings (connection pool, tend interval, etc.)
+        if self._system_settings is not None:
+            self._system_settings.apply_to(policy)
 
         return policy
     

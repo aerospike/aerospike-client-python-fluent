@@ -29,7 +29,12 @@ from aerospike_async import (
 )
 
 from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
+from aerospike_fluent.policy.policy_mapper import to_batch_policy
 from aerospike_fluent.record_stream import RecordStream
+
+if TYPE_CHECKING:
+    from aerospike_fluent.policy.behavior import Behavior
 
 
 class BatchOpType(Enum):
@@ -216,14 +221,16 @@ class BatchOperationBuilder:
     client's batch_operate method for optimal performance.
     """
     
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Client, behavior: Optional[Behavior] = None) -> None:
         """
         Initialize a BatchOperationBuilder.
-        
+
         Args:
             client: The underlying async client.
+            behavior: Optional Behavior for deriving policies.
         """
         self._client = client
+        self._behavior = behavior
         self._key_operations: List[BatchKeyOperationBuilder] = []
     
     def insert(self, key: Key) -> BatchKeyOperationBuilder:
@@ -368,19 +375,24 @@ class BatchOperationBuilder:
 
         raw_results: list = []
 
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+
         try:
             if delete_keys:
                 delete_results = await self._client.batch_delete(
-                    None,  # batch_policy
-                    None,  # delete_policy
+                    batch_policy,
+                    None,
                     delete_keys,
                 )
                 raw_results.extend(delete_results)
 
             if operate_keys:
                 operate_results = await self._client.batch_operate(
-                    None,  # batch_policy
-                    None,  # write_policy
+                    batch_policy,
+                    None,
                     operate_keys,
                     operate_ops,
                 )

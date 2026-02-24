@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from aerospike_async import WritePolicy
 
@@ -25,6 +25,9 @@ from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.aio.operations.batch_delete import BatchDeleteOperation
 from aerospike_fluent.sync.client import _EventLoopManager
 from aerospike_fluent.sync.record_stream import SyncRecordStream
+
+if TYPE_CHECKING:
+    from aerospike_fluent.policy.behavior import Behavior
 
 
 class SyncBatchDeleteOperation:
@@ -40,23 +43,26 @@ class SyncBatchDeleteOperation:
         async_client: FluentClient,
         keys: List,
         loop_manager: _EventLoopManager,
+        behavior: Optional[Behavior] = None,
     ) -> None:
         """
         Initialize a SyncBatchDeleteOperation.
-        
+
         Args:
             async_client: The async FluentClient instance.
             keys: List of keys to delete.
             loop_manager: The event loop manager for running async operations.
+            behavior: Optional Behavior for deriving policies.
         """
         self._async_client = async_client
         self._keys = keys
         self._loop_manager = loop_manager
+        self._behavior = behavior
         self._write_policy: Optional[WritePolicy] = None
 
     def _get_async_operation(self) -> BatchDeleteOperation:
         """Get the underlying async operation builder."""
-        op = BatchDeleteOperation(self._async_client._async_client, self._keys)
+        op = BatchDeleteOperation(self._async_client._async_client, self._keys, self._behavior)
         if self._write_policy:
             op.with_write_policy(self._write_policy)
         return op
