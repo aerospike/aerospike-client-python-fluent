@@ -42,14 +42,11 @@ jobs:
             --dir pac_wheel
           pip install pac_wheel/*.whl
 
-      - name: Install PFC and dev dependencies
-        run: pip install -e ".[dev]" --no-deps
-
-      - name: Install remaining dependencies
-        run: pip install antlr4-python3-runtime>=4.13.0
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
 
       - name: Run unit tests
-        run: pytest tests/unit -v
+        run: python -m pytest tests/unit -v
 
   integration:
     runs-on: ubuntu-latest
@@ -99,11 +96,8 @@ jobs:
             --dir pac_wheel
           pip install pac_wheel/*.whl
 
-      - name: Install PFC and dev dependencies
-        run: pip install -e ".[dev]" --no-deps
-
-      - name: Install remaining dependencies
-        run: pip install antlr4-python3-runtime>=4.13.0
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
 
       - name: Run integration tests
         env:
@@ -111,7 +105,7 @@ jobs:
           AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
         run: |
           rm -f aerospike.env
-          pytest tests/integration -v || TEST_FAILED=true
+          python -m pytest tests/integration -v || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
             docker logs --tail 100 aerospike-server
