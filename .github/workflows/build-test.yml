@@ -47,6 +47,9 @@ jobs:
           pip install -r requirements-dev.txt
           pip install . --no-deps
 
+      - name: Generate ANTLR parser
+        run: make generate-dsl
+
       - name: Run unit tests
         run: python -m pytest tests/unit -v
 
@@ -102,6 +105,9 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
           pip install . --no-deps
+
+      - name: Generate ANTLR parser
+        run: make generate-dsl
 
       - name: Run integration tests
         env:
