@@ -85,12 +85,12 @@ class TestSyncQueryBuilderWhere:
         )
 
     def test_where_dsl_string_sets_filter_expression(self):
-        """where(str) parses DSL and sets _filter_expression."""
+        """where(str) parses DSL and sets _filter_expression on the delegate."""
         builder = self._sync_builder()
         expected = parse_dsl("$.age > 20")
         result = builder.where("$.age > 20")
         assert result is builder
-        assert builder._filter_expression == expected
+        assert builder._qb._filter_expression == expected
 
     def test_where_dsl_string_with_params_sets_filter_expression(self):
         """where(str, *params) formats DSL then parses (aligns with JFC String.format)."""
@@ -98,7 +98,7 @@ class TestSyncQueryBuilderWhere:
         expected = parse_dsl("$.age > 21")
         result = builder.where("$.age > %s", 21)
         assert result is builder
-        assert builder._filter_expression == expected
+        assert builder._qb._filter_expression == expected
 
     def test_where_filter_expression_sets_filter_expression(self):
         """where(FilterExpression) stores the expression directly."""
@@ -106,4 +106,4 @@ class TestSyncQueryBuilderWhere:
         exp = Exp.gt(Exp.int_bin("a"), Exp.int_val(100))
         result = builder.where(exp)
         assert result is builder
-        assert builder._filter_expression is exp
+        assert builder._qb._filter_expression is exp

@@ -93,6 +93,30 @@ class TestFromSingle:
 
 
 # ---------------------------------------------------------------------------
+# from_error
+# ---------------------------------------------------------------------------
+
+class TestFromError:
+
+    @pytest.mark.asyncio
+    async def test_wraps_error_as_single_result(self):
+        stream = RecordStream.from_error(_key(), ResultCode.KEY_NOT_FOUND_ERROR)
+        results = await stream.collect()
+        assert len(results) == 1
+        assert not results[0].is_ok
+        assert results[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
+        assert results[0].record is None
+        assert results[0].in_doubt is False
+
+    @pytest.mark.asyncio
+    async def test_preserves_in_doubt(self):
+        stream = RecordStream.from_error(
+            _key(), ResultCode.TIMEOUT, in_doubt=True)
+        results = await stream.collect()
+        assert results[0].in_doubt is True
+
+
+# ---------------------------------------------------------------------------
 # from_batch_records
 # ---------------------------------------------------------------------------
 
