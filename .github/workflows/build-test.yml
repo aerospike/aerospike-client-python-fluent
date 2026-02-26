@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  PAC_VERSION: "v0.3.0-alpha.2"
+  PAC_VERSION: "v0.3.0-alpha.3"
   PAC_REPO: "aerospike/aerospike-client-python-async"
 
 jobs:
