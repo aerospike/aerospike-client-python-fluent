@@ -575,9 +575,11 @@ class TestRecordResultIntegration:
         except Exception:
             pass
 
-        # Batch-key query wraps results in RecordStream (no early throw)
+        # Single-element batch is optimised to a point query; errors are
+        # wrapped (not thrown) so respond_all_keys is needed to surface
+        # KEY_NOT_FOUND in the stream.
         keys = users.ids("rr_first_or_raise_miss")
-        stream = await session.query(keys).execute()
+        stream = await session.query(keys).respond_all_keys().execute()
 
         with pytest.raises(AerospikeError):
             await stream.first_or_raise()

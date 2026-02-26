@@ -87,6 +87,22 @@ class RecordStream:
             )]
         return cls.from_list(results)
 
+    @classmethod
+    def from_error(
+        cls,
+        key: Key,
+        result_code: ResultCode,
+        in_doubt: bool = False,
+    ) -> RecordStream:
+        """Wrap a single-key error as a one-element stream."""
+        return cls.from_list([RecordResult(
+            key=key,
+            record=None,
+            result_code=result_code,
+            in_doubt=in_doubt,
+            index=0,
+        )])
+
     # -- async iteration -----------------------------------------------------
 
     def __aiter__(self) -> RecordStream:
