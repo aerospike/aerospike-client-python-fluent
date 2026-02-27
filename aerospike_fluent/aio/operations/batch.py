@@ -22,12 +22,23 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 
 from aerospike_async import (
     Client,
+    ExpOperation,
+    FilterExpression,
     Key,
     Operation,
     WritePolicy,
     RecordExistsAction,
 )
 
+from aerospike_fluent.aio.operations.key_value import (
+    _EXP_READ_DEFAULT,
+    _EXP_READ_EVAL_NO_FAIL,
+    _EXP_WRITE_CREATE_ONLY,
+    _EXP_WRITE_DEFAULT,
+    _EXP_WRITE_UPDATE_ONLY,
+    BinBuilder,
+)
+from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.exceptions import convert_pac_exception
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
 from aerospike_fluent.policy.policy_mapper import to_batch_policy
@@ -112,6 +123,108 @@ class BatchBinBuilder:
         self._key_op._operations.append(Operation.prepend(self._bin_name, value))
         return self._key_op
 
+    def select_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_eval_failure: bool = False,
+    ) -> BatchKeyOperationBuilder:
+        """
+        Read the result of an expression into this bin.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_eval_failure: If True, suppress evaluation errors.
+
+        Returns:
+            The parent BatchKeyOperationBuilder for chaining.
+        """
+        flags = _EXP_READ_EVAL_NO_FAIL if ignore_eval_failure else _EXP_READ_DEFAULT
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        self._key_op._operations.append(ExpOperation.read(self._bin_name, expr, flags))
+        return self._key_op
+
+    def insert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> BatchKeyOperationBuilder:
+        """
+        Write expression result to this bin only if it does not already exist.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_op_failure: If True, suppress BIN_EXISTS_ERROR.
+            ignore_eval_failure: If True, suppress evaluation errors.
+            delete_if_null: If True, delete bin when expression evaluates to nil.
+
+        Returns:
+            The parent BatchKeyOperationBuilder for chaining.
+        """
+        flags = BinBuilder._build_write_flags(
+            _EXP_WRITE_CREATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
+        )
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        self._key_op._operations.append(ExpOperation.write(self._bin_name, expr, flags))
+        return self._key_op
+
+    def update_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> BatchKeyOperationBuilder:
+        """
+        Write expression result to this bin only if it already exists.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_op_failure: If True, suppress BIN_NOT_FOUND.
+            ignore_eval_failure: If True, suppress evaluation errors.
+            delete_if_null: If True, delete bin when expression evaluates to nil.
+
+        Returns:
+            The parent BatchKeyOperationBuilder for chaining.
+        """
+        flags = BinBuilder._build_write_flags(
+            _EXP_WRITE_UPDATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
+        )
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        self._key_op._operations.append(ExpOperation.write(self._bin_name, expr, flags))
+        return self._key_op
+
+    def upsert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> BatchKeyOperationBuilder:
+        """
+        Write expression result to this bin (create or update).
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_op_failure: If True, suppress policy errors.
+            ignore_eval_failure: If True, suppress evaluation errors.
+            delete_if_null: If True, delete bin when expression evaluates to nil.
+
+        Returns:
+            The parent BatchKeyOperationBuilder for chaining.
+        """
+        flags = BinBuilder._build_write_flags(
+            _EXP_WRITE_DEFAULT, ignore_op_failure, ignore_eval_failure, delete_if_null,
+        )
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        self._key_op._operations.append(ExpOperation.write(self._bin_name, expr, flags))
+        return self._key_op
+
 
 class BatchKeyOperationBuilder:
     """
@@ -135,7 +248,7 @@ class BatchKeyOperationBuilder:
         self._key = key
         self._op_type = op_type
         self._bins: Dict[str, Any] = {}
-        self._operations: List[Operation] = []
+        self._operations: List[Union[Operation, ExpOperation]] = []
     
     def bin(self, bin_name: str) -> BatchBinBuilder:
         """
@@ -352,7 +465,7 @@ class BatchOperationBuilder:
         # Separate delete operations from others (they use batch_delete)
         delete_keys: List[Key] = []
         operate_keys: List[Key] = []
-        operate_ops: List[List[Operation]] = []
+        operate_ops: List[List[Union[Operation, ExpOperation]]] = []
 
         for key_op in self._key_operations:
             if key_op._op_type == BatchOpType.DELETE:

@@ -600,3 +600,68 @@ class TestRecordResultIntegration:
         assert len(results) == 3
         for r in results:
             assert r.is_ok
+
+
+class TestBatchExpressionOps:
+    """Test batch operations with expression reads and writes."""
+
+    async def test_batch_upsert_from(self, client: FluentClient, users: DataSet):
+        """upsert_from across multiple batch keys."""
+        session = client.create_session()
+        keys = [users.id(f"bexp_{i}") for i in range(3)]
+
+        for i, key in enumerate(keys):
+            await session.key_value(key=key).put({"A": (i + 1) * 10})
+
+        stream = await session.batch() \
+            .upsert(keys[0]).bin("C").upsert_from("$.A + 1") \
+            .upsert(keys[1]).bin("C").upsert_from("$.A + 1") \
+            .upsert(keys[2]).bin("C").upsert_from("$.A + 1") \
+            .execute()
+        results = await stream.collect()
+        assert len(results) == 3
+        for r in results:
+            assert r.is_ok
+
+        for i, key in enumerate(keys):
+            rs = await session.query(key=key).bin("C").get().execute()
+            rec = await rs.first_or_raise()
+            assert rec.record.bins["C"] == (i + 1) * 10 + 1
+
+    async def test_batch_select_from(self, client: FluentClient, users: DataSet):
+        """select_from (expression read) in batch context."""
+        session = client.create_session()
+        keys = [users.id(f"bexp_sel_{i}") for i in range(2)]
+
+        await session.key_value(key=keys[0]).put({"A": 5, "B": 3})
+        await session.key_value(key=keys[1]).put({"A": 10, "B": 7})
+
+        stream = await session.batch() \
+            .update(keys[0]).bin("sum").select_from("$.A + $.B") \
+            .update(keys[1]).bin("sum").select_from("$.A + $.B") \
+            .execute()
+        results = await stream.collect()
+        assert len(results) == 2
+        assert results[0].record.bins["sum"] == 8
+        assert results[1].record.bins["sum"] == 17
+
+    async def test_batch_mixed_set_to_and_expression(
+        self, client: FluentClient, users: DataSet,
+    ):
+        """set_to + upsert_from on same key in batch."""
+        session = client.create_session()
+        key = users.id("bexp_mixed")
+
+        await session.key_value(key=key).put({"A": 10})
+
+        stream = await session.batch() \
+            .upsert(key).bin("tag").set_to("done").bin("doubled").upsert_from("$.A * 2") \
+            .execute()
+        results = await stream.collect()
+        assert len(results) == 1
+        assert results[0].is_ok
+
+        rs = await session.query(key=key).bin("tag").get().bin("doubled").get().execute()
+        rec = await rs.first_or_raise()
+        assert rec.record.bins["tag"] == "done"
+        assert rec.record.bins["doubled"] == 20
