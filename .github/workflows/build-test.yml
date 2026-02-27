@@ -12,7 +12,6 @@ permissions:
   contents: read
 
 env:
-  PAC_VERSION: "v0.3.0-alpha.3"
   PAC_REPO: "aerospike/aerospike-client-python-async"
 
 jobs:
@@ -29,6 +28,11 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
+
+      - name: Resolve PAC version from pyproject.toml
+        run: |
+          PAC_VERSION=$(grep 'aerospike-client-python-async' pyproject.toml | grep -oP '@\Kv[^"]+')
+          echo "PAC_VERSION=$PAC_VERSION" >> "$GITHUB_ENV"
 
       - name: Install PAC wheel from GitHub Release
         env:
@@ -88,6 +92,11 @@ jobs:
           docker exec aerospike-server asinfo -v "set-config:context=namespace;id=test;default-ttl=2592000"
           echo "=== Server Build ==="
           docker exec aerospike-server asinfo -v "build"
+
+      - name: Resolve PAC version from pyproject.toml
+        run: |
+          PAC_VERSION=$(grep 'aerospike-client-python-async' pyproject.toml | grep -oP '@\Kv[^"]+')
+          echo "PAC_VERSION=$PAC_VERSION" >> "$GITHUB_ENV"
 
       - name: Install PAC wheel from GitHub Release
         env:
