@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING, Any, Generic, List, Optional, TypeVar, overloa
 from aerospike_async import (
     BasePolicy,
     Client,
+    ExpOperation,
+    ExpReadFlags,
     Filter,
     FilterExpression,
     Key,
@@ -58,6 +60,9 @@ from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.exceptions import AerospikeError, convert_pac_exception
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
 from aerospike_fluent.record_stream import RecordStream
+
+_EXP_READ_DEFAULT = int(ExpReadFlags.DEFAULT)
+_EXP_READ_EVAL_NO_FAIL = int(ExpReadFlags.EVAL_NO_FAIL)
 
 if TYPE_CHECKING:
     from aerospike_fluent.policy.behavior import Behavior
@@ -889,6 +894,31 @@ class QueryBinBuilder(Generic[_T]):
     def list_size(self) -> _T:
         """Return the element count of a list bin."""
         self._parent.add_operation(ListOperation.size(self._bin))  # type: ignore[union-attr]
+        return self._parent
+
+    # -- Expression read ------------------------------------------------------
+
+    def select_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_eval_failure: bool = False,
+    ) -> _T:
+        """Read a computed value into this bin using a DSL expression.
+
+        The result appears as a virtual bin in the returned record.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_eval_failure: If True, silently return None when the
+                expression cannot be evaluated (e.g. missing bin).
+
+        Returns:
+            The parent builder for method chaining.
+        """
+        flags = _EXP_READ_EVAL_NO_FAIL if ignore_eval_failure else _EXP_READ_DEFAULT
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        self._parent.add_operation(ExpOperation.read(self._bin, expr, flags))  # type: ignore[union-attr]
         return self._parent
 
     # -- Map navigation (singular -> CdtReadBuilder) --------------------------

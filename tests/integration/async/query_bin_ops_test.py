@@ -289,6 +289,55 @@ class TestQueryStacking:
         with pytest.raises(ValueError, match="cannot be stacked"):
             client.query(NS, SET).query(_key(1))
 
+    @pytest.mark.asyncio
+    async def test_stacked_read_complex(self, client):
+        """Stacked query mixing specific bins, all bins, no bins,
+        select_from, missing bin, and missing key."""
+        rs = await (
+            client.query(key=_key(1))
+            .bins(["name"])
+            .query(_key(2))
+            .query(_key(3))
+            .with_no_bins()
+            .query(_key(1))
+            .bin("score").select_from("$.score * 8")
+            .query(_key(2))
+            .bins(["binnotfound"])
+            .query(Key(NS, SET, f"{KEY_PREFIX}999"))
+            .bins(["name"])
+            .execute()
+        )
+        results = await rs.collect()
+        # Missing key (key999) is excluded from stream by default
+        assert len(results) == 5
+
+        # key1 — specific bin
+        r = results[0]
+        assert r.is_ok
+        assert r.record.bins["name"] == "user1"
+        assert "age" not in r.record.bins
+
+        # key2 — all bins
+        r = results[1]
+        assert r.is_ok
+        assert "name" in r.record.bins
+        assert "age" in r.record.bins
+
+        # key3 — no bins (header only)
+        r = results[2]
+        assert r.is_ok
+        assert r.record.bins == {}
+
+        # key1 — select_from expression
+        r = results[3]
+        assert r.is_ok
+        assert r.record.bins["score"] == 800
+
+        # key2 — missing bin returns empty
+        r = results[4]
+        assert r.is_ok
+        assert "binnotfound" not in r.record.bins
+
 
 # ===================================================================
 # Inverted reads

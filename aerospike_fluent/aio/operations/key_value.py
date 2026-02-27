@@ -22,6 +22,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from aerospike_async import (
     BitOperation,
     Client,
+    ExpOperation,
+    ExpReadFlags,
+    ExpWriteFlags,
+    FilterExpression,
     GenerationPolicy,
     Key,
     ListOperation,
@@ -33,10 +37,22 @@ from aerospike_async import (
 )
 from aerospike_async.exceptions import ServerError
 
+from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.policy.policy_mapper import to_read_policy, to_write_policy
 
 from aerospike_fluent.exceptions import convert_pac_exception
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
+
+# Derive int constants from PAC enums (PyO3 eq_int enums support int())
+_EXP_WRITE_DEFAULT = int(ExpWriteFlags.DEFAULT)
+_EXP_WRITE_CREATE_ONLY = int(ExpWriteFlags.CREATE_ONLY)
+_EXP_WRITE_UPDATE_ONLY = int(ExpWriteFlags.UPDATE_ONLY)
+_EXP_WRITE_ALLOW_DELETE = int(ExpWriteFlags.ALLOW_DELETE)
+_EXP_WRITE_POLICY_NO_FAIL = int(ExpWriteFlags.POLICY_NO_FAIL)
+_EXP_WRITE_EVAL_NO_FAIL = int(ExpWriteFlags.EVAL_NO_FAIL)
+
+_EXP_READ_DEFAULT = int(ExpReadFlags.DEFAULT)
+_EXP_READ_EVAL_NO_FAIL = int(ExpReadFlags.EVAL_NO_FAIL)
 
 if TYPE_CHECKING:
     from aerospike_fluent.policy.behavior import Behavior
@@ -60,6 +76,7 @@ class BinBuilder:
         self._operation = operation
         self._bins: Dict[str, Any] = {}
         self._increments: Dict[str, int] = {}
+        self._exp_ops: List[ExpOperation] = []
         self._remove_other_bins: bool = False
         self._current_bin: Optional[str] = bin_name
 
@@ -229,6 +246,151 @@ class BinBuilder:
         self._expected_generation = generation
         return self
 
+    # -- Expression operations ------------------------------------------------
+
+    @staticmethod
+    def _resolve_expression(expression: Union[str, FilterExpression]) -> FilterExpression:
+        """Convert a DSL string to FilterExpression, or pass through."""
+        if isinstance(expression, str):
+            return parse_dsl(expression)
+        return expression
+
+    @staticmethod
+    def _build_write_flags(
+        base: int,
+        ignore_op_failure: bool,
+        ignore_eval_failure: bool,
+        delete_if_null: bool,
+    ) -> int:
+        """OR together ExpWriteFlags bitmask from boolean kwargs."""
+        flags = base
+        if ignore_op_failure:
+            flags |= _EXP_WRITE_POLICY_NO_FAIL
+        if ignore_eval_failure:
+            flags |= _EXP_WRITE_EVAL_NO_FAIL
+        if delete_if_null:
+            flags |= _EXP_WRITE_ALLOW_DELETE
+        return flags
+
+    def select_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_eval_failure: bool = False,
+    ) -> BinBuilder:
+        """Read a computed value into this bin using a DSL expression.
+
+        The result appears as a virtual bin in the returned record.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_eval_failure: If True, silently return None when the
+                expression cannot be evaluated (e.g. missing bin).
+
+        Returns:
+            self for method chaining.
+        """
+        if self._current_bin is None:
+            raise ValueError("Must call .bin(name) before .select_from()")
+        flags = _EXP_READ_EVAL_NO_FAIL if ignore_eval_failure else _EXP_READ_DEFAULT
+        expr = self._resolve_expression(expression)
+        self._exp_ops.append(ExpOperation.read(self._current_bin, expr, flags))
+        self._current_bin = None
+        return self
+
+    def insert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> BinBuilder:
+        """Write expression result only if the bin does not exist.
+
+        Fails with BIN_EXISTS_ERROR if the bin already exists (unless
+        ``ignore_op_failure=True``).
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_op_failure: Suppress error when bin already exists.
+            ignore_eval_failure: Suppress error on expression eval failure.
+            delete_if_null: Delete the bin if the expression returns nil.
+
+        Returns:
+            self for method chaining.
+        """
+        if self._current_bin is None:
+            raise ValueError("Must call .bin(name) before .insert_from()")
+        flags = self._build_write_flags(
+            _EXP_WRITE_CREATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
+        )
+        expr = self._resolve_expression(expression)
+        self._exp_ops.append(ExpOperation.write(self._current_bin, expr, flags))
+        self._current_bin = None
+        return self
+
+    def update_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> BinBuilder:
+        """Write expression result only if the bin already exists.
+
+        Fails with BIN_NOT_FOUND if the bin does not exist (unless
+        ``ignore_op_failure=True``).
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_op_failure: Suppress error when bin does not exist.
+            ignore_eval_failure: Suppress error on expression eval failure.
+            delete_if_null: Delete the bin if the expression returns nil.
+
+        Returns:
+            self for method chaining.
+        """
+        if self._current_bin is None:
+            raise ValueError("Must call .bin(name) before .update_from()")
+        flags = self._build_write_flags(
+            _EXP_WRITE_UPDATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
+        )
+        expr = self._resolve_expression(expression)
+        self._exp_ops.append(ExpOperation.write(self._current_bin, expr, flags))
+        self._current_bin = None
+        return self
+
+    def upsert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> BinBuilder:
+        """Write expression result, creating or overwriting the bin.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            ignore_op_failure: Suppress error on policy denial.
+            ignore_eval_failure: Suppress error on expression eval failure.
+            delete_if_null: Delete the bin if the expression returns nil.
+
+        Returns:
+            self for method chaining.
+        """
+        if self._current_bin is None:
+            raise ValueError("Must call .bin(name) before .upsert_from()")
+        flags = self._build_write_flags(
+            _EXP_WRITE_DEFAULT, ignore_op_failure, ignore_eval_failure, delete_if_null,
+        )
+        expr = self._resolve_expression(expression)
+        self._exp_ops.append(ExpOperation.write(self._current_bin, expr, flags))
+        self._current_bin = None
+        return self
+
     async def execute(self) -> Optional[Record]:
         """
         Execute the accumulated bin operations.
@@ -246,36 +408,39 @@ class BinBuilder:
         Returns:
             Record if any .get() operations were included, None otherwise.
         """
-        operations: List[Union[Operation, ListOperation, MapOperation, BitOperation]] = []
-        
+        operations: List[Union[Operation, ListOperation, MapOperation, BitOperation, ExpOperation]] = []
+
         # Put operations
         for bin_name, value in self._bins.items():
             operations.append(Operation.put(bin_name, value))
-        
+
         # Add (increment) operations
         for bin_name, increment in self._increments.items():
             operations.append(Operation.add(bin_name, increment))
-        
+
         # Append operations
         if hasattr(self, "_appends"):
             for bin_name, value in self._appends.items():
                 operations.append(Operation.append(bin_name, value))
-        
+
         # Prepend operations
         if hasattr(self, "_prepends"):
             for bin_name, value in self._prepends.items():
                 operations.append(Operation.prepend(bin_name, value))
-        
+
         # Remove bin operations (set to None)
         if hasattr(self, "_removes"):
             for bin_name in self._removes:
                 operations.append(Operation.put(bin_name, None))
-        
+
+        # Expression operations (before reads so writes are visible to subsequent gets)
+        operations.extend(self._exp_ops)
+
         # Get operations
         if hasattr(self, "_gets"):
             for bin_name in self._gets:
                 operations.append(Operation.get_bin(bin_name))
-        
+
         # Handle remove_other_bins
         if self._remove_other_bins:
             record = await self._operation.get()
@@ -285,14 +450,14 @@ class BinBuilder:
                 bins_to_remove = existing_bins - set_bins
                 for bin_name in bins_to_remove:
                     operations.append(Operation.put(bin_name, None))
-        
+
         # Set up generation policy if specified
         if hasattr(self, "_expected_generation"):
             if self._operation._write_policy is None:
                 self._operation._write_policy = WritePolicy()
             self._operation._write_policy.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
             self._operation._write_policy.generation = self._expected_generation
-        
+
         if operations:
             return await self._operation.operate(operations)
         elif self._bins:
@@ -615,16 +780,17 @@ class KeyValueOperation:
 
     async def operate(
         self,
-        operations: List[Union[Operation, ListOperation, MapOperation, BitOperation]],
+        operations: List[Union[Operation, ListOperation, MapOperation, BitOperation, ExpOperation]],
     ) -> Optional[Record]:
         """
         Execute multiple operations atomically on a record.
-        
+
         This method supports:
         - Basic operations: Operation.put(), Operation.get(), etc.
         - List operations: ListOperation.append(), ListOperation.get(), etc.
         - Map operations: MapOperation.put(), MapOperation.get_by_key(), etc.
         - Bit operations: BitOperation.set(), BitOperation.get(), etc.
+        - Expression operations: ExpOperation.read(), ExpOperation.write().
         
         Args:
             operations: List of operations to execute atomically.

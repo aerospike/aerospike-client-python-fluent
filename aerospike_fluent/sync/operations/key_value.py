@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from aerospike_async import (
     BitOperation,
+    ExpOperation,
+    FilterExpression,
     ListOperation,
     MapOperation,
     Operation,
@@ -75,6 +77,67 @@ class SyncBinBuilder:
     def and_remove_other_bins(self) -> SyncBinBuilder:
         """Mark that all bins not explicitly set should be removed."""
         self._async_builder.and_remove_other_bins()
+        return self
+
+    def select_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_eval_failure: bool = False,
+    ) -> SyncBinBuilder:
+        """Read a computed value into this bin using a DSL expression."""
+        self._async_builder.select_from(expression, ignore_eval_failure=ignore_eval_failure)
+        return self
+
+    def insert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> SyncBinBuilder:
+        """Write expression result only if the bin does not exist."""
+        self._async_builder.insert_from(
+            expression,
+            ignore_op_failure=ignore_op_failure,
+            ignore_eval_failure=ignore_eval_failure,
+            delete_if_null=delete_if_null,
+        )
+        return self
+
+    def update_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> SyncBinBuilder:
+        """Write expression result only if the bin already exists."""
+        self._async_builder.update_from(
+            expression,
+            ignore_op_failure=ignore_op_failure,
+            ignore_eval_failure=ignore_eval_failure,
+            delete_if_null=delete_if_null,
+        )
+        return self
+
+    def upsert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> SyncBinBuilder:
+        """Write expression result, creating or overwriting the bin."""
+        self._async_builder.upsert_from(
+            expression,
+            ignore_op_failure=ignore_op_failure,
+            ignore_eval_failure=ignore_eval_failure,
+            delete_if_null=delete_if_null,
+        )
         return self
 
     def execute(self) -> None:
@@ -260,16 +323,17 @@ class SyncKeyValueOperation:
 
     def operate(
         self,
-        operations: List[Union[Operation, ListOperation, MapOperation, BitOperation]],
+        operations: List[Union[Operation, ListOperation, MapOperation, BitOperation, ExpOperation]],
     ) -> Optional[Record]:
         """
         Execute multiple operations atomically on a record synchronously.
-        
+
         This method supports:
         - Basic operations: Operation.put(), Operation.get(), etc.
         - List operations: ListOperation.append(), ListOperation.get(), etc.
         - Map operations: MapOperation.put(), MapOperation.get_by_key(), etc.
         - Bit operations: BitOperation.set(), BitOperation.get(), etc.
+        - Expression operations: ExpOperation.read(), ExpOperation.write().
         
         Args:
             operations: List of operations to execute atomically.
