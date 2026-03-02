@@ -15,9 +15,13 @@
 
 """Tests for Session wrapper."""
 
+import logging
+
 import pytest
 import pytest_asyncio
 from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 
 from aerospike_fluent import Behavior, DataSet, FluentClient
 
@@ -376,10 +380,21 @@ async def test_session_truncate(session):
     assert await session.exists(key=key2).exists()
     assert await session.exists(key=key3).exists()
 
-    # Truncate the set
+    # Truncate the set (server-side truncate is asynchronous)
     await session.truncate(users)
 
-    # Verify all records are deleted
+    import asyncio
+    for attempt in range(50):
+        gone = (
+            not await session.exists(key=key1).exists()
+            and not await session.exists(key=key2).exists()
+            and not await session.exists(key=key3).exists()
+        )
+        if gone:
+            logger.debug("truncate propagated after %d retries", attempt)
+            break
+        await asyncio.sleep(0.1)
+
     assert not await session.exists(key=key1).exists()
     assert not await session.exists(key=key2).exists()
     assert not await session.exists(key=key3).exists()
