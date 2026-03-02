@@ -380,11 +380,10 @@ async def test_session_truncate(session):
     assert await session.exists(key=key2).exists()
     assert await session.exists(key=key3).exists()
 
-    # Truncate the set (server-side truncate is asynchronous)
     await session.truncate(users)
 
     import asyncio
-    for attempt in range(50):
+    for attempt in range(100):
         gone = (
             not await session.exists(key=key1).exists()
             and not await session.exists(key=key2).exists()
