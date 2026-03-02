@@ -40,10 +40,15 @@ additiveExpression
     ;
 
 multiplicativeExpression
-    : bitwiseExpression                                                         # BitwiseExpressionWrapper
-    | multiplicativeExpression '*' bitwiseExpression                            # MulExpression
-    | multiplicativeExpression '/' bitwiseExpression                            # DivExpression
-    | multiplicativeExpression '%' bitwiseExpression                            # ModExpression
+    : powerExpression                                                            # PowerExpressionWrapper
+    | multiplicativeExpression '*' powerExpression                               # MulExpression
+    | multiplicativeExpression '/' powerExpression                               # DivExpression
+    | multiplicativeExpression '%' powerExpression                               # ModExpression
+    ;
+
+powerExpression
+    : bitwiseExpression                                                          # BitwiseExpressionWrapper
+    | bitwiseExpression '**' powerExpression                                     # PowInfixExpression
     ;
 
 bitwiseExpression
@@ -57,7 +62,8 @@ bitwiseExpression
 shiftExpression
     : operand                                                                   # OperandExpression
     | shiftExpression '<<' operand                                              # IntLShiftExpression
-    | shiftExpression '>>' operand                                              # IntRShiftExpression
+    | shiftExpression '>>>' operand                                             # IntLogicalRShiftExpression
+    | shiftExpression '>>' operand                                              # IntArithmeticRShiftExpression
     ;
 
 variableDefinition
@@ -78,6 +84,17 @@ operand
     | placeholder
     | '$.' pathOrMetadata
     | '(' expression ')'
+    | functionCall
+    ;
+
+functionCall
+    : 'abs' '(' expression ')'                                                  # AbsFunction
+    | 'ceil' '(' expression ')'                                                 # CeilFunction
+    | 'floor' '(' expression ')'                                                # FloorFunction
+    | 'log' '(' expression ',' expression ')'                                   # LogFunction
+    | 'pow' '(' expression ',' expression ')'                                   # PowFunction
+    | 'max' '(' expression (',' expression)+ ')'                                # MaxFunction
+    | 'min' '(' expression (',' expression)+ ')'                                # MinFunction
     ;
 
 numberOperand: intOperand | floatOperand;
@@ -85,7 +102,7 @@ numberOperand: intOperand | floatOperand;
 intOperand: INT;
 floatOperand: FLOAT;
 
-INT: '-'?[0-9]+;
+INT: '-'? ('0x' [0-9a-fA-F]+ | '0b' [01]+ | [0-9]+);
 FLOAT: '-'? [0-9]+ '.' [0-9]+;
 
 booleanOperand: TRUE | FALSE;

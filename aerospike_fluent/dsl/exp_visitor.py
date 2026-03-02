@@ -115,6 +115,9 @@ class ArithOp(Enum):
     MUL = auto()
     DIV = auto()
     MOD = auto()
+    ABS = auto()
+    MAX = auto()
+    MIN = auto()
 
 
 @dataclass
@@ -150,6 +153,12 @@ class DeferredArithmetic:
             return FilterExpression.num_div(resolved_operands)
         elif self.op == ArithOp.MOD:
             return FilterExpression.num_mod(resolved_operands[0], resolved_operands[1])
+        elif self.op == ArithOp.ABS:
+            return FilterExpression.num_abs(resolved_operands[0])
+        elif self.op == ArithOp.MAX:
+            return FilterExpression.max(resolved_operands)
+        elif self.op == ArithOp.MIN:
+            return FilterExpression.min(resolved_operands)
         else:
             raise DslParseException(f"Unknown arithmetic operation: {self.op}")
 
@@ -1041,6 +1050,11 @@ def _get_type_hint(expr: ExprOrDeferred) -> InferredType:
     return InferredType.UNKNOWN
 
 
+def _is_float_context(expr: ExprOrDeferred) -> bool:
+    """Check if an expression carries float type information."""
+    return _get_type_hint(expr) == InferredType.FLOAT
+
+
 def _unwrap_expr(expr: ExprOrDeferred) -> Optional[FilterExpression]:
     """Unwrap a TypedExpr to get the underlying FilterExpression."""
     if isinstance(expr, TypedExpr):
@@ -1376,18 +1390,6 @@ class ExpressionConditionVisitor(ConditionVisitor):
         """Pass through wrapper."""
         return self.visit(ctx.additiveExpression())
 
-    def visitMultiplicativeExpressionWrapper(self, ctx: ConditionParser.MultiplicativeExpressionWrapperContext) -> Optional[FilterExpression]:
-        """Pass through wrapper."""
-        return self.visit(ctx.multiplicativeExpression())
-
-    def visitBitwiseExpressionWrapper(self, ctx: ConditionParser.BitwiseExpressionWrapperContext) -> Optional[FilterExpression]:
-        """Pass through wrapper."""
-        return self.visit(ctx.bitwiseExpression())
-
-    def visitShiftExpressionWrapper(self, ctx: ConditionParser.ShiftExpressionWrapperContext) -> Optional[FilterExpression]:
-        """Pass through wrapper."""
-        return self.visit(ctx.shiftExpression())
-
     def visitOperandExpression(self, ctx: ConditionParser.OperandExpressionContext) -> Optional[FilterExpression]:
         """Visit operand expression."""
         return self.visit(ctx.operand())
@@ -1713,14 +1715,14 @@ class ExpressionConditionVisitor(ConditionVisitor):
         if hasattr(ctx, 'listIndex') and ctx.listIndex() is not None:
             idx_ctx = ctx.listIndex()
             if hasattr(idx_ctx, 'INT') and idx_ctx.INT() is not None:
-                index = int(idx_ctx.INT().getText())
+                index = int(idx_ctx.INT().getText(), 0)
                 return ListIndexPart(index)
 
         # Check for listRank: [#INT]
         if hasattr(ctx, 'listRank') and ctx.listRank() is not None:
             rank_ctx = ctx.listRank()
             if hasattr(rank_ctx, 'INT') and rank_ctx.INT() is not None:
-                rank = int(rank_ctx.INT().getText())
+                rank = int(rank_ctx.INT().getText(), 0)
                 return ListRankPart(rank)
 
         # Check for listValue: [=value]
@@ -1813,8 +1815,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
         # Check for negative int
         if hasattr(ctx, 'INT') and ctx.INT() is not None:
             if text.startswith('-'):
-                return -int(ctx.INT().getText())
-            return int(ctx.INT().getText())
+                return -int(ctx.INT().getText(), 0)
+            return int(ctx.INT().getText(), 0)
         # Check for quoted string
         if hasattr(ctx, 'QUOTED_STRING') and ctx.QUOTED_STRING() is not None:
             return _unquote(ctx.QUOTED_STRING().getText())
@@ -1823,7 +1825,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
             return ctx.NAME_IDENTIFIER().getText()
         # Try to parse as int
         try:
-            return int(text)
+            return int(text, 0)
         except ValueError:
             return text
 
@@ -1831,14 +1833,12 @@ class ExpressionConditionVisitor(ConditionVisitor):
         """Parse indexRangeIdentifier into (start, count)."""
         if ctx is None:
             return (0, None)
-        # Access StartContext and EndContext via getTypedRuleContext
-        # (start is shadowed by ANTLR's built-in start token attribute)
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
         end_ctx = ctx.end() if hasattr(ctx, 'end') and callable(ctx.end) else None
 
-        start = int(start_ctx.getText()) if start_ctx else 0
+        start = int(start_ctx.getText(), 0) if start_ctx else 0
         if end_ctx:
-            end = int(end_ctx.getText())
+            end = int(end_ctx.getText(), 0)
             count = end - start
         else:
             count = None
@@ -1851,9 +1851,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
         end_ctx = ctx.end() if hasattr(ctx, 'end') and callable(ctx.end) else None
 
-        start = int(start_ctx.getText()) if start_ctx else 0
+        start = int(start_ctx.getText(), 0) if start_ctx else 0
         if end_ctx:
-            end = int(end_ctx.getText())
+            end = int(end_ctx.getText(), 0)
             count = end - start
         else:
             count = None
@@ -1896,7 +1896,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         
         # Get start
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
-        rank = int(start_ctx.getText()) if start_ctx else 0
+        rank = int(start_ctx.getText(), 0) if start_ctx else 0
         
         # Get relativeRankEnd
         rel_end = ctx.relativeRankEnd() if hasattr(ctx, 'relativeRankEnd') else None
@@ -1906,7 +1906,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         # Check for end (count)
         end_ctx = rel_end.end() if hasattr(rel_end, 'end') and callable(rel_end.end) else None
         if end_ctx:
-            end = int(end_ctx.getText())
+            end = int(end_ctx.getText(), 0)
             count = end - rank
         else:
             count = None
@@ -1932,7 +1932,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         
         # Get start
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
-        index = int(start_ctx.getText()) if start_ctx else 0
+        index = int(start_ctx.getText(), 0) if start_ctx else 0
         
         # Get relativeKeyEnd
         rel_end = ctx.relativeKeyEnd() if hasattr(ctx, 'relativeKeyEnd') else None
@@ -1942,7 +1942,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         # Check for end (count)
         end_ctx = rel_end.end() if hasattr(rel_end, 'end') and callable(rel_end.end) else None
         if end_ctx:
-            end = int(end_ctx.getText())
+            end = int(end_ctx.getText(), 0)
             count = end - index
         else:
             count = None
@@ -1972,14 +1972,14 @@ class ExpressionConditionVisitor(ConditionVisitor):
         if hasattr(ctx, 'mapIndex') and ctx.mapIndex() is not None:
             idx_ctx = ctx.mapIndex()
             if hasattr(idx_ctx, 'INT') and idx_ctx.INT() is not None:
-                index = int(idx_ctx.INT().getText())
+                index = int(idx_ctx.INT().getText(), 0)
                 return MapIndexPart(index)
 
         # Check for mapRank: {#INT}
         if hasattr(ctx, 'mapRank') and ctx.mapRank() is not None:
             rank_ctx = ctx.mapRank()
             if hasattr(rank_ctx, 'INT') and rank_ctx.INT() is not None:
-                rank = int(rank_ctx.INT().getText())
+                rank = int(rank_ctx.INT().getText(), 0)
                 return MapRankPart(rank)
 
         # Check for mapValue: {=value}
@@ -2151,9 +2151,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
         return TypedExpr(expr, InferredType.STRING, value=unquoted)
 
     def visitIntOperand(self, ctx: ConditionParser.IntOperandContext) -> ExprOrDeferred:
-        """Visit integer operand: 123"""
+        """Visit integer operand: 123, 0xFF, 0b1010"""
         text = ctx.INT().getText()
-        value = int(text)
+        value = int(text, 0)
         expr = FilterExpression.int_val(value)
         return TypedExpr(expr, InferredType.INT)
 
@@ -2212,7 +2212,11 @@ class ExpressionConditionVisitor(ConditionVisitor):
         # Check for placeholder: ?1, ?2
         if ctx.placeholder() is not None:
             return self.visit(ctx.placeholder())
-        
+
+        # Check for function call: abs(), ceil(), floor(), log(), pow(), max(), min()
+        if ctx.functionCall() is not None:
+            return self.visit(ctx.functionCall())
+
         raise DslParseException(f"Unsupported operand type: {ctx.getText()}")
 
     def visitPathOrMetadata(self, ctx: ConditionParser.PathOrMetadataContext) -> Optional[FilterExpression]:
@@ -2251,10 +2255,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
         elif text == "voidTime()":
             return FilterExpression.void_time()
         elif text.startswith("digestModulo(") and text.endswith(")"):
-            # Extract integer parameter
-            match = re.search(r"digestModulo\((\d+)\)", text)
+            match = re.search(r"digestModulo\((-?(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d+))\)", text)
             if match:
-                value = int(match.group(1))
+                value = int(match.group(1), 0)
                 return FilterExpression.digest_modulo(value)
         
         raise DslParseException(f"Unsupported metadata function: {text}")
@@ -2364,6 +2367,10 @@ class ExpressionConditionVisitor(ConditionVisitor):
         """Pass through wrapper."""
         return self.visit(ctx.multiplicativeExpression())
 
+    def visitPowerExpressionWrapper(self, ctx: ConditionParser.PowerExpressionWrapperContext) -> Optional[FilterExpression]:
+        """Pass through wrapper."""
+        return self.visit(ctx.powerExpression())
+
     def visitBitwiseExpressionWrapper(self, ctx: ConditionParser.BitwiseExpressionWrapperContext) -> Optional[FilterExpression]:
         """Pass through wrapper."""
         return self.visit(ctx.bitwiseExpression())
@@ -2399,7 +2406,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         later type inference from comparison context.
         """
         left = self.visit(ctx.multiplicativeExpression())
-        right = self.visit(ctx.bitwiseExpression())
+        right = self.visit(ctx.powerExpression())
         return _build_arithmetic(ArithOp.MUL, left, right)
 
     def visitDivExpression(self, ctx: ConditionParser.DivExpressionContext) -> ExprOrDeferred:
@@ -2409,7 +2416,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         later type inference from comparison context.
         """
         left = self.visit(ctx.multiplicativeExpression())
-        right = self.visit(ctx.bitwiseExpression())
+        right = self.visit(ctx.powerExpression())
         return _build_arithmetic(ArithOp.DIV, left, right)
 
     def visitModExpression(self, ctx: ConditionParser.ModExpressionContext) -> ExprOrDeferred:
@@ -2418,11 +2425,18 @@ class ExpressionConditionVisitor(ConditionVisitor):
         Modulo always uses INT (no float support).
         """
         left = self.visit(ctx.multiplicativeExpression())
-        right = self.visit(ctx.bitwiseExpression())
-        # Modulo doesn't support float, resolve immediately as INT
+        right = self.visit(ctx.powerExpression())
         resolved_left = _resolve_for_arithmetic(left, has_float=False)
         resolved_right = _resolve_for_arithmetic(right, has_float=False)
         return FilterExpression.num_mod(resolved_left, resolved_right)
+
+    def visitPowInfixExpression(self, ctx: ConditionParser.PowInfixExpressionContext) -> ExprOrDeferred:
+        """Visit power infix: left ** right (right-associative, float-only)"""
+        left = self.visit(ctx.bitwiseExpression())
+        right = self.visit(ctx.powerExpression())
+        resolved_left = _resolve_for_arithmetic(left, has_float=True)
+        resolved_right = _resolve_for_arithmetic(right, has_float=True)
+        return FilterExpression.num_pow(resolved_left, resolved_right)
 
     def visitIntAndExpression(self, ctx: ConditionParser.IntAndExpressionContext) -> Optional[FilterExpression]:
         """Visit integer AND expression: left & right
@@ -2477,16 +2491,70 @@ class ExpressionConditionVisitor(ConditionVisitor):
         resolved_shift = _resolve_for_arithmetic(shift, has_float=False)
         return FilterExpression.int_lshift(resolved_value, resolved_shift)
 
-    def visitIntRShiftExpression(self, ctx: ConditionParser.IntRShiftExpressionContext) -> Optional[FilterExpression]:
-        """Visit right shift expression: left >> right
-        
-        Grammar: shiftExpression '>>' operand
-        """
+    def visitIntArithmeticRShiftExpression(self, ctx: ConditionParser.IntArithmeticRShiftExpressionContext) -> Optional[FilterExpression]:
+        """Visit arithmetic right shift: left >> right (sign-preserving)"""
+        value = self.visit(ctx.shiftExpression())
+        shift = self.visit(ctx.operand())
+        resolved_value = _resolve_for_arithmetic(value, has_float=False)
+        resolved_shift = _resolve_for_arithmetic(shift, has_float=False)
+        return FilterExpression.int_arshift(resolved_value, resolved_shift)
+
+    def visitIntLogicalRShiftExpression(self, ctx: ConditionParser.IntLogicalRShiftExpressionContext) -> Optional[FilterExpression]:
+        """Visit logical right shift: left >>> right (zero-fill)"""
         value = self.visit(ctx.shiftExpression())
         shift = self.visit(ctx.operand())
         resolved_value = _resolve_for_arithmetic(value, has_float=False)
         resolved_shift = _resolve_for_arithmetic(shift, has_float=False)
         return FilterExpression.int_rshift(resolved_value, resolved_shift)
+
+    # --- arithmetic function visitors ---
+
+    def visitAbsFunction(self, ctx: ConditionParser.AbsFunctionContext) -> ExprOrDeferred:
+        arg = self.visit(ctx.expression())
+        if _contains_deferred(arg):
+            return DeferredArithmetic(ArithOp.ABS, [arg])
+        resolved = _resolve_for_arithmetic(arg)
+        return FilterExpression.num_abs(resolved)
+
+    def visitCeilFunction(self, ctx: ConditionParser.CeilFunctionContext) -> ExprOrDeferred:
+        arg = self.visit(ctx.expression())
+        resolved = _resolve_for_arithmetic(arg, has_float=True)
+        return FilterExpression.num_ceil(resolved)
+
+    def visitFloorFunction(self, ctx: ConditionParser.FloorFunctionContext) -> ExprOrDeferred:
+        arg = self.visit(ctx.expression())
+        resolved = _resolve_for_arithmetic(arg, has_float=True)
+        return FilterExpression.num_floor(resolved)
+
+    def visitLogFunction(self, ctx: ConditionParser.LogFunctionContext) -> ExprOrDeferred:
+        num = self.visit(ctx.expression(0))
+        base = self.visit(ctx.expression(1))
+        resolved_num = _resolve_for_arithmetic(num, has_float=True)
+        resolved_base = _resolve_for_arithmetic(base, has_float=True)
+        return FilterExpression.num_log(resolved_num, resolved_base)
+
+    def visitPowFunction(self, ctx: ConditionParser.PowFunctionContext) -> ExprOrDeferred:
+        base = self.visit(ctx.expression(0))
+        exponent = self.visit(ctx.expression(1))
+        resolved_base = _resolve_for_arithmetic(base, has_float=True)
+        resolved_exp = _resolve_for_arithmetic(exponent, has_float=True)
+        return FilterExpression.num_pow(resolved_base, resolved_exp)
+
+    def visitMaxFunction(self, ctx: ConditionParser.MaxFunctionContext) -> ExprOrDeferred:
+        visited = [self.visit(e) for e in ctx.expression()]
+        if any(_contains_deferred(v) for v in visited):
+            return DeferredArithmetic(ArithOp.MAX, visited)
+        has_float = any(_is_float_context(v) for v in visited)
+        resolved = [_resolve_for_arithmetic(v, has_float=has_float) for v in visited]
+        return FilterExpression.max(resolved)
+
+    def visitMinFunction(self, ctx: ConditionParser.MinFunctionContext) -> ExprOrDeferred:
+        visited = [self.visit(e) for e in ctx.expression()]
+        if any(_contains_deferred(v) for v in visited):
+            return DeferredArithmetic(ArithOp.MIN, visited)
+        has_float = any(_is_float_context(v) for v in visited)
+        resolved = [_resolve_for_arithmetic(v, has_float=has_float) for v in visited]
+        return FilterExpression.min(resolved)
 
     def _operand_to_python_value(self, oper_ctx: ConditionParser.OperandContext) -> Any:
         """Extract a Python value from an operand that must be a constant (for list/map literals)."""
@@ -2495,7 +2563,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
             text = num.getText()
             if num.floatOperand() is not None:
                 return float(text)
-            return int(text)
+            return int(text, 0)
         if oper_ctx.stringOperand() is not None:
             return _unquote(oper_ctx.stringOperand().getText())
         if oper_ctx.booleanOperand() is not None:
@@ -2510,7 +2578,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
             for pair in oper_ctx.orderedMapConstant().mapPairConstant():
                 key_oper = pair.mapKeyOperand()
                 if key_oper.intOperand() is not None:
-                    key = int(key_oper.intOperand().getText())
+                    key = int(key_oper.intOperand().getText(), 0)
                 else:
                     key = _unquote(key_oper.stringOperand().getText())
                 value = self._operand_to_python_value(pair.operand())
@@ -2534,7 +2602,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         for pair in ctx.mapPairConstant():
             key_oper = pair.mapKeyOperand()
             if key_oper.intOperand() is not None:
-                key = int(key_oper.intOperand().getText())
+                key = int(key_oper.intOperand().getText(), 0)
             else:
                 key = _unquote(key_oper.stringOperand().getText())
             value = self._operand_to_python_value(pair.operand())

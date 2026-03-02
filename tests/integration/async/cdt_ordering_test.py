@@ -32,13 +32,9 @@ BIN = "mapbin"
 @pytest_asyncio.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
-        for key in range(1, 20):
+        for key in range(1, 25):
             await c.key_value(namespace=NS, set_name=SET, key=key).delete()
         yield c
-
-
-def _kv(key):
-    return lambda: client  # unused, just a shorthand below
 
 
 class TestKOrderedMapOrdering:
@@ -278,13 +274,99 @@ class TestNestedOrderedMaps:
             assert set(inner_map.keys()) == {"a", "b", "c"}
 
 
+class TestEdgeCases:
+    """Edge cases for ordered map conversion through PythonValue::OrderedMap."""
+
+    @pytest.mark.asyncio
+    async def test_mixed_key_types_sorted(self, client):
+        """Aerospike sorts by type first (int before string), then by value."""
+        key = 12
+        kv = client.key_value(namespace=NS, set_name=SET, key=key)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await kv.operate([
+            MapOperation.put(BIN, "banana", "s2", policy),
+            MapOperation.put(BIN, 99, "i3", policy),
+            MapOperation.put(BIN, "apple", "s1", policy),
+            MapOperation.put(BIN, 1, "i1", policy),
+            MapOperation.put(BIN, 50, "i2", policy),
+        ])
+
+        record = await client.key_value(namespace=NS, set_name=SET, key=key).get()
+        m = record.bins[BIN]
+        keys = list(m.keys())
+        int_keys = [k for k in keys if isinstance(k, int)]
+        str_keys = [k for k in keys if isinstance(k, str)]
+        assert int_keys == sorted(int_keys)
+        assert str_keys == sorted(str_keys)
+        # Integers sort before strings in Aerospike's type ordering
+        assert keys == int_keys + str_keys
+
+    @pytest.mark.asyncio
+    async def test_bytes_keys_sorted(self, client):
+        """Bytes keys in a K-ordered map preserve sorted order."""
+        key = 13
+        kv = client.key_value(namespace=NS, set_name=SET, key=key)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await kv.operate([
+            MapOperation.put(BIN, b"\x03", "third", policy),
+            MapOperation.put(BIN, b"\x01", "first", policy),
+            MapOperation.put(BIN, b"\x02", "second", policy),
+        ])
+
+        record = await client.key_value(namespace=NS, set_name=SET, key=key).get()
+        m = record.bins[BIN]
+        assert list(m.keys()) == [b"\x01", b"\x02", b"\x03"]
+
+    @pytest.mark.asyncio
+    async def test_empty_ordered_map(self, client):
+        """Empty K-ordered map returns an empty dict."""
+        key = 15
+        kv = client.key_value(namespace=NS, set_name=SET, key=key)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await kv.operate([
+            MapOperation.put(BIN, "a", 1, policy),
+        ])
+        await client.key_value(namespace=NS, set_name=SET, key=key).operate([
+            MapOperation.remove_by_key(BIN, "a", MapReturnType.NONE),
+        ])
+
+        record = await client.key_value(namespace=NS, set_name=SET, key=key).get()
+        m = record.bins[BIN]
+        assert isinstance(m, dict)
+        assert len(m) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_by_rank_range_ordered(self, client):
+        """get_by_rank_range on K-ordered map returns values in rank order."""
+        key = 16
+        kv = client.key_value(namespace=NS, set_name=SET, key=key)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await kv.operate([
+            MapOperation.put(BIN, "c", 300, policy),
+            MapOperation.put(BIN, "a", 100, policy),
+            MapOperation.put(BIN, "b", 200, policy),
+            MapOperation.put(BIN, "d", 400, policy),
+        ])
+
+        # Rank 0 = smallest value (100), get 3 entries by rank
+        record = await client.key_value(namespace=NS, set_name=SET, key=key).operate([
+            MapOperation.get_by_rank_range(BIN, 0, 3, MapReturnType.VALUE),
+        ])
+        values = record.bins[BIN]
+        assert values == [100, 200, 300]
+
+
 class TestFluentApiOrdering:
     """Verify ordering through the fluent BinBuilder path."""
 
     @pytest.mark.asyncio
     async def test_set_to_ordered_bin(self, client):
         """set_to() on a K-ordered map bin, then read back sorted."""
-        key = 15
+        key = 17
         kv = client.key_value(namespace=NS, set_name=SET, key=key)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
@@ -307,7 +389,7 @@ class TestFluentApiOrdering:
     @pytest.mark.asyncio
     async def test_get_by_key_range_ordered(self, client):
         """get_by_key_range on K-ordered map returns keys in sorted order."""
-        key = 16
+        key = 18
         kv = client.key_value(namespace=NS, set_name=SET, key=key)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
