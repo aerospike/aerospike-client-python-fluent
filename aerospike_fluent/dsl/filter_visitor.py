@@ -258,10 +258,15 @@ class FilterTreeVisitor(ConditionVisitor):
             return None
         return self._get_operand_from_shift(bitwise_ctx.getChild(0))
 
+    def _get_operand_from_power(self, power_ctx: Any) -> Optional[_SimpleOperand]:
+        if power_ctx.getChildCount() != 1:
+            return None
+        return self._get_operand_from_bitwise(power_ctx.getChild(0))
+
     def _get_operand_from_multiplicative(self, mult_ctx: Any) -> Optional[_SimpleOperand]:
         if mult_ctx.getChildCount() != 1:
             return None
-        return self._get_operand_from_bitwise(mult_ctx.getChild(0))
+        return self._get_operand_from_power(mult_ctx.getChild(0))
 
     def _get_operand_from_additive(self, add_ctx: Any) -> Optional[_SimpleOperand]:
         if add_ctx.getChildCount() != 1:
@@ -275,7 +280,10 @@ class FilterTreeVisitor(ConditionVisitor):
         mult_ctx = add_ctx.getChild(0)
         if mult_ctx.getChildCount() != 1:
             return None
-        bitwise_ctx = mult_ctx.getChild(0)
+        power_ctx = mult_ctx.getChild(0)
+        if power_ctx.getChildCount() != 1:
+            return None
+        bitwise_ctx = power_ctx.getChild(0)
         if bitwise_ctx.getChildCount() != 1:
             return None
         shift_ctx = bitwise_ctx.getChild(0)
@@ -320,7 +328,7 @@ class FilterTreeVisitor(ConditionVisitor):
                 op_text = mult_ctx.getChild(1).getText()
                 if op_text in "*/":
                     left = self._get_operand_from_multiplicative(mult_ctx.getChild(0))
-                    right = self._get_operand_from_bitwise(mult_ctx.getChild(2))
+                    right = self._get_operand_from_power(mult_ctx.getChild(2))
                     if left is not None and right is not None:
                         if isinstance(left, _BinRef) and isinstance(right, _Constant) and isinstance(right.value, int) and not isinstance(right.value, bool):
                             return (left, op_text, int(right.value), True)
@@ -335,7 +343,10 @@ class FilterTreeVisitor(ConditionVisitor):
         mult_ctx = add_ctx.getChild(0)
         if mult_ctx.getChildCount() != 1:
             return None
-        bitwise_ctx = mult_ctx.getChild(0)
+        power_ctx = mult_ctx.getChild(0)
+        if power_ctx.getChildCount() != 1:
+            return None
+        bitwise_ctx = power_ctx.getChild(0)
         if bitwise_ctx.getChildCount() != 1:
             return None
         shift_ctx = bitwise_ctx.getChild(0)
