@@ -63,11 +63,17 @@ class TestBatchOperations:
             pass
         
         # Insert multiple records with chained operations
-        stream = await session.batch() \
-            .insert(key1).bin("name").set_to("Alice").bin("age").set_to(25) \
-            .insert(key2).bin("name").set_to("Bob").bin("age").set_to(30) \
-            .insert(key3).put({"name": "Charlie", "age": 35}) \
-            .execute()
+        stream = await (
+            session.batch()
+                .insert(key1)
+                    .bin("name").set_to("Alice")
+                    .bin("age").set_to(25)
+                .insert(key2)
+                    .bin("name").set_to("Bob")
+                    .bin("age").set_to(30)
+                .insert(key3).put({"name": "Charlie", "age": 35})
+                .execute()
+        )
         results = await stream.collect()
 
         assert len(results) == 3
@@ -112,11 +118,13 @@ class TestBatchOperations:
             pass
         
         # Execute mixed batch operations
-        stream = await session.batch() \
-            .update(key1).bin("counter").increment_by(5) \
-            .delete(key2) \
-            .insert(key3).bin("status").set_to("new") \
-            .execute()
+        stream = await (
+            session.batch()
+                .update(key1).bin("counter").increment_by(5)
+                .delete(key2)
+                .insert(key3).bin("status").set_to("new")
+                .execute()
+        )
         results = await stream.collect()
 
         assert len(results) == 3
@@ -154,20 +162,24 @@ class TestBatchOperations:
             pass
         
         # First batch: create records
-        await session.batch() \
-            .upsert(key1).bin("value").set_to("initial1") \
-            .upsert(key2).bin("value").set_to("initial2") \
-            .execute()
+        await (
+            session.batch()
+                .upsert(key1).bin("value").set_to("initial1")
+                .upsert(key2).bin("value").set_to("initial2")
+                .execute()
+        )
         
         # Verify initial values
         record1 = await session.key_value(key=key1).get()
         assert record1.bins["value"] == "initial1"
         
         # Second batch: update existing records (upsert)
-        await session.batch() \
-            .upsert(key1).bin("value").set_to("updated1") \
-            .upsert(key2).bin("value").set_to("updated2") \
-            .execute()
+        await (
+            session.batch()
+                .upsert(key1).bin("value").set_to("updated1")
+                .upsert(key2).bin("value").set_to("updated2")
+                .execute()
+        )
         
         # Verify updated values
         record1 = await session.key_value(key=key1).get()
@@ -194,11 +206,13 @@ class TestBatchOperations:
         await session.key_value(key=key3).put({"data": "3"})
         
         # Delete all in one batch
-        stream = await session.batch() \
-            .delete(key1) \
-            .delete(key2) \
-            .delete(key3) \
-            .execute()
+        stream = await (
+            session.batch()
+                .delete(key1)
+                .delete(key2)
+                .delete(key3)
+                .execute()
+        )
         results = await stream.collect()
 
         assert len(results) == 3
@@ -227,10 +241,12 @@ class TestBatchOperations:
         await session.key_value(key=key2).put({"message": "World"})
         
         # Append and prepend in batch
-        await session.batch() \
-            .update(key1).bin("message").append(" World") \
-            .update(key2).bin("message").prepend("Hello ") \
-            .execute()
+        await (
+            session.batch()
+                .update(key1).bin("message").append(" World")
+                .update(key2).bin("message").prepend("Hello ")
+                .execute()
+        )
         
         # Verify
         record1 = await session.key_value(key=key1).get()
@@ -479,8 +495,11 @@ class TestRecordResultIntegration:
         except Exception:
             pass
 
-        stream = await session.exists(key_exists, key_missing) \
-            .respond_all_keys().execute()
+        stream = await (
+            session.exists(key_exists, key_missing)
+                .respond_all_keys()
+                .execute()
+        )
         results = await stream.collect()
 
         assert len(results) == 2
@@ -505,8 +524,11 @@ class TestRecordResultIntegration:
         except Exception:
             pass
 
-        stream = await session.exists(key_exists, key_missing) \
-            .respond_all_keys().execute()
+        stream = await (
+            session.exists(key_exists, key_missing)
+                .respond_all_keys()
+                .execute()
+        )
         results = await stream.collect()
 
         # OK result returns self
@@ -535,8 +557,11 @@ class TestRecordResultIntegration:
         except Exception:
             pass
 
-        stream = await session.exists(key1, key2, key3) \
-            .respond_all_keys().execute()
+        stream = await (
+            session.exists(key1, key2, key3)
+                .respond_all_keys()
+                .execute()
+        )
         fails = await stream.failures()
 
         assert len(fails) == 1
@@ -613,11 +638,13 @@ class TestBatchExpressionOps:
         for i, key in enumerate(keys):
             await session.key_value(key=key).put({"A": (i + 1) * 10})
 
-        stream = await session.batch() \
-            .upsert(keys[0]).bin("C").upsert_from("$.A + 1") \
-            .upsert(keys[1]).bin("C").upsert_from("$.A + 1") \
-            .upsert(keys[2]).bin("C").upsert_from("$.A + 1") \
-            .execute()
+        stream = await (
+            session.batch()
+                .upsert(keys[0]).bin("C").upsert_from("$.A + 1")
+                .upsert(keys[1]).bin("C").upsert_from("$.A + 1")
+                .upsert(keys[2]).bin("C").upsert_from("$.A + 1")
+                .execute()
+        )
         results = await stream.collect()
         assert len(results) == 3
         for r in results:
@@ -636,10 +663,12 @@ class TestBatchExpressionOps:
         await session.key_value(key=keys[0]).put({"A": 5, "B": 3})
         await session.key_value(key=keys[1]).put({"A": 10, "B": 7})
 
-        stream = await session.batch() \
-            .update(keys[0]).bin("sum").select_from("$.A + $.B") \
-            .update(keys[1]).bin("sum").select_from("$.A + $.B") \
-            .execute()
+        stream = await (
+            session.batch()
+                .update(keys[0]).bin("sum").select_from("$.A + $.B")
+                .update(keys[1]).bin("sum").select_from("$.A + $.B")
+                .execute()
+        )
         results = await stream.collect()
         assert len(results) == 2
         assert results[0].record.bins["sum"] == 8
@@ -654,9 +683,13 @@ class TestBatchExpressionOps:
 
         await session.key_value(key=key).put({"A": 10})
 
-        stream = await session.batch() \
-            .upsert(key).bin("tag").set_to("done").bin("doubled").upsert_from("$.A * 2") \
-            .execute()
+        stream = await (
+            session.batch()
+                .upsert(key)
+                    .bin("tag").set_to("done")
+                    .bin("doubled").upsert_from("$.A * 2")
+                .execute()
+        )
         results = await stream.collect()
         assert len(results) == 1
         assert results[0].is_ok

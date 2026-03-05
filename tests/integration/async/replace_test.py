@@ -138,10 +138,12 @@ class TestReplaceOperations:
         await session.key_value(key=key2).put({"value": "original2"})
         
         # Batch replace_if_exists
-        await session.batch() \
-            .replace_if_exists(key1).bin("value").set_to("replaced1") \
-            .replace_if_exists(key2).bin("value").set_to("replaced2") \
-            .execute()
+        await (
+            session.batch()
+                .replace_if_exists(key1).bin("value").set_to("replaced1")
+                .replace_if_exists(key2).bin("value").set_to("replaced2")
+                .execute()
+        )
         
         # Verify
         record1 = await session.key_value(key=key1).get()

@@ -54,12 +54,14 @@ class TestOperate:
         assert record.bins[bin_name2] == "string value"
 
         # Add integer, write new string and read record
-        result = await session.upsert(key) \
-            .bin(bin_name1).add(4) \
-            .bin(bin_name2).set_to("new string") \
-            .bin(bin_name1).get() \
-            .bin(bin_name2).get() \
-            .execute()
+        result = await (
+            session.upsert(key)
+                 .bin(bin_name1).add(4)
+                 .bin(bin_name2).set_to("new string")
+                 .bin(bin_name1).get()
+                 .bin(bin_name2).get()
+                .execute()
+        )
 
         # Result should contain the read values
         assert result is not None
@@ -115,10 +117,12 @@ class TestOperate:
             pass
 
         # Set and get in same operation
-        result = await session.upsert(key) \
-            .bin(bin_name).set_to("test_value") \
-            .bin(bin_name).get() \
-            .execute()
+        result = await (
+            session.upsert(key)
+                .bin(bin_name).set_to("test_value")
+                .bin(bin_name).get()
+                .execute()
+        )
 
         # Result should contain the value we just set
         assert result is not None

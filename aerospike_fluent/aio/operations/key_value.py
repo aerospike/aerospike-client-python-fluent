@@ -391,55 +391,129 @@ class BinBuilder:
         self._current_bin = None
         return self
 
-    async def execute(self) -> Optional[Record]:
-        """
-        Execute the accumulated bin operations.
-        
-        This will:
-        1. Put all bins set via .set_to()
-        2. Add all increments via .increment_by() / .add()
-        3. Append strings via .append()
-        4. Prepend strings via .prepend()
-        5. Remove bins via .remove()
-        6. Read bins via .get()
-        7. Remove other bins if .and_remove_other_bins() was called
-        8. Apply generation check if .ensure_generation_is() was called
-        
-        Returns:
-            Record if any .get() operations were included, None otherwise.
-        """
+    def _build_operations(self) -> List[Union[Operation, ListOperation, MapOperation, BitOperation, ExpOperation]]:
+        """Collect all accumulated bin operations into a flat list."""
         operations: List[Union[Operation, ListOperation, MapOperation, BitOperation, ExpOperation]] = []
-
-        # Put operations
         for bin_name, value in self._bins.items():
             operations.append(Operation.put(bin_name, value))
-
-        # Add (increment) operations
         for bin_name, increment in self._increments.items():
             operations.append(Operation.add(bin_name, increment))
-
-        # Append operations
         if hasattr(self, "_appends"):
             for bin_name, value in self._appends.items():
                 operations.append(Operation.append(bin_name, value))
-
-        # Prepend operations
         if hasattr(self, "_prepends"):
             for bin_name, value in self._prepends.items():
                 operations.append(Operation.prepend(bin_name, value))
-
-        # Remove bin operations (set to None)
         if hasattr(self, "_removes"):
             for bin_name in self._removes:
                 operations.append(Operation.put(bin_name, None))
-
-        # Expression operations (before reads so writes are visible to subsequent gets)
         operations.extend(self._exp_ops)
-
-        # Get operations
         if hasattr(self, "_gets"):
             for bin_name in self._gets:
                 operations.append(Operation.get_bin(bin_name))
+        return operations
+
+    def _infer_op_type(self) -> str:
+        """Derive the op_type string from the parent KVO's write policy."""
+        wp = self._operation._write_policy
+        if wp is None:
+            return "upsert"
+        rea = getattr(wp, "record_exists_action", None)
+        if rea is None:
+            return "upsert"
+        from aerospike_async import RecordExistsAction as REA
+        _rea_map = {
+            REA.CREATE_ONLY: "insert",
+            REA.UPDATE_ONLY: "update",
+            REA.REPLACE: "replace",
+            REA.REPLACE_ONLY: "replace_if_exists",
+        }
+        return _rea_map.get(rea, "upsert")
+
+    # -- Cross-builder transitions --------------------------------------------
+
+    def _to_query_builder(self):
+        """Create a QueryBuilder seeded with the current key's operations."""
+        from aerospike_fluent.aio.operations.query import (
+            QueryBuilder,
+            _OperationSpec,
+        )
+        kvo = self._operation
+        key = kvo._get_key()
+        ops = self._build_operations()
+        op_type = self._infer_op_type()
+
+        qb = QueryBuilder(
+            client=kvo._client,
+            namespace=kvo._namespace,
+            set_name=kvo._set_name,
+            behavior=kvo._behavior,
+        )
+        if ops:
+            qb._specs.append(_OperationSpec(
+                keys=[key],
+                operations=ops,
+                op_type=op_type,
+            ))
+        return qb
+
+    def query(self, arg1, *more_keys):
+        """Transition to a QueryBuilder for chaining a read segment.
+
+        Packages the current key's accumulated writes as a spec
+        and returns a QueryBuilder ready for the next segment.
+
+        Args:
+            arg1: A single Key or List[Key].
+            *more_keys: Additional keys (varargs).
+
+        Returns:
+            A QueryBuilder for method chaining.
+        """
+        qb = self._to_query_builder()
+        qb._op_type = None
+        qb._set_current_keys(arg1, *more_keys)
+        return qb
+
+    def _transition_write(self, op_type: str, arg1, *more_keys):
+        """Transition to a WriteSegmentBuilder for chaining a write segment."""
+        from aerospike_fluent.aio.operations.query import WriteSegmentBuilder
+        qb = self._to_query_builder()
+        qb._op_type = op_type
+        qb._set_current_keys(arg1, *more_keys)
+        return WriteSegmentBuilder(qb)
+
+    def upsert(self, arg1, *more_keys):
+        """Transition to an upsert write segment."""
+        return self._transition_write("upsert", arg1, *more_keys)
+
+    def insert(self, arg1, *more_keys):
+        """Transition to an insert (create-only) write segment."""
+        return self._transition_write("insert", arg1, *more_keys)
+
+    def update(self, arg1, *more_keys):
+        """Transition to an update (update-only) write segment."""
+        return self._transition_write("update", arg1, *more_keys)
+
+    def replace(self, arg1, *more_keys):
+        """Transition to a replace write segment."""
+        return self._transition_write("replace", arg1, *more_keys)
+
+    def replace_if_exists(self, arg1, *more_keys):
+        """Transition to a replace-if-exists write segment."""
+        return self._transition_write("replace_if_exists", arg1, *more_keys)
+
+    def delete(self, arg1, *more_keys):
+        """Transition to a delete write segment."""
+        return self._transition_write("delete", arg1, *more_keys)
+
+    async def execute(self) -> Optional[Record]:
+        """Execute the accumulated bin operations.
+
+        Returns:
+            Record if any .get() operations were included, None otherwise.
+        """
+        operations = self._build_operations()
 
         # Handle remove_other_bins
         if self._remove_other_bins:

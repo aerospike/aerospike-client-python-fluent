@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from aerospike_async import (
     BatchPolicy,
+    BatchReadPolicy,
     ReadPolicy,
     QueryPolicy,
     WritePolicy,
@@ -47,6 +48,8 @@ def to_read_policy(settings: Settings) -> ReadPolicy:
         p.replica = settings.replica
     if settings.consistency_level is not None:
         p.consistency_level = settings.consistency_level
+    if settings.read_touch_ttl_percent is not None:
+        p.read_touch_ttl = settings.read_touch_ttl_percent
     return p
 
 
@@ -87,6 +90,14 @@ def to_query_policy(settings: Settings) -> QueryPolicy:
         p.max_concurrent_nodes = settings.max_concurrent_nodes
     if settings.record_queue_size is not None:
         p.record_queue_size = settings.record_queue_size
+    return p
+
+
+def to_batch_read_policy(settings: Settings) -> BatchReadPolicy:
+    """Build a BatchReadPolicy from resolved Settings."""
+    p = BatchReadPolicy()
+    if settings.read_touch_ttl_percent is not None:
+        p.read_touch_ttl = settings.read_touch_ttl_percent
     return p
 
 

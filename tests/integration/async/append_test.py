@@ -59,10 +59,12 @@ class TestAppend:
         assert record.bins[bin_name] == "Hello World"
 
         # Test append and get combined
-        result = await session.upsert(key) \
-            .bin(bin_name).append("!") \
-            .bin(bin_name).get() \
-            .execute()
+        result = await (
+            session.upsert(key)
+                .bin(bin_name).append("!")
+                .bin(bin_name).get()
+                .execute()
+        )
 
         assert result is not None
         assert result.bins[bin_name] == "Hello World!"
@@ -92,10 +94,12 @@ class TestAppend:
         assert record.bins[bin_name] == "World!"
 
         # Test prepend and get combined
-        result = await session.upsert(key) \
-            .bin(bin_name).prepend("Hello ") \
-            .bin(bin_name).get() \
-            .execute()
+        result = await (
+            session.upsert(key)
+                .bin(bin_name).prepend("Hello ")
+                .bin(bin_name).get()
+                .execute()
+        )
 
         assert result is not None
         assert result.bins[bin_name] == "Hello World!"

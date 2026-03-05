@@ -88,10 +88,12 @@ class TestGeneration:
         current_gen = record.generation
 
         # Update with correct generation - should succeed
-        await session.upsert(key) \
-            .ensure_generation_is(current_gen) \
-            .bin(bin_name).set_to("genvalue3") \
-            .execute()
+        await (
+            session.upsert(key)
+                .ensure_generation_is(current_gen)
+                .bin(bin_name).set_to("genvalue3")
+                .execute()
+        )
 
         # Verify update succeeded
         record = await session.key_value(key=key).get()
@@ -116,10 +118,12 @@ class TestGeneration:
 
         # Try to update with wrong generation - should fail
         with pytest.raises(GenerationError):
-            await session.upsert(key) \
-                .ensure_generation_is(9999) \
-                .bin(bin_name).set_to("genvalue_should_fail") \
-                .execute()
+            await (
+                session.upsert(key)
+                    .ensure_generation_is(9999)
+                    .bin(bin_name).set_to("genvalue_should_fail")
+                    .execute()
+            )
 
         # Verify original value unchanged
         record = await session.key_value(key=key).get()
@@ -150,10 +154,12 @@ class TestGeneration:
 
         # Update with generation check
         new_value = current_value + 10
-        await session.upsert(key) \
-            .ensure_generation_is(current_gen) \
-            .bin(bin_name).set_to(new_value) \
-            .execute()
+        await (
+            session.upsert(key)
+                .ensure_generation_is(current_gen)
+                .bin(bin_name).set_to(new_value)
+                .execute()
+        )
 
         # Verify
         record = await session.key_value(key=key).get()
