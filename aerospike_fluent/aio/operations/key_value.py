@@ -507,6 +507,14 @@ class BinBuilder:
         """Transition to a delete write segment."""
         return self._transition_write("delete", arg1, *more_keys)
 
+    def touch(self, arg1, *more_keys):
+        """Transition to a touch write segment."""
+        return self._transition_write("touch", arg1, *more_keys)
+
+    def exists(self, arg1, *more_keys):
+        """Transition to an exists-check segment."""
+        return self._transition_write("exists", arg1, *more_keys)
+
     async def execute(self) -> Optional[Record]:
         """Execute the accumulated bin operations.
 

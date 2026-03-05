@@ -269,6 +269,20 @@ class SyncQueryBuilder:
         wsb = self._qb.delete(arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
+    def touch(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Finalize current segment and start a touch segment."""
+        wsb = self._qb.touch(arg1, *more_keys)
+        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
+
+    def exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Finalize current segment and start an exists-check segment."""
+        wsb = self._qb.exists(arg1, *more_keys)
+        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
+
     # -- Execute --------------------------------------------------------------
 
     def execute(self) -> SyncRecordStream:
@@ -361,6 +375,20 @@ class SyncWriteSegmentBuilder:
         self._wsb.delete(arg1, *more_keys)
         return self
 
+    def touch(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Finalize current segment and start a touch segment."""
+        self._wsb.touch(arg1, *more_keys)
+        return self
+
+    def exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Finalize current segment and start an exists-check segment."""
+        self._wsb.exists(arg1, *more_keys)
+        return self
+
     # -- Per-spec settings ----------------------------------------------------
 
     def where(
@@ -385,6 +413,11 @@ class SyncWriteSegmentBuilder:
     def durably_delete(self) -> SyncWriteSegmentBuilder:
         """Enable durable delete on the current segment."""
         self._wsb.durably_delete()
+        return self
+
+    def respond_all_keys(self) -> SyncWriteSegmentBuilder:
+        """Include results for missing keys in the stream."""
+        self._wsb.respond_all_keys()
         return self
 
     # -- Execution ------------------------------------------------------------
@@ -548,6 +581,18 @@ class SyncWriteBinBuilder:
     ) -> SyncWriteSegmentBuilder:
         """Shortcut: finalize and start a delete segment."""
         return self._sync_segment.delete(arg1, *more_keys)
+
+    def touch(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Shortcut: finalize and start a touch segment."""
+        return self._sync_segment.touch(arg1, *more_keys)
+
+    def exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Shortcut: finalize and start an exists-check segment."""
+        return self._sync_segment.exists(arg1, *more_keys)
 
     def execute(self) -> SyncRecordStream:
         """Shortcut: execute all accumulated specs."""

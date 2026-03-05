@@ -77,7 +77,7 @@ from aerospike_fluent.policy.policy_mapper import (
 from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.exceptions import AerospikeError, convert_pac_exception
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
-from aerospike_fluent.record_result import batch_records_to_results
+from aerospike_fluent.record_result import RecordResult, batch_records_to_results
 from aerospike_fluent.record_stream import RecordStream
 
 _EXP_READ_DEFAULT = int(ExpReadFlags.DEFAULT)
@@ -812,6 +812,25 @@ class QueryBuilder:
         """Finalize current segment and start a delete segment."""
         return self._start_write_segment("delete", arg1, *more_keys)
 
+    def touch(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a touch segment.
+
+        A touch resets the record's TTL without modifying any bins.
+        """
+        return self._start_write_segment("touch", arg1, *more_keys)
+
+    def exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an exists-check segment.
+
+        An exists check tests whether the key is present without
+        reading any bin data.
+        """
+        return self._start_write_segment("exists", arg1, *more_keys)
+
     def _ensure_policy(self) -> QueryPolicy:
         """Return the existing policy or create a default one."""
         if self._policy is None:
@@ -938,6 +957,16 @@ class QueryBuilder:
             if len(keys) == 1:
                 return await self._execute_single_key_delete(spec)
             return await self._execute_batch_delete(spec)
+
+        if op_type == "touch":
+            if len(keys) == 1:
+                return await self._execute_single_key_touch(spec)
+            return await self._execute_batch_touch(spec)
+
+        if op_type == "exists":
+            if len(keys) == 1:
+                return await self._execute_single_key_exists(spec)
+            return await self._execute_batch_exists(spec)
 
         # Write path (upsert / insert / update / replace / replace_if_exists)
         if len(keys) == 1:
@@ -1176,6 +1205,86 @@ class QueryBuilder:
             raise convert_pac_exception(e) from e
         return self._filtered_batch_stream(batch_records)
 
+    async def _execute_single_key_touch(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        key = spec.keys[0]
+        wp = self._make_write_policy(spec)
+        try:
+            await self._client.touch(wp, key)
+        except Exception as e:
+            return self._wrap_single_key_error(key, e)
+        if self._should_include_result(
+            ResultCode.OK, self._respond_all_keys, self._fail_on_filtered_out
+        ):
+            return RecordStream.from_error(key, ResultCode.OK)
+        return RecordStream.from_list([])
+
+    async def _execute_batch_touch(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        bwp = self._make_batch_write_policy(spec)
+        touch_ops = [Operation.touch()]
+        ops_per_key = [touch_ops] * len(spec.keys)
+        try:
+            batch_records = await self._client.batch_operate(
+                batch_policy, bwp, spec.keys, ops_per_key)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
+        return self._filtered_batch_stream(batch_records)
+
+    async def _execute_single_key_exists(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        key = spec.keys[0]
+        if self._read_policy is not None:
+            rp = self._read_policy
+        elif self._behavior is not None:
+            rp = to_read_policy(
+                self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+        else:
+            rp = ReadPolicy()
+        if spec.filter_expression is not None:
+            rp.filter_expression = spec.filter_expression
+        try:
+            found = await self._client.exists(rp, key)
+        except Exception as e:
+            return self._wrap_single_key_error(key, e)
+        rc = ResultCode.OK if found else ResultCode.KEY_NOT_FOUND_ERROR
+        if self._should_include_result(
+            rc, self._respond_all_keys, self._fail_on_filtered_out
+        ):
+            return RecordStream.from_error(key, rc)
+        return RecordStream.from_list([])
+
+    async def _execute_batch_exists(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(
+                    OpKind.READ, OpShape.BATCH))
+        brp = self._make_batch_read_policy(spec)
+        try:
+            found_list = await self._client.batch_exists(
+                batch_policy, brp, spec.keys)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
+        results = []
+        for key, found in zip(spec.keys, found_list):
+            rc = ResultCode.OK if found else ResultCode.KEY_NOT_FOUND_ERROR
+            if self._should_include_result(
+                rc, self._respond_all_keys, self._fail_on_filtered_out
+            ):
+                results.append(RecordResult(key, None, rc))
+        return RecordStream.from_list(results)
+
     # -- Mixed-batch execution (multi-spec chains) ----------------------------
 
     def _spec_to_batch_ops(
@@ -1198,6 +1307,15 @@ class QueryBuilder:
             bdp = self._make_batch_delete_policy(spec)
             for key in spec.keys:
                 ops.append(BatchDeleteOp(key, policy=bdp))
+        elif op_type == "touch":
+            bwp = self._make_batch_write_policy_mixed(spec)
+            touch_ops = [Operation.touch()]
+            for key in spec.keys:
+                ops.append(BatchWriteOp(key, touch_ops, policy=bwp))
+        elif op_type == "exists":
+            brp = self._make_batch_read_policy(spec)
+            for key in spec.keys:
+                ops.append(BatchReadOp(key, bins=[], policy=brp))
         else:
             bwp = self._make_batch_write_policy_mixed(spec)
             for key in spec.keys:
@@ -1419,6 +1537,28 @@ class WriteSegmentBuilder:
         self._qb._set_current_keys(arg1, *more_keys)
         return self
 
+    def touch(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a touch segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "touch"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
+    def exists(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an exists-check segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "exists"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
     # -- Per-spec settings ----------------------------------------------------
 
     @overload
@@ -1482,6 +1622,15 @@ class WriteSegmentBuilder:
             self for method chaining.
         """
         self._qb._durable_delete = True
+        return self
+
+    def respond_all_keys(self) -> WriteSegmentBuilder:
+        """Include results for missing keys in the stream.
+
+        Returns:
+            self for method chaining.
+        """
+        self._qb._respond_all_keys = True
         return self
 
     # -- Execution ------------------------------------------------------------
@@ -1640,6 +1789,18 @@ class WriteBinBuilder:
         """Shortcut: finalize and start a delete segment."""
         return self._segment.delete(arg1, *more_keys)
 
+    def touch(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start a touch segment."""
+        return self._segment.touch(arg1, *more_keys)
+
+    def exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start an exists-check segment."""
+        return self._segment.exists(arg1, *more_keys)
+
     async def execute(self) -> RecordStream:
         """Shortcut: execute all accumulated specs."""
         return await self._segment.execute()
@@ -1742,6 +1903,18 @@ class QueryBinBuilder(Generic[_T]):
     ) -> WriteSegmentBuilder:
         """Finalize parent read segment and start a delete segment."""
         return self._parent.delete(arg1, *more_keys)  # type: ignore[union-attr]
+
+    def touch(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start a touch segment."""
+        return self._parent.touch(arg1, *more_keys)  # type: ignore[union-attr]
+
+    def exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start an exists-check segment."""
+        return self._parent.exists(arg1, *more_keys)  # type: ignore[union-attr]
 
     # -- Map navigation (singular -> CdtReadBuilder) --------------------------
 
