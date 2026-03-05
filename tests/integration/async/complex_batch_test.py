@@ -817,3 +817,155 @@ class TestBatchReadTTL:
             assert len(results) == 0
         finally:
             await _cleanup(session, *keys)
+
+
+class TestBatchTouch:
+    """Touch operations in chained batches."""
+
+    async def test_touch_with_read(self, session, ds):
+        """Touch one key while reading another in a single batch."""
+        k1 = ds.id("cb_touch_1")
+        k2 = ds.id("cb_touch_2")
+        await _cleanup(session, k1, k2)
+        try:
+            await session.upsert(key=k1).set_bins({"a": 1}).execute()
+            await session.upsert(key=k2).set_bins({"a": 2}).execute()
+
+            rs = await (
+                session
+                    .query(k1).bin("a").get()
+                    .touch(k2)
+                    .execute()
+            )
+            results = await rs.collect()
+            assert len(results) == 2
+            read_r = [r for r in results if r.key == k1][0]
+            assert read_r.record.bins["a"] == 1
+            touch_r = [r for r in results if r.key == k2][0]
+            assert touch_r.result_code == ResultCode.OK
+        finally:
+            await _cleanup(session, k1, k2)
+
+    async def test_touch_with_upsert(self, session, ds):
+        """Touch one key while upserting another."""
+        k1 = ds.id("cb_touch_u1")
+        k2 = ds.id("cb_touch_u2")
+        await _cleanup(session, k1, k2)
+        try:
+            await session.upsert(key=k1).set_bins({"a": 1}).execute()
+
+            rs = await (
+                session
+                    .upsert(k2).bin("a").set_to(99)
+                    .touch(k1)
+                    .execute()
+            )
+            results = await rs.collect()
+            assert len(results) == 2
+
+            verify = await session.key_value(key=k2).get()
+            assert verify.bins["a"] == 99
+        finally:
+            await _cleanup(session, k1, k2)
+
+    async def test_touch_not_found(self, session, ds):
+        """Touch on a non-existent key surfaces KEY_NOT_FOUND_ERROR."""
+        k_exists = ds.id("cb_touch_nf1")
+        k_missing = ds.id("cb_touch_nf2")
+        await _cleanup(session, k_exists, k_missing)
+        try:
+            await session.upsert(key=k_exists).set_bins({"a": 1}).execute()
+
+            rs = await (
+                session
+                    .query(k_exists).bin("a").get()
+                    .touch(k_missing).respond_all_keys()
+                    .execute()
+            )
+            results = await rs.collect()
+            assert len(results) == 2
+            read_r = [r for r in results if r.key == k_exists][0]
+            assert read_r.record.bins["a"] == 1
+            touch_r = [r for r in results if r.key == k_missing][0]
+            assert touch_r.result_code == ResultCode.KEY_NOT_FOUND_ERROR
+        finally:
+            await _cleanup(session, k_exists)
+
+
+class TestChainedExists:
+    """Exists as a chainable verb in mixed-batch chains."""
+
+    async def test_exists_with_read(self, session, ds):
+        """Check existence of one key while reading another."""
+        k1 = ds.id("cb_ex_1")
+        k2 = ds.id("cb_ex_2")
+        await _cleanup(session, k1, k2)
+        try:
+            await session.upsert(key=k1).set_bins({"a": 1}).execute()
+            await session.upsert(key=k2).set_bins({"a": 2}).execute()
+
+            rs = await (
+                session
+                    .query(k1).bin("a").get()
+                    .exists(k2).respond_all_keys()
+                    .execute()
+            )
+            results = await rs.collect()
+            assert len(results) == 2
+            read_r = [r for r in results if r.key == k1][0]
+            assert read_r.record.bins["a"] == 1
+            exists_r = [r for r in results if r.key == k2][0]
+            assert exists_r.result_code == ResultCode.OK
+        finally:
+            await _cleanup(session, k1, k2)
+
+    async def test_exists_not_found_in_chain(self, session, ds):
+        """Exists on a missing key surfaces KEY_NOT_FOUND_ERROR."""
+        k_exists = ds.id("cb_ex_nf1")
+        k_missing = ds.id("cb_ex_nf2")
+        await _cleanup(session, k_exists, k_missing)
+        try:
+            await session.upsert(key=k_exists).set_bins({"a": 10}).execute()
+
+            rs = await (
+                session
+                    .query(k_exists).bin("a").get()
+                    .exists(k_missing).respond_all_keys()
+                    .execute()
+            )
+            results = await rs.collect()
+            assert len(results) == 2
+            read_r = [r for r in results if r.key == k_exists][0]
+            assert read_r.record.bins["a"] == 10
+            exists_r = [r for r in results if r.key == k_missing][0]
+            assert exists_r.result_code == ResultCode.KEY_NOT_FOUND_ERROR
+        finally:
+            await _cleanup(session, k_exists)
+
+    async def test_exists_mixed_found_and_missing(self, session, ds):
+        """Exists + touch + exists(missing) in a single chain."""
+        k1 = ds.id("cb_ex_mix1")
+        k2 = ds.id("cb_ex_mix2")
+        k3 = ds.id("cb_ex_mix3")
+        await _cleanup(session, k1, k2, k3)
+        try:
+            await session.upsert(key=k1).set_bins({"a": 1}).execute()
+            await session.upsert(key=k2).set_bins({"a": 2}).execute()
+
+            rs = await (
+                session
+                    .query(k1).bin("a").get()
+                    .touch(k2)
+                    .exists(k3).respond_all_keys()
+                    .execute()
+            )
+            results = await rs.collect()
+            assert len(results) == 3
+            read_r = [r for r in results if r.key == k1][0]
+            assert read_r.record.bins["a"] == 1
+            touch_r = [r for r in results if r.key == k2][0]
+            assert touch_r.result_code == ResultCode.OK
+            ex3 = [r for r in results if r.key == k3][0]
+            assert ex3.result_code == ResultCode.KEY_NOT_FOUND_ERROR
+        finally:
+            await _cleanup(session, k1, k2)
