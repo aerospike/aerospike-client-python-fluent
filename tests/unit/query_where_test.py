@@ -40,7 +40,7 @@ class TestQueryBuilderWhere:
         assert builder._filter_expression == expected
 
     def test_where_dsl_string_with_params_sets_filter_expression(self):
-        """where(str, *params) formats DSL then parses (aligns with JFC String.format)."""
+        """where(str, *params) formats DSL then parses."""
         builder = _query_builder()
         expected = parse_dsl("$.age > 21")
         result = builder.where("$.age > %s", 21)
@@ -93,7 +93,7 @@ class TestSyncQueryBuilderWhere:
         assert builder._qb._filter_expression == expected
 
     def test_where_dsl_string_with_params_sets_filter_expression(self):
-        """where(str, *params) formats DSL then parses (aligns with JFC String.format)."""
+        """where(str, *params) formats DSL then parses."""
         builder = self._sync_builder()
         expected = parse_dsl("$.age > 21")
         result = builder.where("$.age > %s", 21)

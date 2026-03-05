@@ -15,7 +15,7 @@
 
 """Integration tests for query bin-level read operations and stacking.
 
-Mirrors JFC QueryOperationsTest coverage:
+Coverage:
   - Simple bin reads (get, multiple bins)
   - CDT map reads (key, index range, rank)
   - CDT list reads (index, rank)
@@ -80,9 +80,9 @@ class TestSimpleBinReads:
     async def test_get_multiple_bins(self, client):
         rs = await (
             client.query(key=_key(1))
-            .bin("name").get()
-            .bin("age").get()
-            .execute()
+                .bin("name").get()
+                .bin("age").get()
+                .execute()
         )
         result = await rs.first_or_raise()
         assert result.record.bins["name"] == "user1"
@@ -110,9 +110,8 @@ class TestCdtMapReads:
     @pytest.mark.asyncio
     async def test_map_key_get_values(self, client):
         rs = await (
-            client.query(key=_key(1))
-            .bin("settings").on_map_key("theme").get_values()
-            .execute()
+            client.query(key=_key(1)).bin("settings").on_map_key("theme").get_values()
+                .execute()
         )
         result = await rs.first_or_raise()
         assert result.record.bins["settings"] == "dark"
@@ -120,9 +119,8 @@ class TestCdtMapReads:
     @pytest.mark.asyncio
     async def test_map_key_count(self, client):
         rs = await (
-            client.query(key=_key(1))
-            .bin("settings").on_map_key("theme").count()
-            .execute()
+            client.query(key=_key(1)).bin("settings").on_map_key("theme").count()
+                .execute()
         )
         result = await rs.first_or_raise()
         assert result.record.bins["settings"] == 1
@@ -130,9 +128,8 @@ class TestCdtMapReads:
     @pytest.mark.asyncio
     async def test_map_index_range_get_values(self, client):
         rs = await (
-            client.query(key=_key(1))
-            .bin("settings").on_map_index_range(0, 2).get_values()
-            .execute()
+            client.query(key=_key(1)).bin("settings").on_map_index_range(0, 2).get_values()
+                .execute()
         )
         result = await rs.first_or_raise()
         vals = result.record.bins["settings"]
@@ -142,9 +139,8 @@ class TestCdtMapReads:
     @pytest.mark.asyncio
     async def test_map_rank_get_values(self, client):
         rs = await (
-            client.query(key=_key(2))
-            .bin("settings").on_map_rank(0).get_values()
-            .execute()
+            client.query(key=_key(2)).bin("settings").on_map_rank(0).get_values()
+                .execute()
         )
         result = await rs.first_or_raise()
         assert result.record.bins["settings"] is not None
@@ -159,9 +155,8 @@ class TestCdtListReads:
     @pytest.mark.asyncio
     async def test_list_index_get_values(self, client):
         rs = await (
-            client.query(key=_key(1))
-            .bin("scores").on_list_index(0).get_values()
-            .execute()
+            client.query(key=_key(1)).bin("scores").on_list_index(0).get_values()
+                .execute()
         )
         result = await rs.first_or_raise()
         assert result.record.bins["scores"] == 10
@@ -169,9 +164,8 @@ class TestCdtListReads:
     @pytest.mark.asyncio
     async def test_list_index_count(self, client):
         rs = await (
-            client.query(key=_key(1))
-            .bin("scores").on_list_index(0).count()
-            .execute()
+            client.query(key=_key(1)).bin("scores").on_list_index(0).count()
+                .execute()
         )
         result = await rs.first_or_raise()
         assert result.record.bins["scores"] == 1
@@ -180,9 +174,8 @@ class TestCdtListReads:
     async def test_list_rank_get_values(self, client):
         """Rank 0 = lowest value; for key 2 scores=[20,40,60], lowest=20."""
         rs = await (
-            client.query(key=_key(2))
-            .bin("scores").on_list_rank(0).get_values()
-            .execute()
+            client.query(key=_key(2)).bin("scores").on_list_rank(0).get_values()
+                .execute()
         )
         result = await rs.first_or_raise()
         assert result.record.bins["scores"] == 20
@@ -197,9 +190,8 @@ class TestBatchKeyQueries:
     @pytest.mark.asyncio
     async def test_batch_bin_get(self, client):
         rs = await (
-            client.query(keys=[_key(1), _key(2)])
-            .bin("name").get()
-            .execute()
+            client.query(keys=[_key(1), _key(2)]).bin("name").get()
+                .execute()
         )
         results = await rs.collect()
         assert len(results) == 2
@@ -210,8 +202,8 @@ class TestBatchKeyQueries:
     async def test_batch_cdt_map_read(self, client):
         rs = await (
             client.query(keys=[_key(1), _key(2), _key(3)])
-            .bin("settings").on_map_key("theme").get_values()
-            .execute()
+                .bin("settings").on_map_key("theme").get_values()
+                .execute()
         )
         results = await rs.collect()
         assert len(results) == 3
@@ -230,9 +222,8 @@ class TestDatasetQueryGuard:
     async def test_dataset_query_with_bin_ops_raises(self, client):
         with pytest.raises(AerospikeError) as exc_info:
             await (
-                client.query(NS, SET)
-                .bin("settings").on_map_key("theme").get_values()
-                .execute()
+                client.query(NS, SET).bin("settings").on_map_key("theme").get_values()
+                    .execute()
             )
         assert exc_info.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
@@ -240,9 +231,8 @@ class TestDatasetQueryGuard:
     async def test_dataset_query_with_get_raises(self, client):
         with pytest.raises(AerospikeError) as exc_info:
             await (
-                client.query(NS, SET)
-                .bin("name").get()
-                .execute()
+                client.query(NS, SET).bin("name").get()
+                    .execute()
             )
         assert exc_info.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
@@ -256,11 +246,10 @@ class TestQueryStacking:
     @pytest.mark.asyncio
     async def test_stack_two_point_queries(self, client):
         rs = await (
-            client.query(key=_key(1))
-            .bin("name").get()
-            .query(_key(2))
-            .bin("age").get()
-            .execute()
+            client
+                .query(key=_key(1)).bin("name").get()
+                .query(_key(2)).bin("age").get()
+                .execute()
         )
         results = await rs.collect()
         assert len(results) == 2
@@ -275,11 +264,10 @@ class TestQueryStacking:
     @pytest.mark.asyncio
     async def test_stack_batch_queries(self, client):
         rs = await (
-            client.query(keys=[_key(1), _key(2)])
-            .bin("name").get()
-            .query([_key(3)])
-            .bin("age").get()
-            .execute()
+            client
+                .query(keys=[_key(1), _key(2)]).bin("name").get()
+                .query([_key(3)]).bin("age").get()
+                .execute()
         )
         results = await rs.collect()
         assert len(results) == 3
@@ -294,18 +282,14 @@ class TestQueryStacking:
         """Stacked query mixing specific bins, all bins, no bins,
         select_from, missing bin, and missing key."""
         rs = await (
-            client.query(key=_key(1))
-            .bins(["name"])
-            .query(_key(2))
-            .query(_key(3))
-            .with_no_bins()
-            .query(_key(1))
-            .bin("score").select_from("$.score * 8")
-            .query(_key(2))
-            .bins(["binnotfound"])
-            .query(Key(NS, SET, f"{KEY_PREFIX}999"))
-            .bins(["name"])
-            .execute()
+            client
+                .query(key=_key(1)).bins(["name"])
+                .query(_key(2))
+                .query(_key(3)).with_no_bins()
+                .query(_key(1)).bin("score").select_from("$.score * 8")
+                .query(_key(2)).bins(["binnotfound"])
+                .query(Key(NS, SET, f"{KEY_PREFIX}999")).bins(["name"])
+                .execute()
         )
         results = await rs.collect()
         # Missing key (key999) is excluded from stream by default
@@ -350,8 +334,8 @@ class TestInvertedReads:
         """Get all map values EXCEPT those in the range."""
         rs = await (
             client.query(key=_key(1))
-            .bin("settings").on_map_key_range("theme", "volume").get_all_other_values()
-            .execute()
+                .bin("settings").on_map_key_range("theme", "volume").get_all_other_values()
+                .execute()
         )
         result = await rs.first_or_raise()
         vals = result.record.bins["settings"]
@@ -366,8 +350,8 @@ class TestInvertedReads:
         """Get all list elements EXCEPT those matching the value."""
         rs = await (
             client.query(key=_key(1))
-            .bin("scores").on_list_value(10).get_all_other_values()
-            .execute()
+                .bin("scores").on_list_value(10).get_all_other_values()
+                .execute()
         )
         result = await rs.first_or_raise()
         vals = result.record.bins["scores"]

@@ -13,10 +13,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests matching Java fluent client examples from the spec.
+"""Fluent client example tests from the spec.
 
-These tests are designed to match the Java examples closely,
-providing simple, focused examples for documentation.
+These tests provide simple, focused examples for documentation.
 """
 
 import pytest

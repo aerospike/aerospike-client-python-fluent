@@ -22,7 +22,14 @@ from typing import TYPE_CHECKING, Any, Generic, List, Optional, TypeVar, overloa
 
 from aerospike_async import (
     BasePolicy,
+    BatchDeleteOp,
+    BatchDeletePolicy,
+    BatchReadOp,
+    BatchReadPolicy,
+    BatchWriteOp,
+    BatchWritePolicy,
     Client,
+    Expiration,
     ExpOperation,
     ExpReadFlags,
     Filter,
@@ -37,6 +44,7 @@ from aerospike_async import (
     QueryDuration,
     QueryPolicy,
     ReadPolicy,
+    RecordExistsAction,
     Replica,
     Statement,
     WritePolicy,
@@ -50,15 +58,26 @@ from aerospike_fluent.aio.operations.cdt_read import (
     CdtReadBuilder,
     CdtReadInvertableBuilder,
 )
+from aerospike_fluent.aio.operations.key_value import (
+    _EXP_WRITE_ALLOW_DELETE,
+    _EXP_WRITE_CREATE_ONLY,
+    _EXP_WRITE_DEFAULT,
+    _EXP_WRITE_EVAL_NO_FAIL,
+    _EXP_WRITE_POLICY_NO_FAIL,
+    _EXP_WRITE_UPDATE_ONLY,
+)
 from aerospike_fluent.policy.policy_mapper import (
     to_batch_policy,
+    to_batch_read_policy,
     to_query_policy,
     to_read_policy,
+    to_write_policy,
 )
 
 from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.exceptions import AerospikeError, convert_pac_exception
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
+from aerospike_fluent.record_result import batch_records_to_results
 from aerospike_fluent.record_stream import RecordStream
 
 _EXP_READ_DEFAULT = int(ExpReadFlags.DEFAULT)
@@ -68,19 +87,53 @@ if TYPE_CHECKING:
     from aerospike_fluent.policy.behavior import Behavior
 
 
+_OP_TYPE_TO_REA: dict[str, RecordExistsAction] = {
+    "insert": RecordExistsAction.CREATE_ONLY,
+    "update": RecordExistsAction.UPDATE_ONLY,
+    "replace": RecordExistsAction.REPLACE,
+    "replace_if_exists": RecordExistsAction.REPLACE_ONLY,
+}
+
+
+def _build_exp_write_flags(
+    base: int,
+    ignore_op_failure: bool,
+    ignore_eval_failure: bool,
+    delete_if_null: bool,
+) -> int:
+    """OR together ExpWriteFlags bitmask from boolean kwargs."""
+    flags = base
+    if ignore_op_failure:
+        flags |= _EXP_WRITE_POLICY_NO_FAIL
+    if ignore_eval_failure:
+        flags |= _EXP_WRITE_EVAL_NO_FAIL
+    if delete_if_null:
+        flags |= _EXP_WRITE_ALLOW_DELETE
+    return flags
+
+
 @dataclass(slots=True)
 class _OperationSpec:
-    """A single query segment in a stacked query chain.
+    """A single operation segment in a chained builder.
 
-    Mirrors JFC ``OperationSpec`` for read-only (query) operations only.
-    Each spec captures the keys, accumulated bin operations, projected bins,
-    and optional filter expression for one ``.query()`` call in a chain.
+    Each spec captures the keys,
+    accumulated bin operations, projected bins, optional filter
+    expression, and the operation type for one segment in a chain.
+
+    ``op_type`` is ``None`` for read/query segments.  For write
+    segments it is one of ``"upsert"``, ``"insert"``, ``"update"``,
+    ``"replace"``, ``"replace_if_exists"``, ``"delete"``, ``"touch"``,
+    or ``"exists"``.
     """
 
     keys: List[Key]
     operations: List[Any] = field(default_factory=list)
     bins: Optional[List[str]] = None
     filter_expression: Optional[FilterExpression] = None
+    op_type: Optional[str] = None
+    generation: Optional[int] = None
+    ttl_seconds: Optional[int] = None
+    durable_delete: Optional[bool] = None
 
 
 _T = TypeVar("_T")
@@ -125,10 +178,15 @@ class QueryBuilder:
         self._respond_all_keys: bool = False
         self._operations: List[Any] = []
         self._specs: List[_OperationSpec] = []
-        # For single key or batch key queries
         self._single_key: Optional[Key] = None
         self._keys: Optional[List[Key]] = None
         self._read_policy: Optional[ReadPolicy] = None
+        self._op_type: Optional[str] = None
+        self._generation: Optional[int] = None
+        self._ttl_seconds: Optional[int] = None
+        self._durable_delete: Optional[bool] = None
+        self._default_filter_expression: Optional[FilterExpression] = None
+        self._default_ttl_seconds: Optional[int] = None
 
     def bins(self, bin_names: List[str]) -> QueryBuilder:
         """
@@ -147,6 +205,8 @@ class QueryBuilder:
         """
         if self._with_no_bins:
             raise ValueError("Cannot specify both 'with_no_bins' and provide a list of bin names")
+        if not bin_names:
+            raise ValueError("bin_names must not be empty; use with_no_bins() for metadata-only reads")
         self._bins = bin_names
         self._with_no_bins = False
         return self
@@ -262,8 +322,8 @@ class QueryBuilder:
             expression: Either a DSL string (e.g., "$.country == 'US' and $.order_total > 500"),
                 a DSL string with format placeholders (e.g., "$.age > %s", "$.name == '%s'"),
                 or a FilterExpression (e.g., Exp.gt(Exp.int_bin("a"), Exp.int_val(100))).
-            *params: Optional values substituted into the DSL string via % formatting (same as JFC
-                where(String dsl, Object... params)). Only used when expression is a str; ignored
+            *params: Optional values substituted into the DSL string via % formatting.
+                Only used when expression is a str; ignored
                 when expression is a FilterExpression. For string literals in DSL, include quotes
                 in the template (e.g., "$.name == '%s'" with param "Tim").
 
@@ -275,7 +335,7 @@ class QueryBuilder:
             # Using text DSL
             query = session.query(dataset).where("$.country == 'US' and $.order_total > 500")
 
-            # Using DSL with params (aligns with JFC where(String dsl, Object... params))
+            # Using DSL with params
             query = session.query(dataset).where("$.age > %s", 21)
             query = session.query(dataset).where("$.age > %s and $.name == '%s'", 30, "John")
 
@@ -599,6 +659,50 @@ class QueryBuilder:
         self._respond_all_keys = True
         return self
 
+    # -- Chain-level defaults -------------------------------------------------
+
+    @overload
+    def default_where(self, expression: str) -> QueryBuilder: ...
+
+    @overload
+    def default_where(self, expression: str, *params: Any) -> QueryBuilder: ...
+
+    @overload
+    def default_where(self, expression: FilterExpression) -> QueryBuilder: ...
+
+    def default_where(
+        self,
+        expression: Union[str, FilterExpression],
+        *params: Any,
+    ) -> QueryBuilder:
+        """Set a default filter expression for all specs that lack their own.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            *params: Optional format parameters for DSL strings.
+
+        Returns:
+            self for method chaining.
+        """
+        if isinstance(expression, str):
+            dsl = expression % params if params else expression
+            self._default_filter_expression = parse_dsl(dsl)
+        else:
+            self._default_filter_expression = expression
+        return self
+
+    def default_expire_record_after_seconds(self, seconds: int) -> QueryBuilder:
+        """Set a default TTL applied to specs that lack their own.
+
+        Args:
+            seconds: Time-to-live in seconds.
+
+        Returns:
+            self for method chaining.
+        """
+        self._default_ttl_seconds = seconds
+        return self
+
     # -- Query stacking -------------------------------------------------------
 
     def query(
@@ -638,23 +742,75 @@ class QueryBuilder:
             )
 
         self._finalize_current_spec()
-
-        if isinstance(arg1, list):
-            if not arg1:
-                raise ValueError("keys list cannot be empty")
-            self._keys = list(arg1) + list(more_keys) if more_keys else arg1
-        elif isinstance(arg1, Key):
-            if more_keys:
-                self._keys = [arg1, *more_keys]
-            else:
-                self._single_key = arg1
-        else:
-            raise TypeError(
-                f"query() requires a Key or List[Key], got {type(arg1).__name__}. "
-                "Dataset queries cannot be stacked."
-            )
-
+        self._op_type = None
+        self._set_current_keys(arg1, *more_keys)
         return self
+
+    # -- Write transitions (QueryBuilder -> WriteSegmentBuilder) ---------------
+
+    def _start_write_segment(
+        self,
+        op_type: str,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current spec, set up a write segment, return builder."""
+        self._finalize_current_spec()
+        self._op_type = op_type
+        self._set_current_keys(arg1, *more_keys)
+        return WriteSegmentBuilder(self)
+
+    def upsert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an upsert write segment.
+
+        Args:
+            arg1: A single Key or List[Key].
+            *more_keys: Additional keys (varargs).
+
+        Returns:
+            A WriteSegmentBuilder for chaining bin writes.
+
+        Example::
+
+            rs = await session.query(users.id(1)) \\
+                .bin("name").get() \\
+                .upsert(users.id(2)) \\
+                .bin("status").set_to("active") \\
+                .execute()
+        """
+        return self._start_write_segment("upsert", arg1, *more_keys)
+
+    def insert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an insert (create-only) segment."""
+        return self._start_write_segment("insert", arg1, *more_keys)
+
+    def update(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an update (update-only) segment."""
+        return self._start_write_segment("update", arg1, *more_keys)
+
+    def replace(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a replace segment."""
+        return self._start_write_segment("replace", arg1, *more_keys)
+
+    def replace_if_exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a replace-if-exists segment."""
+        return self._start_write_segment("replace_if_exists", arg1, *more_keys)
+
+    def delete(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a delete segment."""
+        return self._start_write_segment("delete", arg1, *more_keys)
 
     def _ensure_policy(self) -> QueryPolicy:
         """Return the existing policy or create a default one."""
@@ -689,11 +845,7 @@ class QueryBuilder:
         if self._specs:
             if len(self._specs) == 1:
                 return await self._execute_spec(self._specs[0])
-            all_results: list = []
-            for spec in self._specs:
-                stream = await self._execute_spec(spec)
-                all_results.extend(await stream.collect())
-            return RecordStream.from_list(all_results)
+            return await self._execute_batch_mixed(self._specs)
 
         # Dataset query path (no keys were specified)
         if self._operations:
@@ -704,10 +856,30 @@ class QueryBuilder:
             )
         return await self._execute_dataset_query()
 
-    # -- Private execute helpers ----------------------------------------------
+    # -- Private helpers -------------------------------------------------------
+
+    def _set_current_keys(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> None:
+        """Parse key argument(s) and set ``_single_key`` or ``_keys``."""
+        if isinstance(arg1, list):
+            if not arg1:
+                raise ValueError("keys list cannot be empty")
+            self._keys = list(arg1) + list(more_keys) if more_keys else arg1
+        elif isinstance(arg1, Key):
+            if more_keys:
+                self._keys = [arg1, *more_keys]
+            else:
+                self._single_key = arg1
+        else:
+            raise TypeError(
+                f"requires a Key or List[Key], got {type(arg1).__name__}"
+            )
 
     def _finalize_current_spec(self) -> None:
-        """Package the current key/ops/bins/filter state into an _OperationSpec."""
+        """Package the current key/ops/bins/filter/op_type state into an _OperationSpec."""
         if self._single_key is not None:
             keys = [self._single_key]
         elif self._keys is not None:
@@ -715,11 +887,18 @@ class QueryBuilder:
         else:
             return
 
+        filt = self._filter_expression or self._default_filter_expression
+        ttl = self._ttl_seconds if self._ttl_seconds is not None else self._default_ttl_seconds
+
         self._specs.append(_OperationSpec(
             keys=keys,
             operations=list(self._operations),
             bins=self._bins,
-            filter_expression=self._filter_expression,
+            filter_expression=filt,
+            op_type=self._op_type,
+            generation=self._generation,
+            ttl_seconds=ttl,
+            durable_delete=self._durable_delete,
         ))
 
         self._single_key = None
@@ -728,21 +907,42 @@ class QueryBuilder:
         self._bins = None
         self._with_no_bins = False
         self._filter_expression = None
+        self._op_type = None
+        self._generation = None
+        self._ttl_seconds = None
+        self._durable_delete = None
 
     async def _execute_spec(self, spec: _OperationSpec) -> RecordStream:
-        """Execute a single :class:`_OperationSpec`."""
-        has_ops = bool(spec.operations)
+        """Execute a single :class:`_OperationSpec`.
+
+        Dispatches to the appropriate read or write execution path based
+        on the spec's ``op_type``.
+        """
         keys = spec.keys
+        op_type = spec.op_type
 
-        if len(keys) == 1:
+        if op_type is None:
+            # Read / query path
+            has_ops = bool(spec.operations)
+            if len(keys) == 1:
+                if has_ops:
+                    return await self._execute_single_key_operate(
+                        keys[0], spec.operations)
+                return await self._execute_single_key_read(keys[0], spec.bins)
             if has_ops:
-                return await self._execute_single_key_operate(
-                    keys[0], spec.operations)
-            return await self._execute_single_key_read(keys[0], spec.bins)
+                return await self._execute_batch_read_operate(
+                    keys, spec.operations)
+            return await self._execute_batch_read(keys, spec.bins)
 
-        if has_ops:
-            return await self._execute_batch_operate(keys, spec.operations)
-        return await self._execute_batch_read(keys, spec.bins)
+        if op_type == "delete":
+            if len(keys) == 1:
+                return await self._execute_single_key_delete(spec)
+            return await self._execute_batch_delete(spec)
+
+        # Write path (upsert / insert / update / replace / replace_if_exists)
+        if len(keys) == 1:
+            return await self._execute_single_key_write(spec)
+        return await self._execute_batch_write(spec)
 
     @staticmethod
     def _should_include_result(
@@ -752,7 +952,7 @@ class QueryBuilder:
     ) -> bool:
         """Decide whether to include a result in the stream.
 
-        Mirrors the JFC ``OperationSpecExecutor.shouldIncludeResult`` logic.
+        Decides whether to include a per-key result in the stream.
         """
         if result_code == ResultCode.OK:
             return True
@@ -762,21 +962,30 @@ class QueryBuilder:
             return fail_on_filtered_out or respond_all_keys
         return True
 
+    def _filtered_batch_stream(self, batch_records) -> RecordStream:
+        """Convert batch records to a filtered RecordStream."""
+        results = batch_records_to_results(list(batch_records))
+        filtered = [
+            r for r in results
+            if self._should_include_result(
+                r.result_code, self._respond_all_keys, self._fail_on_filtered_out)
+        ]
+        return RecordStream.from_list(filtered)
+
     def _wrap_single_key_error(
         self, key: Key, exc: Exception,
     ) -> RecordStream:
-        """Convert a PAC exception into a ``RecordStream``.
+        """Wrap a server error as a ``RecordStream`` result.
 
-        Mirrors the JFC ``executeSingleKey`` catch block: the error is
-        wrapped as a single-element stream (or an empty stream when
-        ``shouldIncludeResult`` returns ``False``).
+        Only ``ServerError`` (which carries a real ``ResultCode``) is
+        wrapped into the stream.  All other exceptions (timeouts,
+        connection failures, etc.) are re-raised because they are
+        client-side problems with no server result code.
         """
-        rc = (
-            exc.result_code
-            if isinstance(exc, PacServerError)
-            else ResultCode.CLIENT_ERROR
-        )
-        in_doubt = getattr(exc, "in_doubt", False)
+        if not isinstance(exc, PacServerError):
+            raise convert_pac_exception(exc) from exc
+        rc = exc.result_code
+        in_doubt = exc.in_doubt
         if self._should_include_result(
             rc, self._respond_all_keys, self._fail_on_filtered_out
         ):
@@ -813,17 +1022,19 @@ class QueryBuilder:
         self, keys: List[Key], bins: Optional[List[str]],
     ) -> RecordStream:
         batch_policy = None
+        batch_read_policy = None
         if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(OpKind.READ, OpShape.BATCH))
+            settings = self._behavior.get_settings(OpKind.READ, OpShape.BATCH)
+            batch_policy = to_batch_policy(settings)
+            batch_read_policy = to_batch_read_policy(settings)
         try:
             batch_records = await self._client.batch_read(
-                batch_policy, None, keys, bins)
+                batch_policy, batch_read_policy, keys, bins)
         except Exception as e:
             raise convert_pac_exception(e) from e
-        return RecordStream.from_batch_records(batch_records)
+        return self._filtered_batch_stream(batch_records)
 
-    async def _execute_batch_operate(
+    async def _execute_batch_read_operate(
         self, keys: List[Key], operations: List[Any],
     ) -> RecordStream:
         batch_policy = None
@@ -836,7 +1047,224 @@ class QueryBuilder:
                 batch_policy, None, keys, ops_per_key)
         except Exception as e:
             raise convert_pac_exception(e) from e
-        return RecordStream.from_batch_records(batch_records)
+        return self._filtered_batch_stream(batch_records)
+
+    # -- Write execution helpers ----------------------------------------------
+
+    def _make_write_policy(self, spec: _OperationSpec) -> WritePolicy:
+        """Build a ``WritePolicy`` for single-key writes."""
+        if self._behavior is not None:
+            wp = to_write_policy(
+                self._behavior.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+        else:
+            wp = WritePolicy()
+        op_type = spec.op_type or "upsert"
+        rea = _OP_TYPE_TO_REA.get(op_type)
+        if rea is not None:
+            wp.record_exists_action = rea
+        if spec.filter_expression is not None:
+            wp.filter_expression = spec.filter_expression
+        if spec.generation is not None:
+            from aerospike_async import GenerationPolicy
+            wp.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
+            wp.generation = spec.generation
+        if spec.ttl_seconds is not None:
+            wp.expiration = Expiration.seconds(spec.ttl_seconds)
+        if spec.durable_delete:
+            wp.durable_delete = True
+        return wp
+
+    @staticmethod
+    def _make_batch_write_policy(spec: _OperationSpec) -> Optional[BatchWritePolicy]:
+        """Build a ``BatchWritePolicy`` for multi-key batch writes."""
+        has_settings = (
+            spec.filter_expression is not None
+            or spec.generation is not None
+            or spec.ttl_seconds is not None
+            or spec.durable_delete
+        )
+        if not has_settings:
+            return None
+        bwp = BatchWritePolicy()
+        if spec.filter_expression is not None:
+            bwp.filter_expression = spec.filter_expression
+        if spec.generation is not None:
+            bwp.generation = spec.generation
+        if spec.ttl_seconds is not None:
+            bwp.expiration = Expiration.seconds(spec.ttl_seconds)
+        if spec.durable_delete:
+            bwp.durable_delete = True
+        return bwp
+
+    @staticmethod
+    def _make_batch_delete_policy(spec: _OperationSpec) -> Optional[BatchDeletePolicy]:
+        """Build a ``BatchDeletePolicy`` for multi-key batch deletes."""
+        has_settings = (
+            spec.filter_expression is not None
+            or spec.generation is not None
+            or spec.durable_delete
+        )
+        if not has_settings:
+            return None
+        bdp = BatchDeletePolicy()
+        if spec.filter_expression is not None:
+            bdp.filter_expression = spec.filter_expression
+        if spec.generation is not None:
+            bdp.generation = spec.generation
+        if spec.durable_delete:
+            bdp.durable_delete = True
+        return bdp
+
+    async def _execute_single_key_write(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        key = spec.keys[0]
+        wp = self._make_write_policy(spec)
+        try:
+            record = await self._client.operate(wp, key, spec.operations)
+        except Exception as e:
+            return self._wrap_single_key_error(key, e)
+        return RecordStream.from_single(key, record)
+
+    async def _execute_single_key_delete(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        key = spec.keys[0]
+        wp = self._make_write_policy(spec)
+        try:
+            existed = await self._client.delete(wp, key)
+        except Exception as e:
+            return self._wrap_single_key_error(key, e)
+        rc = ResultCode.OK if existed else ResultCode.KEY_NOT_FOUND_ERROR
+        if self._should_include_result(
+            rc, self._respond_all_keys, self._fail_on_filtered_out
+        ):
+            return RecordStream.from_error(key, rc)
+        return RecordStream.from_list([])
+
+    async def _execute_batch_write(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        bwp = self._make_batch_write_policy(spec)
+        ops_per_key = [spec.operations] * len(spec.keys)
+        try:
+            batch_records = await self._client.batch_operate(
+                batch_policy, bwp, spec.keys, ops_per_key)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
+        return self._filtered_batch_stream(batch_records)
+
+    async def _execute_batch_delete(
+        self, spec: _OperationSpec,
+    ) -> RecordStream:
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        bdp = self._make_batch_delete_policy(spec)
+        try:
+            batch_records = await self._client.batch_delete(
+                batch_policy, bdp, spec.keys)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
+        return self._filtered_batch_stream(batch_records)
+
+    # -- Mixed-batch execution (multi-spec chains) ----------------------------
+
+    def _spec_to_batch_ops(
+        self, spec: _OperationSpec,
+    ) -> list:
+        """Convert one spec into a list of ``BatchReadOp`` / ``BatchWriteOp``
+        / ``BatchDeleteOp`` objects for the PAC mixed-batch API."""
+        ops: list = []
+        op_type = spec.op_type
+
+        if op_type is None:
+            brp = self._make_batch_read_policy(spec)
+            for key in spec.keys:
+                if spec.operations:
+                    ops.append(BatchReadOp(
+                        key, operations=spec.operations, policy=brp))
+                else:
+                    ops.append(BatchReadOp(key, bins=spec.bins, policy=brp))
+        elif op_type == "delete":
+            bdp = self._make_batch_delete_policy(spec)
+            for key in spec.keys:
+                ops.append(BatchDeleteOp(key, policy=bdp))
+        else:
+            bwp = self._make_batch_write_policy_mixed(spec)
+            for key in spec.keys:
+                ops.append(BatchWriteOp(
+                    key, spec.operations, policy=bwp))
+        return ops
+
+    @staticmethod
+    def _make_batch_read_policy(
+        spec: _OperationSpec,
+    ) -> Optional[BatchReadPolicy]:
+        """Build a ``BatchReadPolicy`` from per-spec settings."""
+        if spec.filter_expression is None:
+            return None
+        brp = BatchReadPolicy()
+        brp.filter_expression = spec.filter_expression
+        return brp
+
+    @staticmethod
+    def _make_batch_write_policy_mixed(
+        spec: _OperationSpec,
+    ) -> Optional[BatchWritePolicy]:
+        """Build a ``BatchWritePolicy`` that includes ``record_exists_action``
+        for use in mixed-batch calls."""
+        op_type = spec.op_type or "upsert"
+        rea = _OP_TYPE_TO_REA.get(op_type)
+        has_settings = (
+            rea is not None
+            or spec.filter_expression is not None
+            or spec.generation is not None
+            or spec.ttl_seconds is not None
+            or spec.durable_delete
+        )
+        if not has_settings:
+            return None
+        bwp = BatchWritePolicy()
+        if rea is not None:
+            bwp.record_exists_action = rea
+        if spec.filter_expression is not None:
+            bwp.filter_expression = spec.filter_expression
+        if spec.generation is not None:
+            from aerospike_async import GenerationPolicy
+            bwp.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
+            bwp.generation = spec.generation
+        if spec.ttl_seconds is not None:
+            bwp.expiration = Expiration.seconds(spec.ttl_seconds)
+        if spec.durable_delete:
+            bwp.durable_delete = True
+        return bwp
+
+    async def _execute_batch_mixed(
+        self, specs: List[_OperationSpec],
+    ) -> RecordStream:
+        """Send all specs in one round-trip via ``Client.batch()``."""
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        all_ops: list = []
+        for spec in specs:
+            all_ops.extend(self._spec_to_batch_ops(spec))
+        try:
+            batch_records = await self._client.batch(batch_policy, all_ops)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
+        return self._filtered_batch_stream(batch_records)
 
     async def _execute_dataset_query(self) -> RecordStream:
         if self._policy is not None:
@@ -859,6 +1287,362 @@ class QueryBuilder:
         except Exception as e:
             raise convert_pac_exception(e) from e
         return RecordStream.from_recordset(recordset)
+
+
+class WriteSegmentBuilder:
+    """Builder for a write segment in a chained operation.
+
+    Accumulates bin-level write operations for the current key(s)
+    and provides transition methods to start new read or write
+    segments.  Delegates execution to the parent ``QueryBuilder``.
+    """
+
+    __slots__ = ("_qb",)
+
+    def __init__(self, qb: QueryBuilder) -> None:
+        self._qb = qb
+
+    # -- Bin operations -------------------------------------------------------
+
+    def bin(self, bin_name: str) -> WriteBinBuilder:
+        """Start a bin-level write operation.
+
+        Args:
+            bin_name: The bin to operate on.
+
+        Returns:
+            A WriteBinBuilder for method chaining.
+        """
+        return WriteBinBuilder(self, bin_name)
+
+    def put(self, bins: dict) -> WriteSegmentBuilder:
+        """Set multiple bins at once.
+
+        Args:
+            bins: Dictionary of bin name to value mappings.
+
+        Returns:
+            self for method chaining.
+        """
+        for bin_name, value in bins.items():
+            self._qb._operations.append(Operation.put(bin_name, value))
+        return self
+
+    def set_bins(self, bins: dict) -> WriteSegmentBuilder:
+        """Alias for :meth:`put`."""
+        return self.put(bins)
+
+    # -- Transition methods ---------------------------------------------------
+
+    def query(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> QueryBuilder:
+        """Finalize current write segment and start a read segment.
+
+        Args:
+            arg1: A single Key or List[Key].
+            *more_keys: Additional keys (varargs).
+
+        Returns:
+            The parent QueryBuilder for method chaining.
+        """
+        self._qb._finalize_current_spec()
+        self._qb._op_type = None
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self._qb
+
+    def upsert(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an upsert segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "upsert"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
+    def insert(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an insert segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "insert"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
+    def update(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start an update segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "update"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
+    def replace(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a replace segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "replace"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
+    def replace_if_exists(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a replace-if-exists segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "replace_if_exists"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
+    def delete(
+        self,
+        arg1: Union[Key, List[Key]],
+        *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize current segment and start a delete segment."""
+        self._qb._finalize_current_spec()
+        self._qb._op_type = "delete"
+        self._qb._set_current_keys(arg1, *more_keys)
+        return self
+
+    # -- Per-spec settings ----------------------------------------------------
+
+    @overload
+    def where(self, expression: str) -> WriteSegmentBuilder: ...
+
+    @overload
+    def where(self, expression: str, *params: Any) -> WriteSegmentBuilder: ...
+
+    @overload
+    def where(self, expression: FilterExpression) -> WriteSegmentBuilder: ...
+
+    def where(
+        self,
+        expression: Union[str, FilterExpression],
+        *params: Any,
+    ) -> WriteSegmentBuilder:
+        """Set a filter expression on the current write segment.
+
+        Args:
+            expression: DSL string or pre-built FilterExpression.
+            *params: Optional format parameters for DSL strings.
+
+        Returns:
+            self for method chaining.
+        """
+        if isinstance(expression, str):
+            dsl = expression % params if params else expression
+            self._qb._filter_expression = parse_dsl(dsl)
+        else:
+            self._qb._filter_expression = expression
+        return self
+
+    def expire_record_after_seconds(self, seconds: int) -> WriteSegmentBuilder:
+        """Set the TTL on the current write segment.
+
+        Args:
+            seconds: Time-to-live in seconds.
+
+        Returns:
+            self for method chaining.
+        """
+        self._qb._ttl_seconds = seconds
+        return self
+
+    def ensure_generation_is(self, generation: int) -> WriteSegmentBuilder:
+        """Set expected generation for optimistic locking on the current segment.
+
+        Args:
+            generation: The expected generation number.
+
+        Returns:
+            self for method chaining.
+        """
+        self._qb._generation = generation
+        return self
+
+    def durably_delete(self) -> WriteSegmentBuilder:
+        """Enable durable delete on the current segment.
+
+        Returns:
+            self for method chaining.
+        """
+        self._qb._durable_delete = True
+        return self
+
+    # -- Execution ------------------------------------------------------------
+
+    async def execute(self) -> RecordStream:
+        """Execute all accumulated specs."""
+        return await self._qb.execute()
+
+
+class WriteBinBuilder:
+    """Builder for a single bin write operation within a write segment.
+
+    Provides ``set_to``, ``increment_by``, ``append``, ``prepend``,
+    ``remove``, and expression write methods.  Each terminal returns
+    the parent ``WriteSegmentBuilder`` for further chaining.
+    """
+
+    __slots__ = ("_segment", "_bin")
+
+    def __init__(self, segment: WriteSegmentBuilder, bin_name: str) -> None:
+        self._segment = segment
+        self._bin = bin_name
+
+    def _add_op(self, op: Any) -> WriteSegmentBuilder:
+        self._segment._qb._operations.append(op)
+        return self._segment
+
+    # -- Scalar writes --------------------------------------------------------
+
+    def set_to(self, value: Any) -> WriteSegmentBuilder:
+        """Set the bin to *value*."""
+        return self._add_op(Operation.put(self._bin, value))
+
+    def increment_by(self, value: Any) -> WriteSegmentBuilder:
+        """Increment the bin by *value*."""
+        return self._add_op(Operation.add(self._bin, value))
+
+    def append(self, value: str) -> WriteSegmentBuilder:
+        """Append a string to the bin."""
+        return self._add_op(Operation.append(self._bin, value))
+
+    def prepend(self, value: str) -> WriteSegmentBuilder:
+        """Prepend a string to the bin."""
+        return self._add_op(Operation.prepend(self._bin, value))
+
+    def remove(self) -> WriteSegmentBuilder:
+        """Delete the bin from the record."""
+        return self._add_op(Operation.put(self._bin, None))
+
+    # -- Expression operations ------------------------------------------------
+
+    def select_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_eval_failure: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Read a computed value into this bin using a DSL expression."""
+        flags = _EXP_READ_EVAL_NO_FAIL if ignore_eval_failure else _EXP_READ_DEFAULT
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        return self._add_op(ExpOperation.read(self._bin, expr, flags))
+
+    def insert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Write expression result only if bin does not already exist."""
+        flags = _build_exp_write_flags(
+            _EXP_WRITE_CREATE_ONLY, ignore_op_failure,
+            ignore_eval_failure, delete_if_null,
+        )
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        return self._add_op(ExpOperation.write(self._bin, expr, flags))
+
+    def update_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Write expression result only if bin already exists."""
+        flags = _build_exp_write_flags(
+            _EXP_WRITE_UPDATE_ONLY, ignore_op_failure,
+            ignore_eval_failure, delete_if_null,
+        )
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        return self._add_op(ExpOperation.write(self._bin, expr, flags))
+
+    def upsert_from(
+        self,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Write expression result, creating or overwriting the bin."""
+        flags = _build_exp_write_flags(
+            _EXP_WRITE_DEFAULT, ignore_op_failure,
+            ignore_eval_failure, delete_if_null,
+        )
+        expr = parse_dsl(expression) if isinstance(expression, str) else expression
+        return self._add_op(ExpOperation.write(self._bin, expr, flags))
+
+    # -- Convenience transitions (delegate to segment) ------------------------
+
+    def bin(self, bin_name: str) -> WriteBinBuilder:
+        """Start the next bin operation without leaving the write segment."""
+        return WriteBinBuilder(self._segment, bin_name)
+
+    def query(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> QueryBuilder:
+        """Shortcut: finalize write segment and start a read segment."""
+        return self._segment.query(arg1, *more_keys)
+
+    def upsert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start an upsert segment."""
+        return self._segment.upsert(arg1, *more_keys)
+
+    def insert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start an insert segment."""
+        return self._segment.insert(arg1, *more_keys)
+
+    def update(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start an update segment."""
+        return self._segment.update(arg1, *more_keys)
+
+    def replace(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start a replace segment."""
+        return self._segment.replace(arg1, *more_keys)
+
+    def replace_if_exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start a replace-if-exists segment."""
+        return self._segment.replace_if_exists(arg1, *more_keys)
+
+    def delete(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Shortcut: finalize and start a delete segment."""
+        return self._segment.delete(arg1, *more_keys)
+
+    async def execute(self) -> RecordStream:
+        """Shortcut: execute all accumulated specs."""
+        return await self._segment.execute()
 
 
 class QueryBinBuilder(Generic[_T]):
@@ -920,6 +1704,44 @@ class QueryBinBuilder(Generic[_T]):
         expr = parse_dsl(expression) if isinstance(expression, str) else expression
         self._parent.add_operation(ExpOperation.read(self._bin, expr, flags))  # type: ignore[union-attr]
         return self._parent
+
+    # -- Write transitions (delegate to parent) -------------------------------
+
+    def upsert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start an upsert write segment."""
+        return self._parent.upsert(arg1, *more_keys)  # type: ignore[union-attr]
+
+    def insert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start an insert segment."""
+        return self._parent.insert(arg1, *more_keys)  # type: ignore[union-attr]
+
+    def update(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start an update segment."""
+        return self._parent.update(arg1, *more_keys)  # type: ignore[union-attr]
+
+    def replace(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start a replace segment."""
+        return self._parent.replace(arg1, *more_keys)  # type: ignore[union-attr]
+
+    def replace_if_exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start a replace-if-exists segment."""
+        return self._parent.replace_if_exists(arg1, *more_keys)  # type: ignore[union-attr]
+
+    def delete(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> WriteSegmentBuilder:
+        """Finalize parent read segment and start a delete segment."""
+        return self._parent.delete(arg1, *more_keys)  # type: ignore[union-attr]
 
     # -- Map navigation (singular -> CdtReadBuilder) --------------------------
 

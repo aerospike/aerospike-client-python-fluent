@@ -59,10 +59,12 @@ class TestAdd:
         assert record.bins[bin_name] == 15
 
         # Test add and get combined
-        result = await session.upsert(key) \
-            .bin(bin_name).add(30) \
-            .bin(bin_name).get() \
-            .execute()
+        result = await (
+            session.upsert(key)
+                .bin(bin_name).add(30)
+                .bin(bin_name).get()
+                .execute()
+        )
 
         assert result is not None
         assert result.bins[bin_name] == 45
@@ -151,10 +153,12 @@ class TestAdd:
 
         # Add 30 more and verify
         for key in keys:
-            result = await session.upsert(key) \
-                .bin(bin_name).add(30) \
-                .bin(bin_name).get() \
-                .execute()
+            result = await (
+                session.upsert(key)
+                    .bin(bin_name).add(30)
+                    .bin(bin_name).get()
+                    .execute()
+            )
             assert result is not None
             assert result.bins[bin_name] == 45
 

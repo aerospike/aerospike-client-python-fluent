@@ -21,9 +21,12 @@ from typing import List, Optional, TYPE_CHECKING
 
 from aerospike_async import Client, Key, WritePolicy
 
+from aerospike_async.exceptions import ResultCode
+
 from aerospike_fluent.exceptions import convert_pac_exception
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
 from aerospike_fluent.policy.policy_mapper import to_batch_policy
+from aerospike_fluent.record_result import batch_records_to_results
 from aerospike_fluent.record_stream import RecordStream
 
 if TYPE_CHECKING:
@@ -118,12 +121,21 @@ class BatchDeleteOperation:
             batch_policy = to_batch_policy(
                 self._behavior.get_settings(OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
         try:
-            results = await self._client.batch_delete(
+            batch_records = await self._client.batch_delete(
                 batch_policy,
                 None,
                 self._keys,
             )
         except Exception as e:
             raise convert_pac_exception(e) from e
-        return RecordStream.from_batch_records(results)
+        results = batch_records_to_results(list(batch_records))
+        if not self._respond_all_keys:
+            results = [
+                r for r in results
+                if r.result_code not in (
+                    ResultCode.KEY_NOT_FOUND_ERROR,
+                    ResultCode.FILTERED_OUT,
+                )
+            ]
+        return RecordStream.from_list(results)
 
