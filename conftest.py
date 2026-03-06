@@ -66,6 +66,13 @@ def aerospike_host():
     return os.environ.get('AEROSPIKE_HOST', 'localhost:3000')
 
 
+@pytest.fixture(scope="session")
+def enterprise():
+    """True when the test cluster is Enterprise Edition."""
+    v = os.environ.get('AEROSPIKE_ENTERPRISE', '').strip().lower()
+    return v in ('true', '1', 'yes')
+
+
 @pytest.fixture(scope="session") 
 def aerospike_host_tls():
     """Fixture providing the TLS-enabled Aerospike host for tests"""

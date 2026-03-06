@@ -448,8 +448,10 @@ async def test_set_bins_execute(client):
 
 
 @pytest.mark.asyncio
-async def test_durably_delete(client):
+async def test_durably_delete(client, enterprise):
     """Test durably method for delete operations."""
+    if not enterprise:
+        pytest.skip("Requires Enterprise Edition")
     session = client.create_session()
     k = DataSet.of("test", "test").id(1)
 

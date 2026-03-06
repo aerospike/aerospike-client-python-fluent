@@ -474,8 +474,10 @@ class TestFilteredDeletePaths:
 
         await _cleanup(session, k)
 
-    async def test_durable_delete_with_where_succeeds(self, session, ds):
+    async def test_durable_delete_with_where_succeeds(self, session, ds, enterprise):
         """Durable delete with matching where() deletes the record."""
+        if not enterprise:
+            pytest.skip("Requires Enterprise Edition")
         k = ds.id("fd_dur_ok")
         await _cleanup(session, k)
         await session.upsert(k).put({"v": 1}).execute()
@@ -494,9 +496,11 @@ class TestFilteredDeletePaths:
 
         await _cleanup(session, k)
 
-    async def test_durable_delete_with_where_filtered_out(self, session, ds):
+    async def test_durable_delete_with_where_filtered_out(self, session, ds, enterprise):
         """Durable delete with non-matching where() + fail_on_filtered_out()
         raises FILTERED_OUT."""
+        if not enterprise:
+            pytest.skip("Requires Enterprise Edition")
         k = ds.id("fd_dur_fo")
         await _cleanup(session, k)
         await session.upsert(k).put({"v": 1}).execute()
