@@ -17,12 +17,15 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Sequence
+from typing import TYPE_CHECKING, AsyncIterator, Sequence
 
 from aerospike_async import Key, Record
 from aerospike_async.exceptions import ResultCode
 
 from aerospike_fluent.record_result import RecordResult, batch_records_to_results
+
+if TYPE_CHECKING:
+    from aerospike_fluent.exceptions import AerospikeError
 
 
 class RecordStream:
@@ -93,6 +96,7 @@ class RecordStream:
         key: Key,
         result_code: ResultCode,
         in_doubt: bool = False,
+        exception: AerospikeError | None = None,
     ) -> RecordStream:
         """Wrap a single-key error as a one-element stream."""
         return cls.from_list([RecordResult(
@@ -101,6 +105,7 @@ class RecordStream:
             result_code=result_code,
             in_doubt=in_doubt,
             index=0,
+            exception=exception,
         )])
 
     # -- async iteration -----------------------------------------------------

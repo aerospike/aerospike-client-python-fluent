@@ -19,22 +19,24 @@ import asyncio
 import pytest
 import pytest_asyncio
 from aerospike_async import Filter, PartitionFilter, QueryPolicy
-from aerospike_fluent import Exp, FluentClient
+from aerospike_fluent import DataSet, Exp, FluentClient
 
 
 @pytest_asyncio.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client and test data for query tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
-        # Clean up and insert test data
-        async with client.key_value_service("test", "query_test") as kv:
-            # Clean up existing records
-            for i in range(10):
-                await kv.delete(i)
+        session = client.create_session()
+        ds = DataSet.of("test", "query_test")
 
-            # Insert test records with age values
-            for i in range(10):
-                await kv.put(i, {"id": i, "age": 20 + i, "name": f"User{i}"})
+        for i in range(10):
+            try:
+                await session.delete(ds.id(i)).execute()
+            except Exception:
+                pass
+
+        for i in range(10):
+            await session.upsert(ds.id(i)).put({"id": i, "age": 20 + i, "name": f"User{i}"}).execute()
 
         yield client
 

@@ -48,33 +48,30 @@ class TestOperate:
         await session.upsert(key).bin(bin_name1).set_to(7).bin(bin_name2).set_to("string value").execute()
 
         # Verify initial values
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert record.bins[bin_name1] == 7
-        assert record.bins[bin_name2] == "string value"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert record.record.bins[bin_name1] == 7
+        assert record.record.bins[bin_name2] == "string value"
 
-        # Add integer, write new string and read record
-        result = await (
+        # Add integer, write new string
+        await (
             session.upsert(key)
-                 .bin(bin_name1).add(4)
-                 .bin(bin_name2).set_to("new string")
-                 .bin(bin_name1).get()
-                 .bin(bin_name2).get()
+                .bin(bin_name1).add(4)
+                .bin(bin_name2).set_to("new string")
                 .execute()
         )
 
-        # Result should contain the read values
-        assert result is not None
-        # The result bins should contain the values after the operations
-        assert result.bins is not None
-        
+        # Read record and verify values after operations
+        result = await (await session.query(key).execute()).first_or_raise()
+        assert result.record is not None
+        assert result.record.bins is not None
         # After add(4) to 7, bin1 should be 11
-        assert result.bins[bin_name1] == 11
+        assert result.record.bins[bin_name1] == 11
         # bin2 should have new string
-        assert result.bins[bin_name2] == "new string"
+        assert result.record.bins[bin_name2] == "new string"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_operate_multiple_increments(self, client: FluentClient, test_set: DataSet):
         """Test multiple increment operations on same bin."""
@@ -84,7 +81,7 @@ class TestOperate:
 
         # Delete if exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -97,12 +94,12 @@ class TestOperate:
         await session.upsert(key).bin(bin_name).add(15).execute()
 
         # Verify final value
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert record.bins[bin_name] == 30
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert record.record.bins[bin_name] == 30
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_operate_set_and_get(self, client: FluentClient, test_set: DataSet):
         """Test setting and getting in same operation."""
@@ -112,21 +109,17 @@ class TestOperate:
 
         # Delete if exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
-        # Set and get in same operation
-        result = await (
-            session.upsert(key)
-                .bin(bin_name).set_to("test_value")
-                .bin(bin_name).get()
-                .execute()
-        )
+        # Set value
+        await session.upsert(key).bin(bin_name).set_to("test_value").execute()
 
-        # Result should contain the value we just set
-        assert result is not None
-        assert result.bins[bin_name] == "test_value"
+        # Read and verify
+        result = await (await session.query(key).execute()).first_or_raise()
+        assert result.record is not None
+        assert result.record.bins[bin_name] == "test_value"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()

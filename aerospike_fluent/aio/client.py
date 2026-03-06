@@ -31,11 +31,9 @@ from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
-    from aerospike_fluent.aio.operations.key_value import KeyValueOperation
     from aerospike_fluent.aio.operations.query import QueryBuilder
     from aerospike_fluent.aio.operations.index import IndexBuilder
-    from aerospike_fluent.aio.services.key_value_service import KeyValueService
-    from aerospike_fluent.aio.services.transactional_session import TransactionalSession
+    from aerospike_fluent.aio.transactional_session import TransactionalSession
     from aerospike_fluent.aio.session import Session
 
 
@@ -48,11 +46,11 @@ class FluentClient:
     Example:
         ```python
         async with FluentClient("localhost:3000") as client:
-            record = await client.key_value(
-                namespace="test", 
-                set_name="users", 
-                key="user123"
-            ).get()
+            async for record in client.query(
+                namespace="test",
+                set_name="users"
+            ).execute():
+                print(record.bins)
         ```
     """
 
@@ -157,114 +155,6 @@ class FluentClient:
             RuntimeError: If the client is not connected.
         """
         return self._async_client
-
-    @overload
-    def key_value(
-        self,
-        *,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create a key-value operation builder from a Key object."""
-        ...
-
-    @overload
-    def key_value(
-        self,
-        *,
-        dataset: DataSet,
-        key: Union[str, int, bytes],
-    ) -> KeyValueOperation:
-        """Create a key-value operation builder using a DataSet."""
-        ...
-
-    @overload
-    def key_value(
-        self,
-        namespace: str,
-        set_name: str,
-        key: Union[str, int],
-    ) -> KeyValueOperation:
-        """Create a key-value operation builder with explicit namespace/set."""
-        ...
-
-    def key_value(
-        self,
-        namespace: Optional[str] = None,
-        set_name: Optional[str] = None,
-        key: Optional[Union[str, int, bytes, Key]] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-        behavior: Optional[Behavior] = None,
-    ) -> KeyValueOperation:
-        """
-        Create a key-value operation builder.
-
-        Supports multiple calling styles:
-
-        1. Using a Key object:
-           ```python
-           users = DataSet.of("test", "users")
-           key = users.id("user123")
-           await client.key_value(key=key).put({"name": "John"})
-           ```
-
-        2. Using a DataSet:
-           ```python
-           users = DataSet.of("test", "users")
-           await client.key_value(dataset=users, key="user123").put({"name": "John"})
-           ```
-
-        3. Explicit namespace/set (original style):
-           ```python
-           await client.key_value(
-               namespace="test",
-               set_name="users",
-               key="user123"
-           ).put({"name": "John"})
-           ```
-
-        Args:
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key: The record key. Can be a Key object, or string/int/bytes identifier.
-            dataset: Optional DataSet to use for namespace/set.
-            behavior: Optional Behavior for deriving operation policies.
-
-        Returns:
-            A KeyValueOperation builder for chaining operations.
-        """
-        from aerospike_fluent.aio.operations.key_value import KeyValueOperation
-
-        # Handle Key object
-        if isinstance(key, Key):
-            namespace = key.namespace
-            set_name = key.set_name
-            key_value = key.value
-        # Handle DataSet
-        elif dataset is not None:
-            if key is None:
-                raise ValueError("key is required when using dataset parameter")
-            namespace = dataset.namespace
-            set_name = dataset.set_name
-            key_value = key
-        # Handle explicit namespace/set (original style)
-        elif namespace is not None and set_name is not None and key is not None:
-            key_value = key
-        else:
-            raise ValueError(
-                "Invalid arguments. Use either:\n"
-                "  - key_value(key=Key(...))\n"
-                "  - key_value(dataset=DataSet(...), key=...)\n"
-                "  - key_value(namespace=..., set_name=..., key=...)"
-            )
-
-        return KeyValueOperation(
-            client=self._async_client,
-            namespace=namespace,
-            set_name=set_name,
-            key=key_value,
-            behavior=behavior,
-        )
 
     @overload
     def query(
@@ -511,88 +401,6 @@ class FluentClient:
             set_name=set_name,
         )
 
-    @overload
-    def key_value_service(
-        self,
-        *,
-        dataset: DataSet,
-    ) -> KeyValueService:
-        """Create a key-value service from a DataSet."""
-        ...
-
-    @overload
-    def key_value_service(
-        self,
-        namespace: str,
-        set_name: str,
-    ) -> KeyValueService:
-        """Create a key-value service with explicit namespace/set."""
-        ...
-
-    def key_value_service(
-        self,
-        namespace: Optional[str] = None,
-        set_name: Optional[str] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-    ) -> KeyValueService:
-        """
-        Create a key-value service with shared namespace and set context.
-
-        This service is more efficient than builders when performing many
-        operations on the same namespace/set, as it holds the context
-        and doesn't require repeating namespace/set for each operation.
-
-        Supports multiple calling styles:
-
-        1. Using a DataSet:
-           ```python
-           users = DataSet.of("test", "users")
-           async with client.key_value_service(dataset=users) as kv:
-               await kv.put("user1", {"name": "John"})
-               record = await kv.get("user1")
-           ```
-
-        2. Explicit namespace/set (original style):
-           ```python
-           async with client.key_value_service(
-               namespace="test",
-               set_name="users"
-           ) as kv:
-               await kv.put("user1", {"name": "John"})
-               record = await kv.get("user1")
-           ```
-
-        Args:
-            namespace: The namespace name (if not using DataSet).
-            set_name: The set name (if not using DataSet).
-            dataset: Optional DataSet to use for namespace/set.
-
-        Returns:
-            A KeyValueService for performing multiple operations.
-        """
-        from aerospike_fluent.aio.services.key_value_service import KeyValueService
-
-        # Handle DataSet
-        if dataset is not None:
-            namespace = dataset.namespace
-            set_name = dataset.set_name
-        # Handle explicit namespace/set (original style)
-        elif namespace is not None and set_name is not None:
-            pass
-        else:
-            raise ValueError(
-                "Invalid arguments. Use either:\n"
-                "  - key_value_service(dataset=DataSet(...))\n"
-                "  - key_value_service(namespace=..., set_name=...)"
-            )
-
-        return KeyValueService(
-            client=self._async_client,
-            namespace=namespace,
-            set_name=set_name,
-        )
-
     def transaction_session(self) -> TransactionalSession:
         """
         Create a transactional session.
@@ -616,9 +424,7 @@ class FluentClient:
                 # Transaction auto-committed on exit
             ```
         """
-        from aerospike_fluent.aio.services.transactional_session import (
-            TransactionalSession,
-        )
+        from aerospike_fluent.aio.transactional_session import TransactionalSession
 
         return TransactionalSession(client=self._async_client)
 

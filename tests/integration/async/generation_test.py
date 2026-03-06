@@ -46,27 +46,27 @@ class TestGeneration:
 
         # Delete record if it already exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
         # First write - generation should be 1
         await session.upsert(key).bin(bin_name).set_to("genvalue1").execute()
 
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert record.generation == 1
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert record.record.generation == 1
 
         # Second write - generation should be 2
         await session.upsert(key).bin(bin_name).set_to("genvalue2").execute()
 
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert record.generation == 2
-        assert record.bins[bin_name] == "genvalue2"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert record.record.generation == 2
+        assert record.record.bins[bin_name] == "genvalue2"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_generation_check_success(self, client: FluentClient, test_set: DataSet):
         """Test successful update with correct generation."""
@@ -76,7 +76,7 @@ class TestGeneration:
 
         # Delete and create fresh record
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -84,8 +84,8 @@ class TestGeneration:
         await session.upsert(key).bin(bin_name).set_to("genvalue2").execute()
 
         # Get current generation
-        record = await session.key_value(key=key).get()
-        current_gen = record.generation
+        record = await (await session.query(key).execute()).first_or_raise()
+        current_gen = record.record.generation
 
         # Update with correct generation - should succeed
         await (
@@ -96,11 +96,11 @@ class TestGeneration:
         )
 
         # Verify update succeeded
-        record = await session.key_value(key=key).get()
-        assert record.bins[bin_name] == "genvalue3"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record.bins[bin_name] == "genvalue3"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_generation_check_failure(self, client: FluentClient, test_set: DataSet):
         """Test that update fails with incorrect generation."""
@@ -110,7 +110,7 @@ class TestGeneration:
 
         # Delete and create fresh record
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -126,11 +126,11 @@ class TestGeneration:
             )
 
         # Verify original value unchanged
-        record = await session.key_value(key=key).get()
-        assert record.bins[bin_name] == "genvalue1"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record.bins[bin_name] == "genvalue1"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_generation_concurrent_update(self, client: FluentClient, test_set: DataSet):
         """Test optimistic locking pattern for concurrent updates."""
@@ -140,7 +140,7 @@ class TestGeneration:
 
         # Delete and create fresh record
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -148,9 +148,9 @@ class TestGeneration:
         await session.upsert(key).bin(bin_name).set_to(0).execute()
 
         # Simulate read-modify-write pattern
-        record = await session.key_value(key=key).get()
-        current_value = record.bins[bin_name]
-        current_gen = record.generation
+        record = await (await session.query(key).execute()).first_or_raise()
+        current_value = record.record.bins[bin_name]
+        current_gen = record.record.generation
 
         # Update with generation check
         new_value = current_value + 10
@@ -162,9 +162,9 @@ class TestGeneration:
         )
 
         # Verify
-        record = await session.key_value(key=key).get()
-        assert record.bins[bin_name] == 10
-        assert record.generation == current_gen + 1
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record.bins[bin_name] == 10
+        assert record.record.generation == current_gen + 1
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()

@@ -61,10 +61,10 @@ def customer_dataset(session):
                     (2, {"name": "Bob", "age": 30, "country": "US"}),
                     (3, {"name": "Alice", "age": 28, "country": "UK"})]:
         try:
-            session.key_value(dataset=customers, key=i).delete()
+            session.delete(customers.id(i)).execute()
         except Exception:
             pass  # Ignore if key doesn't exist
-        session.key_value(dataset=customers, key=i).put(data)
+        session.upsert(customers.id(i)).put(data).execute()
 
     yield customers
 
@@ -74,10 +74,10 @@ def customer_dataset(session):
                     (2, {"name": "Bob", "age": 30, "country": "US"}),
                     (3, {"name": "Alice", "age": 28, "country": "UK"})]:
         try:
-            session.key_value(dataset=customers, key=i).delete()
+            session.delete(customers.id(i)).execute()
         except Exception:
             pass  # Ignore if key doesn't exist
-        session.key_value(dataset=customers, key=i).put(data)
+        session.upsert(customers.id(i)).put(data).execute()
 
 
 # ============================================================================
@@ -168,7 +168,8 @@ def test_java_example_dataset_creation():
 def test_java_example_dataset_id(session, customer_dataset):
     """Java: Key customerKey = customerDataSet.id(cust.id);"""
     customer_key = customer_dataset.id(1)
-    record = session.key_value(key=customer_key).get()
+    result = session.query(customer_key).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
 
@@ -281,7 +282,7 @@ def test_java_example_insert(session, customer_dataset):
     """
     # Clean up first - ensure key 10 doesn't exist
     try:
-        session.key_value(dataset=customer_dataset, key=10).delete()
+        session.delete(customer_dataset.id(10)).execute()
     except Exception:
         pass  # Ignore if key doesn't exist
 
@@ -292,20 +293,21 @@ def test_java_example_insert(session, customer_dataset):
     }).execute()
 
     # Verify
-    record = session.key_value(dataset=customer_dataset, key=10).get()
+    result = session.query(customer_dataset.id(10)).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
     assert record.bins["age"] == 1
 
     # Cleanup
-    session.key_value(dataset=customer_dataset, key=10).delete()
+    session.delete(customer_dataset.id(10)).execute()
 
 
 def test_insert_with_put_pattern(session, customer_dataset):
     """Test that insert() also works with .put() pattern (backward compatibility)."""
     # Clean up first - ensure key 11 doesn't exist
     try:
-        session.key_value(dataset=customer_dataset, key=11).delete()
+        session.delete(customer_dataset.id(11)).execute()
     except Exception:
         pass  # Ignore if key doesn't exist
 
@@ -313,16 +315,17 @@ def test_insert_with_put_pattern(session, customer_dataset):
     session.insert(customer_dataset.id(11)).put({
         "name": "PutPattern",
         "age": 2
-    })
+    }).execute()
 
     # Verify
-    record = session.key_value(dataset=customer_dataset, key=11).get()
+    result = session.query(customer_dataset.id(11)).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "PutPattern"
     assert record.bins["age"] == 2
 
     # Cleanup
-    session.key_value(dataset=customer_dataset, key=11).delete()
+    session.delete(customer_dataset.id(11)).execute()
 
 
 def test_java_example_update(session, customer_dataset):
@@ -340,7 +343,8 @@ def test_java_example_update(session, customer_dataset):
     }).execute()
 
     # Verify
-    record = session.key_value(dataset=customer_dataset, key=2).get()
+    result = session.query(customer_dataset.id(2)).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
     assert record.bins["age"] == 31
@@ -352,10 +356,11 @@ def test_update_with_put_pattern(session, customer_dataset):
     session.update(customer_dataset.id(2)).put({
         "name": "PutUpdate",
         "age": 32
-    })
+    }).execute()
 
     # Verify
-    record = session.key_value(dataset=customer_dataset, key=2).get()
+    result = session.query(customer_dataset.id(2)).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "PutUpdate"
     assert record.bins["age"] == 32
@@ -370,7 +375,8 @@ def test_java_example_upsert(session, customer_dataset):
     }).execute()
 
     # Verify
-    record = session.key_value(dataset=customer_dataset, key=1).get()
+    result = session.query(customer_dataset.id(1)).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim Updated"
     assert record.bins["age"] == 26
@@ -382,10 +388,11 @@ def test_upsert_with_put_pattern(session, customer_dataset):
     session.upsert(customer_dataset.id(1)).put({
         "name": "PutUpsert",
         "age": 27
-    })
+    }).execute()
 
     # Verify
-    record = session.key_value(dataset=customer_dataset, key=1).get()
+    result = session.query(customer_dataset.id(1)).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "PutUpsert"
     assert record.bins["age"] == 27
@@ -395,11 +402,13 @@ def test_java_example_delete(session, customer_dataset):
     """Java: session.delete(customerDataSet.ids(1,2,3)).execute();"""
     # Delete multiple records - using execute() pattern (Java-style, no for loop needed!)
     keys = customer_dataset.ids(1, 2, 3)
-    session.delete(keys).execute()
+    session.delete(*keys).execute()
 
     # Verify they're deleted
     for key in keys:
-        record = session.key_value(key=key).get()
+        stream = session.query(key).execute()
+        first = stream.first()
+        record = first.record if first and first.is_ok else None
         assert record is None
 
 
@@ -407,14 +416,15 @@ def test_delete_with_delete_method(session, customer_dataset):
     """Test that delete() also works with .delete() method (backward compatibility)."""
     # Create a record first
     key = customer_dataset.id(99)
-    session.key_value(key=key).put({"name": "ToDelete"})
+    session.upsert(key).put({"name": "ToDelete"}).execute()
 
-    # Delete using .delete() method (immediate execution)
-    deleted = session.delete(key=key).delete()
-    assert deleted is True
+    # Delete using .execute() method
+    session.delete(key).execute()
 
     # Verify it's deleted
-    record = session.key_value(key=key).get()
+    stream = session.query(key).execute()
+    first = stream.first()
+    record = first.record if first and first.is_ok else None
     assert record is None
 
 
@@ -424,16 +434,18 @@ def test_java_example_delete_durably(session, customer_dataset):
     key = customer_dataset.id(5)
 
     # First create a record to delete
-    session.key_value(dataset=customer_dataset, key=5).put({
+    session.upsert(customer_dataset.id(5)).put({
         "name": "Test",
         "age": 25
-    })
+    }).execute()
 
-    # Delete with durably(False) using delete() method
-    session.delete(key=key).durably(False).delete()
+    # Delete (default is non-durable)
+    session.delete(key).execute()
 
     # Verify it's deleted
-    record = session.key_value(key=key).get()
+    stream = session.query(key).execute()
+    first = stream.first()
+    record = first.record if first and first.is_ok else None
     assert record is None
 
 
@@ -525,19 +537,19 @@ def test_java_example_filter_control_full(session, customer_dataset):
 
 
 def test_java_example_key_value_operations_direct_client(session, customer_dataset):
-    """Java: client.key_value("test", "users", "user123").put({"name": "John", "age": 30});
-              Record rec = client.key_value("test", "users", "user123").get();
-    """
-    # Using keyword arguments (more Pythonic)
-    session.key_value(namespace="test", set_name="Customers", key="user123").put({"name": "John", "age": 30})
-    record = session.key_value(namespace="test", set_name="Customers", key="user123").get()
+    """Java: session.upsert(key).put(...).execute(); Record rec = session.query(key).execute().first_or_raise().record;"""
+    ds = DataSet.of("test", "Customers")
+    key = ds.id("user123")
+    session.upsert(key).put({"name": "John", "age": 30}).execute()
+    result = session.query(key).execute().first_or_raise()
+    record = result.record
 
     assert record is not None
     assert record.bins["name"] == "John"
     assert record.bins["age"] == 30
 
     # Cleanup
-    session.key_value(namespace="test", set_name="Customers", key="user123").delete()
+    session.delete(key).execute()
 
 
 def test_java_example_query_operations(session, customer_dataset):
@@ -590,21 +602,17 @@ def test_java_example_index_operations(session, customer_dataset):
         pass  # Index may not exist
 
 
-def test_java_example_key_value_service_pattern(session, customer_dataset):
-    """Java: try (KeyValueService kv = session.keyValueService(customerDataSet)) {
-              kv.put("user1", {"name": "John"});
-              Record rec = kv.get("user1");
-          }
-    """
-    # Note: Sync session doesn't have key_value_service yet, using direct key_value instead
-    # This test verifies the pattern works when key_value_service is available
-    session.key_value(dataset=customer_dataset, key="user1").put({"name": "John"})
-    record = session.key_value(dataset=customer_dataset, key="user1").get()
+def test_java_example_put_and_query_pattern(session, customer_dataset):
+    """Java: session.upsert(key).put(...).execute(); Record rec = session.query(key).execute().first_or_raise().record;"""
+    key = customer_dataset.id("user1")
+    session.upsert(key).put({"name": "John"}).execute()
+    result = session.query(key).execute().first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "John"
 
     # Cleanup
-    session.key_value(dataset=customer_dataset, key="user1").delete()
+    session.delete(key).execute()
 
 
 def test_java_example_behaviors(cluster):

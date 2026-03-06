@@ -42,9 +42,10 @@ async def cleanup(client, dataset):
     """Delete test keys after each test."""
     keys_to_clean = []
     yield keys_to_clean
+    session = client.create_session()
     for key in keys_to_clean:
         try:
-            await client.key_value(key=key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -61,9 +62,9 @@ async def test_custom_behavior_put_get(client, dataset, cleanup):
     key = dataset.id("bhv_custom_1")
     cleanup.append(key)
 
-    await session.upsert(key=key).set_bins({"name": "Alice", "score": 100}).execute()
+    await session.upsert(key).set_bins({"name": "Alice", "score": 100}).execute()
 
-    stream = await session.query(key=key).execute()
+    stream = await session.query(key).execute()
     async for result in stream:
         assert result.record.bins == {"name": "Alice", "score": 100}
 
@@ -76,11 +77,12 @@ async def test_predefined_read_fast(client, dataset, cleanup):
     key = dataset.id("bhv_readfast_1")
     cleanup.append(key)
 
-    await session.upsert(key=key).set_bins({"x": 42}).execute()
+    await session.upsert(key).set_bins({"x": 42}).execute()
 
-    record = await session.key_value(key=key).get()
-    assert record is not None
-    assert record.bins["x"] == 42
+    stream = await session.query(key).execute()
+    result = await stream.first_or_raise()
+    assert result is not None
+    assert result.record.bins["x"] == 42
 
 
 @pytest.mark.asyncio
@@ -96,16 +98,16 @@ async def test_behavior_inheritance_chain(client, dataset, cleanup):
         reads=Settings(total_timeout=timedelta(seconds=15)),
     )
 
-    session = child.name  # sanity
-    assert session == "child"
+    name = child.name  # sanity
+    assert name == "child"
 
     s = client.create_session(child)
     key = dataset.id("bhv_inherit_1")
     cleanup.append(key)
 
-    await s.upsert(key=key).set_bins({"level": "grandchild"}).execute()
+    await s.upsert(key).set_bins({"level": "grandchild"}).execute()
 
-    stream = await s.query(key=key).execute()
+    stream = await s.query(key).execute()
     async for result in stream:
         assert result.record.bins["level"] == "grandchild"
 
@@ -136,14 +138,16 @@ async def test_different_sessions_independent(client, dataset, cleanup):
     key_safe = dataset.id("bhv_safe_1")
     cleanup.extend([key_fast, key_safe])
 
-    await fast_session.upsert(key=key_fast).set_bins({"src": "fast"}).execute()
-    await safe_session.upsert(key=key_safe).set_bins({"src": "safe"}).execute()
+    await fast_session.upsert(key_fast).set_bins({"src": "fast"}).execute()
+    await safe_session.upsert(key_safe).set_bins({"src": "safe"}).execute()
 
-    rec_fast = await fast_session.key_value(key=key_fast).get()
-    rec_safe = await safe_session.key_value(key=key_safe).get()
+    stream_fast = await fast_session.query(key_fast).execute()
+    stream_safe = await safe_session.query(key_safe).execute()
+    rec_fast = await stream_fast.first_or_raise()
+    rec_safe = await stream_safe.first_or_raise()
 
-    assert rec_fast.bins["src"] == "fast"
-    assert rec_safe.bins["src"] == "safe"
+    assert rec_fast.record.bins["src"] == "fast"
+    assert rec_safe.record.bins["src"] == "safe"
 
     assert fast_session.behavior.name == "fast"
     assert safe_session.behavior.name == "safe"
@@ -162,9 +166,9 @@ async def test_batch_with_custom_behavior(client, dataset, cleanup):
     cleanup.extend(keys)
 
     for i, key in enumerate(keys):
-        await session.upsert(key=key).set_bins({"idx": i}).execute()
+        await session.upsert(key).set_bins({"idx": i}).execute()
 
-    stream = await session.query(keys).execute()
+    stream = await session.query(*keys).execute()
     count = 0
     async for result in stream:
         assert "idx" in result.record.bins

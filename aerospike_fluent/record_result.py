@@ -25,6 +25,7 @@ from aerospike_async.exceptions import ResultCode
 
 if TYPE_CHECKING:
     from aerospike_async import BatchRecord
+    from aerospike_fluent.exceptions import AerospikeError
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +38,9 @@ class RecordResult:
         result_code: Server result code (``ResultCode.OK`` on success).
         in_doubt: ``True`` when a write may have completed despite the error.
         index: Position in the batch (``-1`` for non-batch results).
+        exception: The original exception, if any. Present when a client-side
+            error (timeout, connection failure) was embedded in the stream
+            rather than raised.
     """
 
     key: Key
@@ -44,6 +48,7 @@ class RecordResult:
     result_code: ResultCode
     in_doubt: bool = False
     index: int = -1
+    exception: AerospikeError | None = None
 
     @property
     def is_ok(self) -> bool:
@@ -53,8 +58,9 @@ class RecordResult:
     def or_raise(self) -> RecordResult:
         """Return *self* if the result is OK, otherwise raise a typed exception."""
         if not self.is_ok:
+            if self.exception is not None:
+                raise self.exception
             from aerospike_fluent.exceptions import result_code_to_exception
-
             raise result_code_to_exception(
                 self.result_code, str(self.result_code), self.in_doubt
             )

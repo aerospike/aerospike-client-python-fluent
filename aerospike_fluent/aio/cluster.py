@@ -28,7 +28,7 @@ from aerospike_fluent.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
     from aerospike_fluent.aio.session import Session
-    from aerospike_fluent.aio.services.transactional_session import TransactionalSession
+    from aerospike_fluent.aio.transactional_session import TransactionalSession
 
 
 class Cluster:

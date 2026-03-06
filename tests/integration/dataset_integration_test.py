@@ -26,17 +26,20 @@ async def test_key_value_with_dataset(aerospike_host, client_policy):
     users = DataSet.of("test", "users")
 
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
+        key = users.id("user1")
         # Put a record using DataSet
-        await client.key_value(dataset=users, key="user1").put({"name": "John", "age": 30})
+        await session.upsert(key).put({"name": "John", "age": 30}).execute()
 
         # Get the record using DataSet
-        record = await client.key_value(dataset=users, key="user1").get()
+        result = await (await session.query(key).execute()).first_or_raise()
+        record = result.record
         assert record is not None
         assert record.bins["name"] == "John"
         assert record.bins["age"] == 30
 
         # Clean up
-        await client.key_value(dataset=users, key="user1").delete()
+        await session.delete(key).execute()
 
 @pytest.mark.asyncio
 async def test_key_value_with_key_object(aerospike_host, client_policy):
@@ -45,17 +48,19 @@ async def test_key_value_with_key_object(aerospike_host, client_policy):
     key = users.id("user2")
 
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
         # Put a record using Key object
-        await client.key_value(key=key).put({"name": "Jane", "age": 25})
+        await session.upsert(key).put({"name": "Jane", "age": 25}).execute()
 
         # Get the record using Key object
-        record = await client.key_value(key=key).get()
+        result = await (await session.query(key).execute()).first_or_raise()
+        record = result.record
         assert record is not None
         assert record.bins["name"] == "Jane"
         assert record.bins["age"] == 25
 
         # Clean up
-        await client.key_value(key=key).delete()
+        await session.delete(key).execute()
 
 @pytest.mark.asyncio
 async def test_query_with_dataset(aerospike_host, client_policy):
@@ -63,9 +68,10 @@ async def test_query_with_dataset(aerospike_host, client_policy):
     users = DataSet.of("test", "query_test")
 
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
         # Put some test data
-        await client.key_value(dataset=users, key="q1").put({"id": "q1", "value": 10})
-        await client.key_value(dataset=users, key="q2").put({"id": "q2", "value": 20})
+        await session.upsert(users.id("q1")).put({"id": "q1", "value": 10}).execute()
+        await session.upsert(users.id("q2")).put({"id": "q2", "value": 20}).execute()
 
         # Query using DataSet
         stream = await client.query(dataset=users).execute()
@@ -80,8 +86,8 @@ async def test_query_with_dataset(aerospike_host, client_policy):
         stream.close()
 
         # Clean up
-        await client.key_value(dataset=users, key="q1").delete()
-        await client.key_value(dataset=users, key="q2").delete()
+        await session.delete(users.id("q1")).execute()
+        await session.delete(users.id("q2")).execute()
 
 @pytest.mark.asyncio
 async def test_query_with_single_key(aerospike_host, client_policy):
@@ -90,8 +96,9 @@ async def test_query_with_single_key(aerospike_host, client_policy):
     key = users.id("user3")
 
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
         # Put a record
-        await client.key_value(key=key).put({"name": "Bob", "age": 35})
+        await session.upsert(key).put({"name": "Bob", "age": 35}).execute()
 
         # Query using single Key
         stream = await client.query(key=key).execute()
@@ -105,7 +112,7 @@ async def test_query_with_single_key(aerospike_host, client_policy):
         assert count == 1
 
         # Clean up
-        await client.key_value(key=key).delete()
+        await session.delete(key).execute()
 
 @pytest.mark.asyncio
 async def test_query_with_multiple_keys(aerospike_host, client_policy):
@@ -114,9 +121,10 @@ async def test_query_with_multiple_keys(aerospike_host, client_policy):
     keys = users.ids("user4", "user5")
 
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
         # Put records
-        await client.key_value(key=keys[0]).put({"name": "Alice", "age": 28})
-        await client.key_value(key=keys[1]).put({"name": "Charlie", "age": 32})
+        await session.upsert(keys[0]).put({"name": "Alice", "age": 28}).execute()
+        await session.upsert(keys[1]).put({"name": "Charlie", "age": 32}).execute()
 
         # Query using multiple Keys (positional argument)
         stream = await client.query(keys).execute()
@@ -133,5 +141,5 @@ async def test_query_with_multiple_keys(aerospike_host, client_policy):
         assert "Charlie" in names
 
         # Clean up
-        await client.key_value(key=keys[0]).delete()
-        await client.key_value(key=keys[1]).delete()
+        await session.delete(keys[0]).execute()
+        await session.delete(keys[1]).execute()

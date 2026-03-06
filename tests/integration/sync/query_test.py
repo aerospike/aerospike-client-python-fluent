@@ -23,14 +23,16 @@ from aerospike_fluent import DataSet, Exp, SyncFluentClient
 def client(aerospike_host, client_policy):
     """Setup sync fluent client and test data for query tests."""
     with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
+        ds = DataSet.of("test", "query_test")
         # Clean up and insert test data
         # Clean up existing records
         for i in range(10):
-            client.key_value("test", "query_test", i).delete()
+            session.delete(ds.id(i)).execute()
 
         # Insert test records with age values
         for i in range(10):
-            client.key_value("test", "query_test", i).put({"id": i, "age": 20 + i, "name": f"User{i}"})
+            session.upsert(ds.id(i)).put({"id": i, "age": 20 + i, "name": f"User{i}"}).execute()
 
         yield client
 
