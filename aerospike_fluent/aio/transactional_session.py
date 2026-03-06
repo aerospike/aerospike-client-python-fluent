@@ -21,9 +21,6 @@ from typing import Any, Optional
 
 from aerospike_async import Client
 
-from aerospike_fluent.aio.services.key_value_service import KeyValueService
-
-
 class TransactionalSession:
     """
     Session for transactional operations.
@@ -34,50 +31,11 @@ class TransactionalSession:
 
     Note: Full transaction support depends on Aerospike server capabilities.
     This is a placeholder for future transaction support.
-
-    Example:
-        ```python
-        async with client.transaction_session() as session:
-            kv = session.key_value("test", "users")
-            await kv.put("user1", {"name": "John"})
-            await kv.put("user2", {"name": "Jane"})
-            # Transaction auto-committed on exit
-        ```
     """
 
     def __init__(self, client: Client) -> None:
-        """
-        Initialize a TransactionalSession.
-
-        Args:
-            client: The underlying async client.
-        """
         self._client = client
         self._active = False
-
-    def key_value(
-        self,
-        namespace: str,
-        set_name: str,
-    ) -> KeyValueService:
-        """
-        Create a key-value service within this transaction session.
-
-        Args:
-            namespace: The namespace name.
-            set_name: The set name.
-
-        Returns:
-            A KeyValueService that operates within this transaction.
-        """
-        # For now, this is a regular KeyValueService
-        # In the future, this will be a transactional KeyValueService
-        # that tracks operations for commit/rollback
-        return KeyValueService(
-            client=self._client,
-            namespace=namespace,
-            set_name=set_name,
-        )
 
     async def commit(self) -> None:
         """

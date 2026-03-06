@@ -408,3 +408,55 @@ class TestExplicitTypes:
             ' default => "hello"))'
         )
         assert result == expected
+
+
+class TestEmptyCollectionLiterals:
+    """Test [] and {} as empty list/map literals vs CDT path designators."""
+
+    def test_empty_list_literal(self):
+        """[] parses as an empty list value."""
+        expected = Exp.list_val([])
+        result = parse_dsl("[]")
+        assert result == expected
+
+    def test_empty_list_literal_in_comparison(self):
+        """$.listBin.get(type: LIST) == []"""
+        expected = Exp.eq(Exp.list_bin("listBin"), Exp.list_val([]))
+        result = parse_dsl("$.listBin.get(type: LIST) == []")
+        assert result == expected
+
+    def test_empty_map_literal(self):
+        """{} parses as an empty map value."""
+        expected = Exp.map_val({})
+        result = parse_dsl("{}")
+        assert result == expected
+
+    def test_empty_map_literal_in_comparison(self):
+        """$.mapBin.get(type: MAP) == {}"""
+        expected = Exp.eq(Exp.map_bin("mapBin"), Exp.map_val({}))
+        result = parse_dsl("$.mapBin.get(type: MAP) == {}")
+        assert result == expected
+
+    def test_nonempty_list_still_works(self):
+        """[1, 2, 3] still parses correctly."""
+        expected = Exp.eq(Exp.list_bin("b"), Exp.list_val([1, 2, 3]))
+        result = parse_dsl("$.b.get(type: LIST) == [1, 2, 3]")
+        assert result == expected
+
+    def test_nonempty_map_still_works(self):
+        """{'a': 1} still parses correctly."""
+        expected = Exp.eq(Exp.map_bin("b"), Exp.map_val({"a": 1}))
+        result = parse_dsl("$.b.get(type: MAP) == {'a': 1}")
+        assert result == expected
+
+    def test_list_type_designator_in_path(self):
+        """$.listBin.[] in a path context still works as CDT designator."""
+        expected = Exp.eq(Exp.list_bin("listBin"), Exp.list_val([100]))
+        result = parse_dsl("$.listBin.[] == [100]")
+        assert result == expected
+
+    def test_map_type_designator_in_path(self):
+        """$.mapBin.{} in a path context still works as CDT designator."""
+        expected = Exp.eq(Exp.map_bin("mapBin"), Exp.map_val({100: 100}))
+        result = parse_dsl("$.mapBin.{} == {100:100}")
+        assert result == expected

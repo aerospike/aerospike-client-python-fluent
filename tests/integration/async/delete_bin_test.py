@@ -53,22 +53,22 @@ class TestDeleteBin:
         )
 
         # Verify both bins exist
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert record.bins[bin_name1] == "value1"
-        assert record.bins[bin_name2] == "value2"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert record.record.bins[bin_name1] == "value1"
+        assert record.record.bins[bin_name2] == "value2"
 
         # Remove bin1
         await session.upsert(key).bin(bin_name1).remove().execute()
 
         # Verify bin1 is gone but bin2 remains
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert bin_name1 not in record.bins or record.bins.get(bin_name1) is None
-        assert record.bins[bin_name2] == "value2"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert bin_name1 not in record.record.bins or record.record.bins.get(bin_name1) is None
+        assert record.record.bins[bin_name2] == "value2"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_delete_multiple_bins(self, client: FluentClient, test_set: DataSet):
         """Test deleting multiple bins from a record."""
@@ -93,14 +93,14 @@ class TestDeleteBin:
         )
 
         # Verify only bin3 remains
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert "bin1" not in record.bins or record.bins.get("bin1") is None
-        assert "bin2" not in record.bins or record.bins.get("bin2") is None
-        assert record.bins["bin3"] == "value3"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert "bin1" not in record.record.bins or record.record.bins.get("bin1") is None
+        assert "bin2" not in record.record.bins or record.record.bins.get("bin2") is None
+        assert record.record.bins["bin3"] == "value3"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_delete_bin_nonexistent(self, client: FluentClient, test_set: DataSet):
         """Test removing a bin that doesn't exist (should not error)."""
@@ -114,12 +114,12 @@ class TestDeleteBin:
         await session.upsert(key).bin("nonexistent").remove().execute()
 
         # Verify original bin still exists
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert record.bins["bin1"] == "value1"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert record.record.bins["bin1"] == "value1"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_delete_and_set_bin(self, client: FluentClient, test_set: DataSet):
         """Test deleting one bin while setting another in same operation."""
@@ -143,10 +143,10 @@ class TestDeleteBin:
         )
 
         # Verify
-        record = await session.key_value(key=key).get()
-        assert record is not None
-        assert "bin1" not in record.bins or record.bins.get("bin1") is None
-        assert record.bins["bin2"] == "new_value2"
+        record = await (await session.query(key).execute()).first_or_raise()
+        assert record.record is not None
+        assert "bin1" not in record.record.bins or record.record.bins.get("bin1") is None
+        assert record.record.bins["bin2"] == "new_value2"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()

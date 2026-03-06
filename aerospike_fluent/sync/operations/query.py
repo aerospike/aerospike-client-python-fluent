@@ -34,14 +34,75 @@ from aerospike_async import (
 from aerospike_fluent.aio.operations.query import (
     QueryBinBuilder,
     QueryBuilder,
-    WriteBinBuilder,
     WriteSegmentBuilder,
 )
+from aerospike_fluent.error_strategy import OnError
 from aerospike_fluent.sync.client import _EventLoopManager
 from aerospike_fluent.sync.record_stream import SyncRecordStream
 
 
-class SyncQueryBuilder:
+class _SyncWriteVerbs:
+    """Mixin providing the 8 write-verb transition methods for sync builders.
+
+    Subclasses implement ``_start_write_verb`` to define how a new write
+    segment is opened.
+    """
+
+    def _start_write_verb(
+        self, op_type: str, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        raise NotImplementedError
+
+    def upsert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start an upsert write segment."""
+        return self._start_write_verb("upsert", arg1, *more_keys)
+
+    def insert(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start an insert (create-only) segment."""
+        return self._start_write_verb("insert", arg1, *more_keys)
+
+    def update(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start an update (update-only) segment."""
+        return self._start_write_verb("update", arg1, *more_keys)
+
+    def replace(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start a replace segment."""
+        return self._start_write_verb("replace", arg1, *more_keys)
+
+    def replace_if_exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start a replace-if-exists segment."""
+        return self._start_write_verb("replace_if_exists", arg1, *more_keys)
+
+    def delete(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start a delete segment."""
+        return self._start_write_verb("delete", arg1, *more_keys)
+
+    def touch(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start a touch segment (reset TTL)."""
+        return self._start_write_verb("touch", arg1, *more_keys)
+
+    def exists(
+        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    ) -> SyncWriteSegmentBuilder:
+        """Start an exists-check segment."""
+        return self._start_write_verb("exists", arg1, *more_keys)
+
+
+class SyncQueryBuilder(_SyncWriteVerbs):
     """Synchronous wrapper for :class:`QueryBuilder`.
 
     All builder methods delegate directly to the underlying async
@@ -214,6 +275,21 @@ class SyncQueryBuilder:
         self._qb.default_expire_record_after_seconds(seconds)
         return self
 
+    def default_never_expire(self) -> SyncQueryBuilder:
+        """Set the default TTL to never expire (TTL = -1)."""
+        self._qb.default_never_expire()
+        return self
+
+    def default_with_no_change_in_expiration(self) -> SyncQueryBuilder:
+        """Set the default to preserve each record's existing TTL (TTL = -2)."""
+        self._qb.default_with_no_change_in_expiration()
+        return self
+
+    def default_expiry_from_server_default(self) -> SyncQueryBuilder:
+        """Set the default TTL to the namespace's server default (TTL = 0)."""
+        self._qb.default_expiry_from_server_default()
+        return self
+
     # -- Query stacking -------------------------------------------------------
 
     def query(
@@ -227,76 +303,32 @@ class SyncQueryBuilder:
 
     # -- Write transitions ----------------------------------------------------
 
-    def upsert(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    def _start_write_verb(
+        self, op_type: str, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an upsert write segment."""
-        wsb = self._qb.upsert(arg1, *more_keys)
-        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
-
-    def insert(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an insert segment."""
-        wsb = self._qb.insert(arg1, *more_keys)
-        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
-
-    def update(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an update segment."""
-        wsb = self._qb.update(arg1, *more_keys)
-        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
-
-    def replace(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a replace segment."""
-        wsb = self._qb.replace(arg1, *more_keys)
-        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
-
-    def replace_if_exists(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a replace-if-exists segment."""
-        wsb = self._qb.replace_if_exists(arg1, *more_keys)
-        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
-
-    def delete(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a delete segment."""
-        wsb = self._qb.delete(arg1, *more_keys)
-        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
-
-    def touch(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a touch segment."""
-        wsb = self._qb.touch(arg1, *more_keys)
-        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
-
-    def exists(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an exists-check segment."""
-        wsb = self._qb.exists(arg1, *more_keys)
+        wsb = self._qb._start_write_verb(op_type, arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
     # -- Execute --------------------------------------------------------------
 
-    def execute(self) -> SyncRecordStream:
-        """Execute the query synchronously."""
+    def execute(
+        self, on_error: OnError | None = None,
+    ) -> SyncRecordStream:
+        """Execute the query synchronously.
+
+        Args:
+            on_error: Error handling strategy (see ``QueryBuilder.execute``).
+        """
         qb = self._qb
 
         async def _run():
-            return await qb.execute()
+            return await qb.execute(on_error)
 
         stream = self._loop_manager.run_async(_run())
         return SyncRecordStream(stream, self._loop_manager)
 
 
-class SyncWriteSegmentBuilder:
+class SyncWriteSegmentBuilder(_SyncWriteVerbs):
     """Synchronous wrapper for :class:`WriteSegmentBuilder`."""
 
     __slots__ = ("_wsb", "_loop_manager")
@@ -322,6 +354,109 @@ class SyncWriteSegmentBuilder:
         """Alias for :meth:`put`."""
         return self.put(bins)
 
+    # -- Scalar bin operations (direct on segment) ----------------------------
+
+    def set_to(self, bin_name: str, value: Any) -> SyncWriteSegmentBuilder:
+        """Set a bin to *value*."""
+        self._wsb.set_to(bin_name, value)
+        return self
+
+    def add(self, bin_name: str, value: Any) -> SyncWriteSegmentBuilder:
+        """Add *value* to a bin (numeric increment)."""
+        self._wsb.add(bin_name, value)
+        return self
+
+    def increment_by(self, bin_name: str, value: Any) -> SyncWriteSegmentBuilder:
+        """Alias for :meth:`add`."""
+        return self.add(bin_name, value)
+
+    def get(self, bin_name: str) -> SyncWriteSegmentBuilder:
+        """Read a bin value back within a write operate."""
+        self._wsb.get(bin_name)
+        return self
+
+    def append(self, bin_name: str, value: str) -> SyncWriteSegmentBuilder:
+        """Append a string to a bin."""
+        self._wsb.append(bin_name, value)
+        return self
+
+    def prepend(self, bin_name: str, value: str) -> SyncWriteSegmentBuilder:
+        """Prepend a string to a bin."""
+        self._wsb.prepend(bin_name, value)
+        return self
+
+    def remove_bin(self, bin_name: str) -> SyncWriteSegmentBuilder:
+        """Delete a bin from the record."""
+        self._wsb.remove_bin(bin_name)
+        return self
+
+    # -- Expression operations (direct on segment) ----------------------------
+
+    def select_from(
+        self,
+        bin_name: str,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_eval_failure: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Read a computed value into a bin using a DSL expression."""
+        self._wsb.select_from(bin_name, expression, ignore_eval_failure=ignore_eval_failure)
+        return self
+
+    def insert_from(
+        self,
+        bin_name: str,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Write expression result only if bin does not already exist."""
+        self._wsb.insert_from(
+            bin_name, expression,
+            ignore_op_failure=ignore_op_failure,
+            ignore_eval_failure=ignore_eval_failure,
+            delete_if_null=delete_if_null,
+        )
+        return self
+
+    def update_from(
+        self,
+        bin_name: str,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Write expression result only if bin already exists."""
+        self._wsb.update_from(
+            bin_name, expression,
+            ignore_op_failure=ignore_op_failure,
+            ignore_eval_failure=ignore_eval_failure,
+            delete_if_null=delete_if_null,
+        )
+        return self
+
+    def upsert_from(
+        self,
+        bin_name: str,
+        expression: Union[str, FilterExpression],
+        *,
+        ignore_op_failure: bool = False,
+        ignore_eval_failure: bool = False,
+        delete_if_null: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Write expression result, creating or overwriting the bin."""
+        self._wsb.upsert_from(
+            bin_name, expression,
+            ignore_op_failure=ignore_op_failure,
+            ignore_eval_failure=ignore_eval_failure,
+            delete_if_null=delete_if_null,
+        )
+        return self
+
     # -- Transition methods ---------------------------------------------------
 
     def query(
@@ -333,60 +468,10 @@ class SyncWriteSegmentBuilder:
             None, "", "", self._loop_manager, query_builder=qb,
         )
 
-    def upsert(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    def _start_write_verb(
+        self, op_type: str, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an upsert segment."""
-        self._wsb.upsert(arg1, *more_keys)
-        return self
-
-    def insert(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an insert segment."""
-        self._wsb.insert(arg1, *more_keys)
-        return self
-
-    def update(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an update segment."""
-        self._wsb.update(arg1, *more_keys)
-        return self
-
-    def replace(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a replace segment."""
-        self._wsb.replace(arg1, *more_keys)
-        return self
-
-    def replace_if_exists(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a replace-if-exists segment."""
-        self._wsb.replace_if_exists(arg1, *more_keys)
-        return self
-
-    def delete(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a delete segment."""
-        self._wsb.delete(arg1, *more_keys)
-        return self
-
-    def touch(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start a touch segment."""
-        self._wsb.touch(arg1, *more_keys)
-        return self
-
-    def exists(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Finalize current segment and start an exists-check segment."""
-        self._wsb.exists(arg1, *more_keys)
+        self._wsb._start_write_verb(op_type, arg1, *more_keys)
         return self
 
     # -- Per-spec settings ----------------------------------------------------
@@ -405,6 +490,21 @@ class SyncWriteSegmentBuilder:
         self._wsb.expire_record_after_seconds(seconds)
         return self
 
+    def never_expire(self) -> SyncWriteSegmentBuilder:
+        """Set this record to never expire (TTL = -1)."""
+        self._wsb.never_expire()
+        return self
+
+    def with_no_change_in_expiration(self) -> SyncWriteSegmentBuilder:
+        """Preserve the record's existing TTL (TTL = -2)."""
+        self._wsb.with_no_change_in_expiration()
+        return self
+
+    def expiry_from_server_default(self) -> SyncWriteSegmentBuilder:
+        """Use the namespace's default TTL for this record (TTL = 0)."""
+        self._wsb.expiry_from_server_default()
+        return self
+
     def ensure_generation_is(self, generation: int) -> SyncWriteSegmentBuilder:
         """Set expected generation for optimistic locking."""
         self._wsb.ensure_generation_is(generation)
@@ -420,56 +520,79 @@ class SyncWriteSegmentBuilder:
         self._wsb.respond_all_keys()
         return self
 
+    def fail_on_filtered_out(self) -> SyncWriteSegmentBuilder:
+        """Mark filtered-out records with ``FILTERED_OUT`` result code."""
+        self._wsb.fail_on_filtered_out()
+        return self
+
+    def replace_only(self) -> SyncWriteSegmentBuilder:
+        """Change the current segment to replace-if-exists semantics."""
+        self._wsb.replace_only()
+        return self
+
     # -- Execution ------------------------------------------------------------
 
-    def execute(self) -> SyncRecordStream:
-        """Execute all accumulated specs synchronously."""
+    def execute(
+        self, on_error: OnError | None = None,
+    ) -> SyncRecordStream:
+        """Execute all accumulated specs synchronously.
+
+        Args:
+            on_error: Error handling strategy (see ``QueryBuilder.execute``).
+        """
         wsb = self._wsb
 
         async def _run():
-            return await wsb.execute()
+            return await wsb.execute(on_error)
 
         stream = self._loop_manager.run_async(_run())
         return SyncRecordStream(stream, self._loop_manager)
 
 
-class SyncWriteBinBuilder:
-    """Synchronous wrapper for bin-level write operations."""
+class SyncWriteBinBuilder(_SyncWriteVerbs):
+    """Synchronous wrapper for bin-level write operations.
 
-    __slots__ = ("_sync_segment", "_wbb")
+    Thin currying wrapper that captures a bin name and delegates
+    all operations to the parent ``SyncWriteSegmentBuilder``.
+    """
+
+    __slots__ = ("_sync_segment", "_bin")
 
     def __init__(
         self, sync_segment: SyncWriteSegmentBuilder, bin_name: str,
     ) -> None:
         self._sync_segment = sync_segment
-        self._wbb = WriteBinBuilder(sync_segment._wsb, bin_name)
+        self._bin = bin_name
 
     # -- Scalar writes --------------------------------------------------------
 
     def set_to(self, value: Any) -> SyncWriteSegmentBuilder:
         """Set the bin to *value*."""
-        self._wbb.set_to(value)
-        return self._sync_segment
+        return self._sync_segment.set_to(self._bin, value)
+
+    def add(self, value: Any) -> SyncWriteSegmentBuilder:
+        """Add *value* to the bin (numeric increment)."""
+        return self._sync_segment.add(self._bin, value)
 
     def increment_by(self, value: Any) -> SyncWriteSegmentBuilder:
-        """Increment the bin by *value*."""
-        self._wbb.increment_by(value)
-        return self._sync_segment
+        """Alias for :meth:`add`."""
+        return self.add(value)
 
     def append(self, value: str) -> SyncWriteSegmentBuilder:
         """Append a string to the bin."""
-        self._wbb.append(value)
-        return self._sync_segment
+        return self._sync_segment.append(self._bin, value)
 
     def prepend(self, value: str) -> SyncWriteSegmentBuilder:
         """Prepend a string to the bin."""
-        self._wbb.prepend(value)
-        return self._sync_segment
+        return self._sync_segment.prepend(self._bin, value)
 
     def remove(self) -> SyncWriteSegmentBuilder:
         """Delete the bin from the record."""
-        self._wbb.remove()
-        return self._sync_segment
+        return self._sync_segment.remove_bin(self._bin)
+
+    def get(self) -> SyncWriteSegmentBuilder:
+        """Read the bin value back within a write operate."""
+        return self._sync_segment.get(self._bin)
 
     # -- Expression operations ------------------------------------------------
 
@@ -480,8 +603,9 @@ class SyncWriteBinBuilder:
         ignore_eval_failure: bool = False,
     ) -> SyncWriteSegmentBuilder:
         """Read a computed value into this bin using a DSL expression."""
-        self._wbb.select_from(expression, ignore_eval_failure=ignore_eval_failure)
-        return self._sync_segment
+        return self._sync_segment.select_from(
+            self._bin, expression, ignore_eval_failure=ignore_eval_failure,
+        )
 
     def insert_from(
         self,
@@ -492,13 +616,12 @@ class SyncWriteBinBuilder:
         delete_if_null: bool = False,
     ) -> SyncWriteSegmentBuilder:
         """Write expression result only if bin does not already exist."""
-        self._wbb.insert_from(
-            expression,
+        return self._sync_segment.insert_from(
+            self._bin, expression,
             ignore_op_failure=ignore_op_failure,
             ignore_eval_failure=ignore_eval_failure,
             delete_if_null=delete_if_null,
         )
-        return self._sync_segment
 
     def update_from(
         self,
@@ -509,13 +632,12 @@ class SyncWriteBinBuilder:
         delete_if_null: bool = False,
     ) -> SyncWriteSegmentBuilder:
         """Write expression result only if bin already exists."""
-        self._wbb.update_from(
-            expression,
+        return self._sync_segment.update_from(
+            self._bin, expression,
             ignore_op_failure=ignore_op_failure,
             ignore_eval_failure=ignore_eval_failure,
             delete_if_null=delete_if_null,
         )
-        return self._sync_segment
 
     def upsert_from(
         self,
@@ -526,13 +648,12 @@ class SyncWriteBinBuilder:
         delete_if_null: bool = False,
     ) -> SyncWriteSegmentBuilder:
         """Write expression result, creating or overwriting the bin."""
-        self._wbb.upsert_from(
-            expression,
+        return self._sync_segment.upsert_from(
+            self._bin, expression,
             ignore_op_failure=ignore_op_failure,
             ignore_eval_failure=ignore_eval_failure,
             delete_if_null=delete_if_null,
         )
-        return self._sync_segment
 
     # -- Convenience transitions (delegate to segment) ------------------------
 
@@ -546,54 +667,13 @@ class SyncWriteBinBuilder:
         """Shortcut: finalize write segment and start a read segment."""
         return self._sync_segment.query(arg1, *more_keys)
 
-    def upsert(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
+    def _start_write_verb(
+        self, op_type: str, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start an upsert segment."""
-        return self._sync_segment.upsert(arg1, *more_keys)
+        return self._sync_segment._start_write_verb(op_type, arg1, *more_keys)
 
-    def insert(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start an insert segment."""
-        return self._sync_segment.insert(arg1, *more_keys)
-
-    def update(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start an update segment."""
-        return self._sync_segment.update(arg1, *more_keys)
-
-    def replace(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start a replace segment."""
-        return self._sync_segment.replace(arg1, *more_keys)
-
-    def replace_if_exists(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start a replace-if-exists segment."""
-        return self._sync_segment.replace_if_exists(arg1, *more_keys)
-
-    def delete(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start a delete segment."""
-        return self._sync_segment.delete(arg1, *more_keys)
-
-    def touch(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start a touch segment."""
-        return self._sync_segment.touch(arg1, *more_keys)
-
-    def exists(
-        self, arg1: Union[Key, List[Key]], *more_keys: Key,
-    ) -> SyncWriteSegmentBuilder:
-        """Shortcut: finalize and start an exists-check segment."""
-        return self._sync_segment.exists(arg1, *more_keys)
-
-    def execute(self) -> SyncRecordStream:
+    def execute(
+        self, on_error: OnError | None = None,
+    ) -> SyncRecordStream:
         """Shortcut: execute all accumulated specs."""
-        return self._sync_segment.execute()
+        return self._sync_segment.execute(on_error)

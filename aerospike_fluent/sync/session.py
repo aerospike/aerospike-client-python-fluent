@@ -29,9 +29,7 @@ from aerospike_fluent.policy.behavior import Behavior
 from aerospike_fluent.sync.client import _EventLoopManager
 
 if typing.TYPE_CHECKING:
-    from aerospike_fluent.sync.operations.batch_delete import SyncBatchDeleteOperation
-    from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-    from aerospike_fluent.sync.operations.query import SyncQueryBuilder
+    from aerospike_fluent.sync.operations.query import SyncQueryBuilder, SyncWriteSegmentBuilder
     from aerospike_fluent.sync.operations.index import SyncIndexBuilder
     from aerospike_fluent.sync.info import SyncInfoCommands
 
@@ -39,7 +37,7 @@ if typing.TYPE_CHECKING:
 class SyncSession:
     """
     Synchronous wrapper for Session.
-    
+
     Provides the same API as the async Session but executes operations
     synchronously by running them on an event loop.
     """
@@ -47,7 +45,7 @@ class SyncSession:
     def __init__(self, async_session: AsyncSession, loop_manager: _EventLoopManager) -> None:
         """
         Initialize a SyncSession.
-        
+
         Args:
             async_session: The async Session to wrap.
             loop_manager: The event loop manager for executing async operations.
@@ -65,42 +63,27 @@ class SyncSession:
         """Get the underlying FluentClient."""
         return self._async_session.client
 
-    def key_value(
+    def _build_write_segment(
         self,
+        op_type: str,
+        arg1: Optional[Union[Key, List[Key]]] = None,
+        arg2: Optional[Key] = None,
+        *more_keys: Key,
+        key: Optional[Key] = None,
+        dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
-        key: Optional[Union[str, int, bytes, Key]] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-    ) -> "SyncKeyValueOperation":
-        """Create a key-value operation builder (synchronous)."""
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
+    ) -> "SyncWriteSegmentBuilder":
+        """Delegate to async session's write segment builder and wrap in sync."""
+        from aerospike_fluent.sync.operations.query import SyncWriteSegmentBuilder
 
-        # Support key_value as alias for key
-        if key_value is not None and key is None:
-            key = key_value
-
-        # Handle Key object - extract namespace, set_name, and key value
-        if isinstance(key, Key):
-            namespace = key.namespace
-            set_name = key.set_name
-            key = key.value
-        elif dataset is not None:
-            namespace = dataset.namespace
-            set_name = dataset.set_name
-        
-        if namespace is None or set_name is None or key is None:
-            raise ValueError("namespace, set_name, and key must be provided")
-        
-        return SyncKeyValueOperation(
-            async_client=self._async_session._client,
-            namespace=namespace,
-            set_name=set_name,
-            key=key,
-            loop_manager=self._loop_manager,
-            behavior=self._async_session.behavior,
+        wsb = self._async_session._build_write_segment(
+            op_type, arg1, arg2, *more_keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
+        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
     def query(
         self,
@@ -136,7 +119,6 @@ class SyncSession:
             query_builder=async_builder,
         )
 
-
     def index(
         self,
         namespace: Optional[str] = None,
@@ -151,7 +133,7 @@ class SyncSession:
         if dataset:
             namespace = dataset.namespace
             set_name = dataset.set_name
-        
+
         if not namespace or not set_name:
             raise ValueError("namespace and set_name are required (or provide dataset)")
 
@@ -199,322 +181,95 @@ class SyncSession:
         from aerospike_fluent.sync.info import SyncInfoCommands
         return SyncInfoCommands(self._async_session.info(), self._loop_manager)
 
-    # Convenience methods
-    @typing.overload
-    def upsert(
-        self,
-        key: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create an upsert operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def upsert(
-        self,
-        keys: List[Key],
-    ) -> "SyncKeyValueOperation":
-        """Create an upsert operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def upsert(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create an upsert operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
-
     def upsert(
         self,
         arg1: Optional[Union[Key, List[Key]]] = None,
         arg2: Optional[Key] = None,
         *keys: Key,
+        key: Optional[Key] = None,
         dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> "SyncKeyValueOperation":
-        """Convenience method for upsert operations (synchronous)."""
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-
-        async_op = self._async_session.upsert(
-            arg1=arg1,
-            arg2=arg2,
-            *keys,
-            dataset=dataset,
-            namespace=namespace,
-            set_name=set_name,
-            key_value=key_value,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create an upsert write segment (synchronous)."""
+        return self._build_write_segment(
+            "upsert", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
-        return SyncKeyValueOperation(
-            async_client=self._async_session._client,
-            namespace=async_op._namespace,
-            set_name=async_op._set_name,
-            key=async_op._key,
-            loop_manager=self._loop_manager,
-            write_policy=async_op._write_policy,
-            behavior=self._async_session.behavior,
-        )
-
-    @typing.overload
-    def insert(
-        self,
-        key: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create an insert operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def insert(
-        self,
-        keys: List[Key],
-    ) -> "SyncKeyValueOperation":
-        """Create an insert operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def insert(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create an insert operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
 
     def insert(
         self,
         arg1: Optional[Union[Key, List[Key]]] = None,
         arg2: Optional[Key] = None,
         *keys: Key,
+        key: Optional[Key] = None,
         dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> "SyncKeyValueOperation":
-        """Convenience method for insert operations (synchronous)."""
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-
-        async_op = self._async_session.insert(
-            arg1=arg1,
-            arg2=arg2,
-            *keys,
-            dataset=dataset,
-            namespace=namespace,
-            set_name=set_name,
-            key_value=key_value,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create an insert write segment (synchronous)."""
+        return self._build_write_segment(
+            "insert", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
-        return SyncKeyValueOperation(
-            async_client=self._async_session._client,
-            namespace=async_op._namespace,
-            set_name=async_op._set_name,
-            key=async_op._key,
-            loop_manager=self._loop_manager,
-            write_policy=async_op._write_policy,
-            behavior=self._async_session.behavior,
-        )
-
-    @typing.overload
-    def update(
-        self,
-        key: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create an update operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def update(
-        self,
-        keys: List[Key],
-    ) -> "SyncKeyValueOperation":
-        """Create an update operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def update(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create an update operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
 
     def update(
         self,
         arg1: Optional[Union[Key, List[Key]]] = None,
         arg2: Optional[Key] = None,
         *keys: Key,
+        key: Optional[Key] = None,
         dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> "SyncKeyValueOperation":
-        """Convenience method for update operations (synchronous)."""
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-
-        async_op = self._async_session.update(
-            arg1=arg1,
-            arg2=arg2,
-            *keys,
-            dataset=dataset,
-            namespace=namespace,
-            set_name=set_name,
-            key_value=key_value,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create an update write segment (synchronous)."""
+        return self._build_write_segment(
+            "update", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
-        return SyncKeyValueOperation(
-            async_client=self._async_session._client,
-            namespace=async_op._namespace,
-            set_name=async_op._set_name,
-            key=async_op._key,
-            loop_manager=self._loop_manager,
-            write_policy=async_op._write_policy,
-            behavior=self._async_session.behavior,
-        )
-
-    @typing.overload
-    def replace(
-        self,
-        key: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create a replace operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def replace(
-        self,
-        keys: List[Key],
-    ) -> "SyncKeyValueOperation":
-        """Create a replace operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def replace(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create a replace operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
 
     def replace(
         self,
         arg1: Optional[Union[Key, List[Key]]] = None,
         arg2: Optional[Key] = None,
         *keys: Key,
+        key: Optional[Key] = None,
         dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> "SyncKeyValueOperation":
-        """Convenience method for replace operations (synchronous)."""
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-
-        async_op = self._async_session.replace(
-            arg1=arg1,
-            arg2=arg2,
-            *keys,
-            dataset=dataset,
-            namespace=namespace,
-            set_name=set_name,
-            key_value=key_value,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create a replace write segment (synchronous)."""
+        return self._build_write_segment(
+            "replace", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
-        return SyncKeyValueOperation(
-            async_client=self._async_session._client,
-            namespace=async_op._namespace,
-            set_name=async_op._set_name,
-            key=async_op._key,
-            loop_manager=self._loop_manager,
-            write_policy=async_op._write_policy,
-            behavior=self._async_session.behavior,
-        )
-
-    @typing.overload
-    def replace_if_exists(
-        self,
-        key: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create a replace-if-exists operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def replace_if_exists(
-        self,
-        keys: List[Key],
-    ) -> "SyncKeyValueOperation":
-        """Create a replace-if-exists operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def replace_if_exists(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create a replace-if-exists operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
 
     def replace_if_exists(
         self,
         arg1: Optional[Union[Key, List[Key]]] = None,
         arg2: Optional[Key] = None,
         *keys: Key,
+        key: Optional[Key] = None,
         dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> "SyncKeyValueOperation":
-        """Convenience method for replace-if-exists operations (synchronous)."""
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-
-        async_op = self._async_session.replace_if_exists(
-            arg1=arg1,
-            arg2=arg2,
-            *keys,
-            dataset=dataset,
-            namespace=namespace,
-            set_name=set_name,
-            key_value=key_value,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create a replace-if-exists write segment (synchronous)."""
+        return self._build_write_segment(
+            "replace_if_exists", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
-        return SyncKeyValueOperation(
-            async_client=self._async_session._client,
-            namespace=async_op._namespace,
-            set_name=async_op._set_name,
-            key=async_op._key,
-            loop_manager=self._loop_manager,
-            write_policy=async_op._write_policy,
-            behavior=self._async_session.behavior,
-        )
-
-    @typing.overload
-    def delete(
-        self,
-        key: Key,
-    ) -> "SyncKeyValueOperation":
-        """Create a delete operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def delete(
-        self,
-        keys: List[Key],
-    ) -> "SyncBatchDeleteOperation":
-        """Create a batch delete operation builder for multiple Keys."""
-        ...
-
-    @typing.overload
-    def delete(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "SyncBatchDeleteOperation":
-        """Create a batch delete operation builder for multiple Keys (varargs)."""
-        ...
 
     def delete(
         self,
@@ -526,72 +281,46 @@ class SyncSession:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> Union["SyncKeyValueOperation", "SyncBatchDeleteOperation"]:
-        """Convenience method for delete operations (synchronous)."""
-        from aerospike_fluent.sync.operations.batch_delete import SyncBatchDeleteOperation
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-
-        async_result = self._async_session.delete(
-            arg1=arg1,
-            arg2=arg2,
-            *keys,
-            key=key,
-            dataset=dataset,
-            namespace=namespace,
-            set_name=set_name,
-            key_value=key_value,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create a delete write segment (synchronous)."""
+        return self._build_write_segment(
+            "delete", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
-
-        if hasattr(async_result, '_keys'):
-            return SyncBatchDeleteOperation(
-                async_client=self._async_session._client,
-                keys=async_result._keys,
-                loop_manager=self._loop_manager,
-                behavior=self._async_session.behavior,
-            )
-        else:
-            return SyncKeyValueOperation(
-                async_client=self._async_session._client,
-                namespace=async_result._namespace,
-                set_name=async_result._set_name,
-                key=async_result._key,
-                loop_manager=self._loop_manager,
-                write_policy=async_result._write_policy,
-                behavior=self._async_session.behavior,
-            )
 
     def touch(
         self,
+        arg1: Optional[Union[Key, List[Key]]] = None,
+        arg2: Optional[Key] = None,
+        *keys: Key,
+        key: Optional[Key] = None,
+        dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
-        key: Optional[Union[str, int, bytes]] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-    ) -> "SyncKeyValueOperation":
-        """Convenience method for touch operations (synchronous)."""
-        return self.key_value(
-            namespace=namespace,
-            set_name=set_name,
-            key=key,
-            dataset=dataset,
+        key_value: Optional[Union[str, int, bytes]] = None,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create a touch write segment (synchronous)."""
+        return self._build_write_segment(
+            "touch", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
         )
 
     def exists(
         self,
+        arg1: Optional[Union[Key, List[Key]]] = None,
+        arg2: Optional[Key] = None,
+        *keys: Key,
+        key: Optional[Key] = None,
+        dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
-        key: Optional[Union[str, int, bytes]] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-    ) -> bool:
-        """Check if a record exists (synchronous)."""
-        async def _exists():
-            return await self._async_session.exists(
-                namespace=namespace,
-                set_name=set_name,
-                key=key,
-                dataset=dataset,
-            )
-
-        return self._loop_manager.run_async(_exists())
-
+        key_value: Optional[Union[str, int, bytes]] = None,
+    ) -> "SyncWriteSegmentBuilder":
+        """Create an exists-check write segment (synchronous)."""
+        return self._build_write_segment(
+            "exists", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )

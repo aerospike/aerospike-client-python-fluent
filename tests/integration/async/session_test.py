@@ -78,13 +78,11 @@ async def test_session_upsert_with_key(session):
     users = DataSet.of("test", "users")
     key = users.id("user123")
 
-    # Upsert a record (using execute() pattern)
-    await session.upsert(key=key).set_bins({"name": "John", "age": 30}).execute()
+    await session.upsert(key).put({"name": "John", "age": 30}).execute()
 
-    # Verify it was written
-    stream = await session.query(key=key).execute()
+    stream = await session.query(key).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         assert rec.bins == {"name": "John", "age": 30}
 
 
@@ -93,16 +91,14 @@ async def test_session_upsert_with_dataset(session):
     """Test session.upsert() with DataSet."""
     users = DataSet.of("test", "users")
 
-    # Upsert using DataSet (using execute() pattern)
-    await session.upsert(dataset=users, key_value="user456").set_bins(
+    await session.upsert(dataset=users, key_value="user456").put(
         {"name": "Jane", "age": 25}
     ).execute()
 
-    # Verify it was written
     key = users.id("user456")
-    stream = await session.query(key=key).execute()
+    stream = await session.query(key).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         assert rec.bins == {"name": "Jane", "age": 25}
 
 
@@ -114,12 +110,11 @@ async def test_session_upsert_with_namespace_set(session):
     key = Key("test", "users", "user789")
     await session.upsert(
         namespace="test", set_name="users", key_value="user789"
-    ).set_bins({"name": "Bob", "age": 35}).execute()
+    ).put({"name": "Bob", "age": 35}).execute()
 
-    # Verify it was written by querying the specific key
-    stream = await session.query(key=key).execute()
+    stream = await session.query(key).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         assert rec.bins == {"name": "Bob", "age": 35}
 
 
@@ -129,13 +124,16 @@ async def test_session_insert(session):
     users = DataSet.of("test", "users")
     key = users.id("insert_test")
 
-    # Insert a record (using execute() pattern)
-    await session.insert(key=key).set_bins({"name": "Insert", "value": 1}).execute()
+    try:
+        await session.delete(key).execute()
+    except Exception:
+        pass
 
-    # Verify it was written
-    stream = await session.query(key=key).execute()
+    await session.insert(key).put({"name": "Insert", "value": 1}).execute()
+
+    stream = await session.query(key).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         assert rec.bins == {"name": "Insert", "value": 1}
 
 
@@ -145,19 +143,13 @@ async def test_session_update(session):
     users = DataSet.of("test", "users")
     key = users.id("update_test")
 
-    # First create a record
-    await session.upsert(key=key).set_bins({"name": "Original", "age": 20}).execute()
+    await session.upsert(key).put({"name": "Original", "age": 20}).execute()
+    await session.update(key).put({"age": 21}).execute()
 
-    # Update it (using execute() pattern)
-    await session.update(key=key).set_bins({"age": 21}).execute()
-
-    # Verify the update
-    stream = await session.query(key=key).execute()
+    stream = await session.query(key).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         assert rec.bins["age"] == 21
-        # Note: update may or may not preserve other bins depending on implementation
-        # This test just verifies the method works
 
 
 @pytest.mark.asyncio
@@ -166,20 +158,17 @@ async def test_session_delete(session):
     users = DataSet.of("test", "users")
     key = users.id("delete_test")
 
-    # First create a record
-    await session.upsert(key=key).set_bins({"name": "ToDelete"}).execute()
+    await session.upsert(key).put({"name": "ToDelete"}).execute()
 
-    # Verify it exists
-    exists = await session.exists(key=key).exists()
-    assert exists is True
+    exists_result = await session.exists(key).execute()
+    first = await exists_result.first()
+    assert first is not None and first.as_bool()
 
-    # Delete it
-    deleted = await session.delete(key=key).delete()
-    assert deleted is True
+    await session.delete(key).execute()
 
-    # Verify it's gone
-    exists = await session.exists(key=key).exists()
-    assert exists is False
+    exists_result = await session.exists(key).execute()
+    first = await exists_result.first()
+    assert first is None or not first.as_bool()
 
 
 @pytest.mark.asyncio
@@ -188,15 +177,12 @@ async def test_session_touch(session):
     users = DataSet.of("test", "users")
     key = users.id("touch_test")
 
-    # Create a record
-    await session.upsert(key=key).set_bins({"name": "TouchMe"}).execute()
+    await session.upsert(key).put({"name": "TouchMe"}).execute()
 
-    # Touch it (updates TTL)
-    await session.touch(key=key).touch()
+    await session.touch(key).execute()
 
-    # Verify it still exists
-    exists = await session.exists(key=key).exists()
-    assert exists is True
+    exists_result = await session.exists(key).execute()
+    assert (await exists_result.first()).as_bool() is True
 
 
 @pytest.mark.asyncio
@@ -205,19 +191,17 @@ async def test_session_exists(session):
     users = DataSet.of("test", "users")
     key = users.id("exists_test")
 
-    # First ensure the record doesn't exist
-    await session.delete(key=key).delete()
+    await session.delete(key).execute()
 
-    # Record doesn't exist yet
-    exists = await session.exists(key=key).exists()
-    assert exists is False
+    exists_result = await session.exists(key).execute()
+    first = await exists_result.first()
+    assert first is None or not first.as_bool()
 
-    # Create the record
-    await session.upsert(key=key).set_bins({"name": "Exists"}).execute()
+    await session.upsert(key).put({"name": "Exists"}).execute()
 
-    # Now it exists
-    exists = await session.exists(key=key).exists()
-    assert exists is True
+    exists_result = await session.exists(key).execute()
+    first = await exists_result.first()
+    assert first is not None and first.as_bool()
 
 
 @pytest.mark.asyncio
@@ -226,29 +210,26 @@ async def test_session_query_delegation(session):
     users = DataSet.of("test", "users")
     key = users.id("query_test")
 
-    # Create a record
-    await session.upsert(key=key).set_bins({"name": "QueryTest", "value": 42}).execute()
+    await session.upsert(key).put({"name": "QueryTest", "value": 42}).execute()
 
-    # Query using session
-    stream = await session.query(key=key).execute()
+    stream = await session.query(key).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         assert rec.bins == {"name": "QueryTest", "value": 42}
 
 
 @pytest.mark.asyncio
 async def test_session_key_value_delegation(session):
-    """Test that session.key_value() delegates to client correctly."""
+    """Test that session.upsert/query work correctly for key-value operations."""
     users = DataSet.of("test", "users")
     key = users.id("kv_test")
 
-    # Use session.key_value() directly
-    await session.key_value(key=key).put({"name": "KVTest"})
+    await session.upsert(key).put({"name": "KVTest"}).execute()
 
-    # Verify
-    record = await session.key_value(key=key).get()
-    assert record is not None
-    assert record.bins == {"name": "KVTest"}
+    result = await session.query(key).execute()
+    first = await result.first_or_raise()
+    assert first.is_ok
+    assert first.record_or_raise().bins == {"name": "KVTest"}
 
 
 @pytest.mark.asyncio
@@ -256,7 +237,6 @@ async def test_session_index_delegation(session):
     """Test that session.index() delegates to client correctly."""
     users = DataSet.of("test", "users")
 
-    # Create index builder using session
     index_builder = session.index(dataset=users)
     assert index_builder is not None
     assert index_builder._namespace == "test"
@@ -264,23 +244,10 @@ async def test_session_index_delegation(session):
 
 
 @pytest.mark.asyncio
-async def test_session_key_value_service_delegation(session):
-    """Test that session.key_value_service() delegates to client correctly."""
-    users = DataSet.of("test", "users")
-
-    # Create key-value service using session
-    async with session.key_value_service(dataset=users) as kv:
-        await kv.put("service_test", {"name": "ServiceTest"})
-        record = await kv.get("service_test")
-        assert record is not None
-        assert record.bins == {"name": "ServiceTest"}
-
-
-@pytest.mark.asyncio
 async def test_session_upsert_error_no_key(session):
     """Test that upsert raises error when no key is provided."""
-    with pytest.raises(ValueError, match="Either key.*or key_value must be provided"):
-        await session.upsert().set_bins({"name": "Test"}).execute()
+    with pytest.raises(ValueError, match="At least one key must be provided"):
+        await session.upsert().put({"name": "Test"}).execute()
 
 
 @pytest.mark.asyncio
@@ -312,13 +279,11 @@ async def test_session_behavior_immutability(session):
     """Test that behavior is immutable."""
     original_timeout = session.behavior.total_timeout
 
-    # Try to derive a new behavior
     new_behavior = session.behavior.derive_with_changes(
         name="new",
         total_timeout=timedelta(seconds=60),
     )
 
-    # Original behavior should be unchanged
     assert session.behavior.total_timeout == original_timeout
     assert new_behavior.total_timeout == timedelta(seconds=60)
     assert new_behavior.name == "new"
@@ -329,14 +294,12 @@ async def test_session_query_with_dataset(session):
     """Test session.query() with DataSet."""
     users = DataSet.of("test", "users")
 
-    # Create a record
     key = users.id("dataset_query_test")
-    await session.upsert(key=key).set_bins({"name": "DatasetQuery"}).execute()
+    await session.upsert(key).put({"name": "DatasetQuery"}).execute()
 
-    # Query using DataSet by specific key
-    stream = await session.query(key=key).execute()
+    stream = await session.query(key).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         assert rec.bins == {"name": "DatasetQuery"}
 
 
@@ -345,16 +308,14 @@ async def test_session_query_with_multiple_keys(session):
     """Test session.query() with multiple keys."""
     users = DataSet.of("test", "users")
 
-    # Create multiple records
     keys = users.ids("batch1", "batch2", "batch3")
     for key in keys:
-        await session.upsert(key=key).set_bins({"name": f"Batch{key.value}"}).execute()
+        await session.upsert(key).put({"name": f"Batch{key.value}"}).execute()
 
-    # Query with multiple keys (positional argument)
     count = 0
     stream = await session.query(keys).execute()
     async for result in stream:
-        rec = result.record
+        rec = result.record_or_raise()
         count += 1
         assert "Batch" in rec.bins["name"]
 
@@ -366,34 +327,41 @@ async def test_session_truncate(session):
     """Test session.truncate() deletes all records in a set."""
     users = DataSet.of("test", "users")
 
-    # Create some records
     key1 = users.id("user1")
     key2 = users.id("user2")
     key3 = users.id("user3")
 
-    await session.upsert(key=key1).set_bins({"name": "User1"}).execute()
-    await session.upsert(key=key2).set_bins({"name": "User2"}).execute()
-    await session.upsert(key=key3).set_bins({"name": "User3"}).execute()
+    await session.upsert(key1).put({"name": "User1"}).execute()
+    await session.upsert(key2).put({"name": "User2"}).execute()
+    await session.upsert(key3).put({"name": "User3"}).execute()
 
-    # Verify records exist
-    assert await session.exists(key=key1).exists()
-    assert await session.exists(key=key2).exists()
-    assert await session.exists(key=key3).exists()
+    e1 = await (await session.exists(key1).execute()).first()
+    e2 = await (await session.exists(key2).execute()).first()
+    e3 = await (await session.exists(key3).execute()).first()
+    assert e1 is not None and e1.as_bool()
+    assert e2 is not None and e2.as_bool()
+    assert e3 is not None and e3.as_bool()
 
     await session.truncate(users)
 
     import asyncio
     for attempt in range(100):
+        r1 = await (await session.exists(key1).execute()).first()
+        r2 = await (await session.exists(key2).execute()).first()
+        r3 = await (await session.exists(key3).execute()).first()
         gone = (
-            not await session.exists(key=key1).exists()
-            and not await session.exists(key=key2).exists()
-            and not await session.exists(key=key3).exists()
+            (r1 is None or not r1.as_bool())
+            and (r2 is None or not r2.as_bool())
+            and (r3 is None or not r3.as_bool())
         )
         if gone:
             logger.debug("truncate propagated after %d retries", attempt)
             break
         await asyncio.sleep(0.1)
 
-    assert not await session.exists(key=key1).exists()
-    assert not await session.exists(key=key2).exists()
-    assert not await session.exists(key=key3).exists()
+    r1 = await (await session.exists(key1).execute()).first()
+    r2 = await (await session.exists(key2).execute()).first()
+    r3 = await (await session.exists(key3).execute()).first()
+    assert r1 is None or not r1.as_bool()
+    assert r2 is None or not r2.as_bool()
+    assert r3 is None or not r3.as_bool()

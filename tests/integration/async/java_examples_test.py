@@ -61,11 +61,11 @@ async def customer_dataset(session):
                     (2, {"name": "Bob", "age": 30, "country": "US"}),
                     (3, {"name": "Alice", "age": 28, "country": "UK"})]:
         try:
-            await session.key_value(dataset=customers, key=i).delete()
+            await session.delete(customers.id(i)).execute()
         except Exception:
             pass  # Ignore if key doesn't exist
         # Use put() which overwrites - this ensures clean state
-        await session.key_value(dataset=customers, key=i).put(data)
+        await session.upsert(customers.id(i)).put(data).execute()
 
     yield customers
 
@@ -75,10 +75,10 @@ async def customer_dataset(session):
                     (2, {"name": "Bob", "age": 30, "country": "US"}),
                     (3, {"name": "Alice", "age": 28, "country": "UK"})]:
         try:
-            await session.key_value(dataset=customers, key=i).delete()
+            await session.delete(customers.id(i)).execute()
         except Exception:
             pass  # Ignore if key doesn't exist
-        await session.key_value(dataset=customers, key=i).put(data)
+        await session.upsert(customers.id(i)).put(data).execute()
 
 
 # ============================================================================
@@ -176,7 +176,8 @@ async def test_java_example_dataset_creation():
 async def test_java_example_dataset_id(session, customer_dataset):
     """Java: Key customerKey = customerDataSet.id(cust.id);"""
     customer_key = customer_dataset.id(1)
-    record = await session.key_value(key=customer_key).get()
+    result = await (await session.query(customer_key).execute()).first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
 
@@ -304,7 +305,7 @@ async def test_java_example_insert(session, customer_dataset):
     """
     # Clean up first - ensure key 10 doesn't exist
     try:
-        await session.key_value(dataset=customer_dataset, key=10).delete()
+        await session.delete(customer_dataset.id(10)).execute()
     except Exception:
         pass  # Ignore if key doesn't exist
 
@@ -315,13 +316,14 @@ async def test_java_example_insert(session, customer_dataset):
     }).execute()
 
     # Verify
-    record = await session.key_value(dataset=customer_dataset, key=10).get()
+    result = await (await session.query(customer_dataset.id(10)).execute()).first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
     assert record.bins["age"] == 1
 
     # Cleanup
-    await session.key_value(dataset=customer_dataset, key=10).delete()
+    await session.delete(customer_dataset.id(10)).execute()
 
 
 @pytest.mark.asyncio
@@ -340,7 +342,8 @@ async def test_java_example_update(session, customer_dataset):
     }).execute()
 
     # Verify
-    record = await session.key_value(dataset=customer_dataset, key=2).get()
+    result = await (await session.query(customer_dataset.id(2)).execute()).first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
     assert record.bins["age"] == 31
@@ -353,10 +356,11 @@ async def test_update_with_put_pattern(session, customer_dataset):
     await session.update(customer_dataset.id(2)).put({
         "name": "PutUpdate",
         "age": 32
-    })
+    }).execute()
 
     # Verify
-    record = await session.key_value(dataset=customer_dataset, key=2).get()
+    result = await (await session.query(customer_dataset.id(2)).execute()).first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "PutUpdate"
     assert record.bins["age"] == 32
@@ -372,7 +376,8 @@ async def test_java_example_upsert(session, customer_dataset):
     }).execute()
 
     # Verify
-    record = await session.key_value(dataset=customer_dataset, key=1).get()
+    result = await (await session.query(customer_dataset.id(1)).execute()).first_or_raise()
+    record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim Updated"
     assert record.bins["age"] == 26
@@ -383,11 +388,13 @@ async def test_java_example_delete(session, customer_dataset):
     """Java: session.delete(customerDataSet.ids(1,2,3)).execute();"""
     # Delete multiple records - using execute() pattern (Java-style, no for loop needed!)
     keys = customer_dataset.ids(1, 2, 3)
-    await session.delete(keys).execute()
+    await session.delete(*keys).execute()
 
     # Verify they're deleted
     for key in keys:
-        record = await session.key_value(key=key).get()
+        stream = await session.query(key).execute()
+        first = await stream.first()
+        record = first.record if first and first.is_ok else None
         assert record is None
 
 
@@ -398,16 +405,18 @@ async def test_java_example_delete_durably(session, customer_dataset):
     key = customer_dataset.id(5)
 
     # First create a record to delete
-    await session.key_value(dataset=customer_dataset, key=5).put({
+    await session.upsert(customer_dataset.id(5)).put({
         "name": "Test",
         "age": 25
-    })
+    }).execute()
 
-    # Delete with durably(False) using delete() method
-    await session.delete(key=key).durably(False).delete()
+    # Delete (default is non-durable)
+    await session.delete(key).execute()
 
     # Verify it's deleted
-    record = await session.key_value(key=key).get()
+    stream = await session.query(key).execute()
+    first = await stream.first()
+    record = first.record if first and first.is_ok else None
     assert record is None
 
 
@@ -505,19 +514,19 @@ async def test_java_example_filter_control_full(session, customer_dataset):
 
 @pytest.mark.asyncio
 async def test_java_example_key_value_operations_direct_client(session, customer_dataset):
-    """Java: client.key_value("test", "users", "user123").put({"name": "John", "age": 30});
-              Record rec = client.key_value("test", "users", "user123").get();
-    """
-    # Using keyword arguments (more Pythonic)
-    await session.key_value(namespace="test", set_name="Customers", key="user123").put({"name": "John", "age": 30})
-    record = await session.key_value(namespace="test", set_name="Customers", key="user123").get()
+    """Java: session.upsert(key).put(...).execute(); Record rec = session.query(key).execute().first_or_raise().record;"""
+    ds = DataSet.of("test", "Customers")
+    key = ds.id("user123")
+    await session.upsert(key).put({"name": "John", "age": 30}).execute()
+    result = await (await session.query(key).execute()).first_or_raise()
+    record = result.record
 
     assert record is not None
     assert record.bins["name"] == "John"
     assert record.bins["age"] == 30
 
     # Cleanup
-    await session.key_value(namespace="test", set_name="Customers", key="user123").delete()
+    await session.delete(key).execute()
 
 
 @pytest.mark.asyncio
@@ -574,20 +583,17 @@ async def test_java_example_index_operations(session, customer_dataset):
 
 
 @pytest.mark.asyncio
-async def test_java_example_key_value_service_pattern(session, customer_dataset):
-    """Java: try (KeyValueService kv = session.keyValueService(customerDataSet)) {
-              kv.put("user1", {"name": "John"});
-              Record rec = kv.get("user1");
-          }
-    """
-    async with session.key_value_service(dataset=customer_dataset) as kv:
-        await kv.put("user1", {"name": "John"})
-        record = await kv.get("user1")
-        assert record is not None
-        assert record.bins["name"] == "John"
+async def test_java_example_put_and_query_pattern(session, customer_dataset):
+    """Java: session.upsert(key).put(...).execute(); Record rec = session.query(key).execute().first_or_raise().record;"""
+    key = customer_dataset.id("user1")
+    await session.upsert(key).put({"name": "John"}).execute()
+    result = await (await session.query(key).execute()).first_or_raise()
+    record = result.record
+    assert record is not None
+    assert record.bins["name"] == "John"
 
     # Cleanup
-    await session.key_value(dataset=customer_dataset, key="user1").delete()
+    await session.delete(key).execute()
 
 
 @pytest.mark.asyncio

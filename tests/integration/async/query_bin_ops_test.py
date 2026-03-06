@@ -29,7 +29,7 @@ import pytest_asyncio
 
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode
-from aerospike_fluent import FluentClient
+from aerospike_fluent import DataSet, FluentClient
 from aerospike_fluent.exceptions import AerospikeError
 
 
@@ -42,20 +42,19 @@ SET = "query_bin_ops"
 async def client(aerospike_host, client_policy):
     """Setup fluent client, seed test data, yield the client."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+
         for i in range(1, 4):
             settings = {"theme": "dark", "volume": i * 10, "notifications": True}
             scores = [i * 10, i * 20, i * 30]
-            async with client.key_value_service(NS, SET) as kv:
-                await kv.put(
-                    f"{KEY_PREFIX}{i}",
-                    {
-                        "name": f"user{i}",
-                        "age": 20 + i,
-                        "score": i * 100,
-                        "settings": settings,
-                        "scores": scores,
-                    },
-                )
+            await session.upsert(ds.id(f"{KEY_PREFIX}{i}")).put({
+                "name": f"user{i}",
+                "age": 20 + i,
+                "score": i * 100,
+                "settings": settings,
+                "scores": scores,
+            }).execute()
 
         yield client
 

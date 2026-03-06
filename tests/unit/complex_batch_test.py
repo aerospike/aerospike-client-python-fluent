@@ -205,6 +205,81 @@ class TestWriteSegmentBuilder:
         wsb.durably_delete()
         assert qb._durable_delete is True
 
+    def test_direct_set_to(self):
+        qb = _make_builder()
+        qb._single_key = _make_key()
+        qb._op_type = "upsert"
+        wsb = WriteSegmentBuilder(qb)
+        result = wsb.set_to("name", "Alice")
+        assert result is wsb
+        assert len(qb._operations) == 1
+
+    def test_direct_add(self):
+        qb = _make_builder()
+        qb._single_key = _make_key()
+        qb._op_type = "upsert"
+        wsb = WriteSegmentBuilder(qb)
+        wsb.add("counter", 5)
+        assert len(qb._operations) == 1
+
+    def test_direct_get(self):
+        qb = _make_builder()
+        qb._single_key = _make_key()
+        qb._op_type = "upsert"
+        wsb = WriteSegmentBuilder(qb)
+        wsb.get("counter")
+        assert len(qb._operations) == 1
+
+    def test_direct_append(self):
+        qb = _make_builder()
+        qb._single_key = _make_key()
+        qb._op_type = "upsert"
+        wsb = WriteSegmentBuilder(qb)
+        wsb.append("log", " entry")
+        assert len(qb._operations) == 1
+
+    def test_direct_prepend(self):
+        qb = _make_builder()
+        qb._single_key = _make_key()
+        qb._op_type = "upsert"
+        wsb = WriteSegmentBuilder(qb)
+        wsb.prepend("log", "prefix ")
+        assert len(qb._operations) == 1
+
+    def test_direct_remove_bin(self):
+        qb = _make_builder()
+        qb._single_key = _make_key()
+        qb._op_type = "upsert"
+        wsb = WriteSegmentBuilder(qb)
+        wsb.remove_bin("temp")
+        assert len(qb._operations) == 1
+
+    def test_direct_chained_add_get(self):
+        qb = _make_builder()
+        qb._single_key = _make_key()
+        qb._op_type = "upsert"
+        wsb = WriteSegmentBuilder(qb)
+        wsb.add("counter", 30).get("counter")
+        assert len(qb._operations) == 2
+
+    def test_both_styles_equivalent(self):
+        """Direct segment ops and bin-first ops produce the same operations."""
+        qb_direct = _make_builder()
+        qb_direct._single_key = _make_key()
+        qb_direct._op_type = "upsert"
+        wsb_direct = WriteSegmentBuilder(qb_direct)
+        wsb_direct.set_to("name", "Alice").add("counter", 5).get("counter")
+
+        qb_bin = _make_builder()
+        qb_bin._single_key = _make_key()
+        qb_bin._op_type = "upsert"
+        wsb_bin = WriteSegmentBuilder(qb_bin)
+        wsb_bin.bin("name").set_to("Alice").bin("counter").add(5).bin("counter").get()
+
+        assert len(qb_direct._operations) == len(qb_bin._operations) == 3
+        for op_d, op_b in zip(qb_direct._operations, qb_bin._operations):
+            assert type(op_d) is type(op_b)
+
 
 # ---------------------------------------------------------------------------
 # WriteBinBuilder
@@ -223,9 +298,9 @@ class TestWriteBinBuilder:
         assert result is wsb
         assert len(qb._operations) == 1
 
-    def test_increment_by(self):
+    def test_add(self):
         wsb, qb = self._make_wsb()
-        wsb.bin("counter").increment_by(5)
+        wsb.bin("counter").add(5)
         assert len(qb._operations) == 1
 
     def test_append(self):
@@ -245,7 +320,7 @@ class TestWriteBinBuilder:
 
     def test_chained_bins(self):
         wsb, qb = self._make_wsb()
-        wsb.bin("name").set_to("Alice").bin("age").set_to(25).bin("score").increment_by(10)
+        wsb.bin("name").set_to("Alice").bin("age").set_to(25).bin("score").add(10)
         assert len(qb._operations) == 3
 
     def test_bin_to_bin_transition(self):
@@ -459,51 +534,6 @@ class TestChainLevelDefaults:
         qb._finalize_current_spec()
 
         assert qb._specs[1].ttl_seconds == 120
-
-
-# ---------------------------------------------------------------------------
-# BinBuilder -> QueryBuilder transitions
-# ---------------------------------------------------------------------------
-
-class TestBinBuilderTransitions:
-    def _make_kvo(self):
-        from aerospike_fluent.aio.operations.key_value import BinBuilder, KeyValueOperation
-        kvo = KeyValueOperation(
-            client=object(), namespace="test", set_name="unit", key="key1",
-        )
-        return kvo
-
-    def test_bin_builder_to_query_builder(self):
-        kvo = self._make_kvo()
-        bb = kvo.bin("name")
-        bb.set_to("Alice")
-
-        qb = bb.query(_make_key(2))
-
-        assert isinstance(qb, QueryBuilder)
-        assert len(qb._specs) == 1
-        assert qb._specs[0].op_type == "upsert"
-        assert len(qb._specs[0].operations) == 1
-        assert qb._single_key == _make_key(2)
-
-    def test_bin_builder_infers_insert_op_type(self):
-        kvo = self._make_kvo()
-        kvo._write_policy = WritePolicy()
-        kvo._write_policy.record_exists_action = RecordExistsAction.CREATE_ONLY
-
-        bb = kvo.bin("name")
-        bb.set_to("Alice")
-        qb = bb.query(_make_key(2))
-
-        assert qb._specs[0].op_type == "insert"
-
-    def test_bin_builder_transition_write(self):
-        kvo = self._make_kvo()
-        bb = kvo.bin("name")
-        bb.set_to("Alice")
-
-        wsb = bb._transition_write("insert", _make_key(2))
-        assert isinstance(wsb, WriteSegmentBuilder)
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ import pytest_asyncio
 
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode, ServerError
-from aerospike_fluent import Behavior, FluentClient
+from aerospike_fluent import FluentClient
 from aerospike_fluent.exceptions import AerospikeError
 
 
@@ -46,21 +46,20 @@ KEY_B = "exp_B"
 async def client(aerospike_host, client_policy):
     """Setup fluent client, seed test data, yield the client, cleanup."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
+        session = c.create_session()
         # Clean slate
-        async with c.key_value_service(NS, SET) as kv:
-            try:
-                await kv.delete(KEY_A)
-            except Exception:
-                pass
-            try:
-                await kv.delete(KEY_B)
-            except Exception:
-                pass
+        try:
+            await session.delete(_key(KEY_A)).execute()
+        except Exception:
+            pass
+        try:
+            await session.delete(_key(KEY_B)).execute()
+        except Exception:
+            pass
 
         # Seed: keyA has A=1, D=2; keyB has B=2, D=2
-        async with c.key_value_service(NS, SET) as kv:
-            await kv.put(KEY_A, {"A": 1, "D": 2})
-            await kv.put(KEY_B, {"B": 2, "D": 2})
+        await session.upsert(_key(KEY_A)).put({"A": 1, "D": 2}).execute()
+        await session.upsert(_key(KEY_B)).put({"B": 2, "D": 2}).execute()
 
         yield c
 
@@ -79,7 +78,7 @@ class TestSelectFrom:
     async def test_select_from_returns_int(self, client):
         """select_from evaluating an integer DSL expression."""
         rs = await (
-            client.query(key=_key(KEY_A)).bin("ev").select_from("$.A + 4")
+            client.query(_key(KEY_A)).bin("ev").select_from("$.A + 4")
                 .execute()
         )
         result = await rs.first_or_raise()
@@ -89,7 +88,7 @@ class TestSelectFrom:
     async def test_select_from_returns_string(self, client):
         """select_from evaluating a string DSL expression."""
         rs = await (
-            client.query(key=_key(KEY_A)).bin("ev").select_from("'hello'")
+            client.query(_key(KEY_A)).bin("ev").select_from("'hello'")
                 .execute()
         )
         result = await rs.first_or_raise()
@@ -99,7 +98,7 @@ class TestSelectFrom:
     async def test_select_from_returns_boolean(self, client):
         """select_from evaluating a boolean DSL expression."""
         rs = await (
-            client.query(key=_key(KEY_A)).bin("ev").select_from("$.A == 1")
+            client.query(_key(KEY_A)).bin("ev").select_from("$.A == 1")
                 .execute()
         )
         result = await rs.first_or_raise()
@@ -110,7 +109,7 @@ class TestSelectFrom:
         """select_from referencing a missing bin raises server error."""
         with pytest.raises((AerospikeError, ServerError)):
             rs = await (
-                client.query(key=_key(KEY_B)).bin("ev").select_from("$.A + 4")
+                client.query(_key(KEY_B)).bin("ev").select_from("$.A + 4")
                     .execute()
             )
             await rs.first_or_raise()
@@ -119,7 +118,7 @@ class TestSelectFrom:
     async def test_select_from_ignore_eval_failure(self, client):
         """select_from with ignore_eval_failure returns None on missing bin."""
         rs = await (
-            client.query(key=_key(KEY_B)).bin("ev").select_from("$.A + 4", ignore_eval_failure=True)
+            client.query(_key(KEY_B)).bin("ev").select_from("$.A + 4", ignore_eval_failure=True)
                 .execute()
         )
         result = await rs.first_or_raise()
@@ -129,7 +128,7 @@ class TestSelectFrom:
     async def test_multiple_select_from(self, client):
         """Multiple select_from in same execute (expMerge pattern)."""
         rs = await (
-            client.query(key=_key(KEY_A))
+            client.query(_key(KEY_A))
                 .bin("r1").select_from("$.A == 0 and $.D == 2")
                 .bin("r2").select_from("$.A == 0 or $.D == 2")
                 .execute()
@@ -150,10 +149,10 @@ class TestUpsertFrom:
         """upsert_from writes computed value to a new bin."""
         session = client.create_session()
         await (
-            session.update(key=_key(KEY_A)).bin("C").upsert_from("$.A + 4")
+            session.update(_key(KEY_A)).bin("C").upsert_from("$.A + 4")
                 .execute()
         )
-        rec = await session.query(key=_key(KEY_A)).bin("C").get().execute()
+        rec = await session.query(_key(KEY_A)).bin("C").get().execute()
         result = await rec.first_or_raise()
         assert result.record.bins["C"] == 5
 
@@ -162,10 +161,10 @@ class TestUpsertFrom:
         """upsert_from overwrites an existing bin."""
         session = client.create_session()
         await (
-            session.update(key=_key(KEY_A)).bin("D").upsert_from("$.A + 10")
+            session.update(_key(KEY_A)).bin("D").upsert_from("$.A + 10")
                 .execute()
         )
-        rec = await session.query(key=_key(KEY_A)).bin("D").get().execute()
+        rec = await session.query(_key(KEY_A)).bin("D").get().execute()
         result = await rec.first_or_raise()
         assert result.record.bins["D"] == 11
 
@@ -177,10 +176,10 @@ class TestUpdateFrom:
         """update_from on an existing bin succeeds."""
         session = client.create_session()
         await (
-            session.update(key=_key(KEY_A)).bin("D").update_from("$.A + 100")
+            session.update(_key(KEY_A)).bin("D").update_from("$.A + 100")
                 .execute()
         )
-        rec = await session.query(key=_key(KEY_A)).bin("D").get().execute()
+        rec = await session.query(_key(KEY_A)).bin("D").get().execute()
         result = await rec.first_or_raise()
         assert result.record.bins["D"] == 101
 
@@ -190,7 +189,7 @@ class TestUpdateFrom:
         session = client.create_session()
         with pytest.raises((AerospikeError, ServerError)):
             await (
-                session.update(key=_key(KEY_A)).bin("C").update_from("$.A + 4")
+                session.update(_key(KEY_A)).bin("C").update_from("$.A + 4")
                     .execute()
             )
 
@@ -198,12 +197,14 @@ class TestUpdateFrom:
     async def test_update_from_missing_bin_ignore_op_failure(self, client):
         """update_from with ignore_op_failure silently skips."""
         session = client.create_session()
-        rec = await (
-            session.update(key=_key(KEY_A)).bin("C").update_from("$.A + 4", ignore_op_failure=True)
+        stream = await (
+            session.update(_key(KEY_A)).bin("C").update_from("$.A + 4", ignore_op_failure=True)
                 .execute()
         )
-        assert rec is not None
-        assert rec.bins.get("C") is None
+        result = await stream.first_or_raise()
+        assert result is not None
+        bins = result.record.bins if result.record else {}
+        assert bins.get("C") is None
 
 
 class TestInsertFrom:
@@ -213,10 +214,10 @@ class TestInsertFrom:
         """insert_from creates a new bin."""
         session = client.create_session()
         await (
-            session.update(key=_key(KEY_A)).bin("C").insert_from("$.A + 4")
+            session.update(_key(KEY_A)).bin("C").insert_from("$.A + 4")
                 .execute()
         )
-        rec = await session.query(key=_key(KEY_A)).bin("C").get().execute()
+        rec = await session.query(_key(KEY_A)).bin("C").get().execute()
         result = await rec.first_or_raise()
         assert result.record.bins["C"] == 5
 
@@ -226,13 +227,13 @@ class TestInsertFrom:
         session = client.create_session()
         # First insert succeeds
         await (
-            session.update(key=_key(KEY_A)).bin("C").insert_from("$.A + 4")
+            session.update(_key(KEY_A)).bin("C").insert_from("$.A + 4")
                 .execute()
         )
         # Second insert fails
         with pytest.raises((AerospikeError, ServerError)):
             await (
-                session.update(key=_key(KEY_A)).bin("C").insert_from("$.A + 4")
+                session.update(_key(KEY_A)).bin("C").insert_from("$.A + 4")
                     .execute()
             )
 
@@ -241,14 +242,15 @@ class TestInsertFrom:
         """insert_from with ignore_op_failure silently skips."""
         session = client.create_session()
         await (
-            session.update(key=_key(KEY_A)).bin("C").insert_from("$.A + 4")
+            session.update(_key(KEY_A)).bin("C").insert_from("$.A + 4")
                 .execute()
         )
-        rec = await (
-            session.update(key=_key(KEY_A)).bin("C").insert_from("$.A + 99", ignore_op_failure=True)
+        stream = await (
+            session.update(_key(KEY_A)).bin("C").insert_from("$.A + 99", ignore_op_failure=True)
                 .execute()
         )
-        assert rec is not None
+        result = await stream.first_or_raise()
+        assert result is not None
 
 
 # ===================================================================
@@ -261,40 +263,42 @@ class TestCombinedExpression:
     async def test_upsert_from_and_select_from(self, client):
         """upsert_from + select_from in same execute."""
         session = client.create_session()
-        rec = await (
-            session.update(key=_key(KEY_A))
+        stream = await (
+            session.update(_key(KEY_A))
                 .bin("D").upsert_from("$.D + 10")
                 .bin("ev").select_from("$.A")
                 .execute()
         )
-        assert rec is not None
-        assert rec.bins["ev"] == 1
+        result = await stream.first_or_raise()
+        assert result is not None
+        assert result.record.bins["ev"] == 1
 
     @pytest.mark.asyncio
     async def test_upsert_from_and_get(self, client):
         """upsert_from + .get() in same execute."""
         session = client.create_session()
-        rec = await (
-            session.update(key=_key(KEY_A))
-                .bin("C").upsert_from("$.A + 4")
-                .bin("C").get()
-                .execute()
+        await (
+            session.update(_key(KEY_A)).bin("C").upsert_from("$.A + 4").execute()
         )
-        assert rec is not None
-        assert rec.bins["C"] == 5
+        rec = await session.query(_key(KEY_A)).bin("C").get().execute()
+        result = await rec.first_or_raise()
+        assert result is not None
+        assert result.record.bins["C"] == 5
 
     @pytest.mark.asyncio
     async def test_write_eval_error_with_ignore(self, client):
         """upsert_from + select_from with ignore_eval_failure on both."""
         session = client.create_session()
-        rec = await (
-            session.update(key=_key(KEY_B))
+        stream = await (
+            session.update(_key(KEY_B))
                 .bin("C").upsert_from("$.A + 4", ignore_eval_failure=True)
                 .bin("ev").select_from("$.A", ignore_eval_failure=True)
                 .execute()
         )
-        assert rec is not None
-        assert rec.bins.get("ev") is None
+        result = await stream.first_or_raise()
+        assert result is not None
+        bins = result.record.bins if result.record else {}
+        assert bins.get("ev") is None
 
 
 # ===================================================================
@@ -308,13 +312,13 @@ class TestMixedOps:
         """set_to + upsert_from in same execute."""
         session = client.create_session()
         await (
-            session.upsert(key=_key(KEY_A))
+            session.upsert(_key(KEY_A))
                 .bin("name").set_to("Alice")
                 .bin("computed").upsert_from("$.A * 2")
                 .execute()
         )
         rec = await (
-            session.query(key=_key(KEY_A))
+            session.query(_key(KEY_A))
                 .bin("name").get()
                 .bin("computed").get()
                 .execute()
@@ -345,7 +349,7 @@ class TestGuards:
     async def test_batch_key_query_select_from_works(self, client):
         """select_from on batch key query works (no guard)."""
         rs = await (
-            client.query(keys=[_key(KEY_A), _key(KEY_B)]).bin("ev").select_from("$.D * 3")
+            client.query([_key(KEY_A), _key(KEY_B)]).bin("ev").select_from("$.D * 3")
                 .execute()
         )
         results = await rs.collect()

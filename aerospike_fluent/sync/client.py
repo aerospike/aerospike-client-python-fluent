@@ -452,12 +452,11 @@ class SyncFluentClient:
     Example:
         ```python
         with SyncFluentClient("localhost:3000") as client:
-            record = client.key_value(
+            for record in client.query(
                 namespace="test",
-                set_name="users",
-                key="user123"
-            ).get()
-            print(record.bins if record else "Not found")
+                set_name="users"
+            ).execute():
+                print(record.bins)
         ```
 
     Note:
@@ -574,69 +573,6 @@ class SyncFluentClient:
             self.connect()
         assert self._async_client is not None
         return self._async_client
-
-    @overload
-    def key_value(
-        self,
-        *,
-        key: Key,
-    ):
-        """Create a key-value operation builder from a Key object."""
-        ...
-
-    @overload
-    def key_value(
-        self,
-        *,
-        dataset: DataSet,
-        key: Union[str, int, bytes],
-    ):
-        """Create a key-value operation builder using a DataSet."""
-        ...
-
-    @overload
-    def key_value(
-        self,
-        namespace: str,
-        set_name: str,
-        key: Union[str, int],
-    ):
-        """Create a key-value operation builder with explicit namespace/set."""
-        ...
-
-    def key_value(
-        self,
-        namespace: Optional[str] = None,
-        set_name: Optional[str] = None,
-        key: Optional[Union[str, int, bytes, Key]] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-    ):
-        """
-        Create a key-value operation builder (synchronous).
-
-        Supports the same calling styles as FluentClient.key_value().
-        Returns a wrapper that executes operations synchronously.
-        """
-        from aerospike_fluent.sync.operations.key_value import SyncKeyValueOperation
-
-        # Delegate to async client to handle argument parsing
-        async_client = self._ensure_connected()
-        operation = async_client.key_value(
-            namespace=namespace,
-            set_name=set_name,
-            key=key,
-            dataset=dataset,
-        )
-
-        # Extract the namespace, set_name, and key from the operation
-        return SyncKeyValueOperation(
-            async_client=async_client,
-            namespace=operation._namespace,
-            set_name=operation._set_name,
-            key=operation._key,
-            loop_manager=self._loop_manager,
-        )
 
     @overload
     def query(

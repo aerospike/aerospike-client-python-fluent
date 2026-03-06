@@ -23,6 +23,7 @@ import pytest_asyncio
 from aerospike_async import FilterExpression
 
 from aerospike_fluent import DslParseException, Exp, FluentClient, val
+from aerospike_fluent.dataset import DataSet
 
 
 class TestExpAlias:
@@ -380,21 +381,26 @@ class TestBinExpressions:
 async def client_with_data(aerospike_host, client_policy):
     """Setup test data for expression tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
-        async with client.key_value_service("test", "exp_test") as kv:
-            # Clean up
-            for key in ["A", "B", "C"]:
-                await kv.delete(key)
+        session = client.create_session()
+        ds = DataSet.of("test", "exp_test")
 
-            # Insert test records
-            await kv.put("A", {"A": 1, "B": 1.1, "C": "abcde", "D": 1, "E": -1})
-            await kv.put("B", {"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2})
-            await kv.put("C", {"A": 0, "B": -1.0, "C": "1", "D": 0, "E": 0})
+        for key in ["A", "B", "C"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+        await session.upsert(ds.id("A")).put({"A": 1, "B": 1.1, "C": "abcde", "D": 1, "E": -1}).execute()
+        await session.upsert(ds.id("B")).put({"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2}).execute()
+        await session.upsert(ds.id("C")).put({"A": 0, "B": -1.0, "C": "1", "D": 0, "E": 0}).execute()
 
         yield client
 
-        async with client.key_value_service("test", "exp_test") as kv:
-            for key in ["A", "B", "C"]:
-                await kv.delete(key)
+        for key in ["A", "B", "C"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
 
 
 @pytest.mark.asyncio
@@ -719,36 +725,41 @@ class TestExpWithDsl:
 async def client_with_cdt_data(aerospike_host, client_policy):
     """Setup test data with lists and maps for CDT path tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
-        async with client.key_value_service("test", "cdt_test") as kv:
-            # Clean up
-            for key in ["rec1", "rec2", "rec3"]:
-                await kv.delete(key)
+        session = client.create_session()
+        ds = DataSet.of("test", "cdt_test")
 
-            # Insert test records with lists and maps
-            await kv.put("rec1", {
-                "numbers": [10, 20, 30, 40, 50],
-                "names": ["alice", "bob", "charlie"],
-                "info": {"name": "Alice", "age": 30, "city": "NYC"},
-                "nested": [{"id": 1, "value": 100}, {"id": 2, "value": 200}],
-            })
-            await kv.put("rec2", {
-                "numbers": [5, 15, 25, 35, 45],
-                "names": ["dave", "eve"],
-                "info": {"name": "Bob", "age": 25, "city": "LA"},
-                "nested": [{"id": 3, "value": 300}],
-            })
-            await kv.put("rec3", {
-                "numbers": [100, 200, 300],
-                "names": ["frank"],
-                "info": {"name": "Charlie", "age": 40, "city": "NYC"},
-                "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
-            })
+        for key in ["rec1", "rec2", "rec3"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+        await session.upsert(ds.id("rec1")).put({
+            "numbers": [10, 20, 30, 40, 50],
+            "names": ["alice", "bob", "charlie"],
+            "info": {"name": "Alice", "age": 30, "city": "NYC"},
+            "nested": [{"id": 1, "value": 100}, {"id": 2, "value": 200}],
+        }).execute()
+        await session.upsert(ds.id("rec2")).put({
+            "numbers": [5, 15, 25, 35, 45],
+            "names": ["dave", "eve"],
+            "info": {"name": "Bob", "age": 25, "city": "LA"},
+            "nested": [{"id": 3, "value": 300}],
+        }).execute()
+        await session.upsert(ds.id("rec3")).put({
+            "numbers": [100, 200, 300],
+            "names": ["frank"],
+            "info": {"name": "Charlie", "age": 40, "city": "NYC"},
+            "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
+        }).execute()
 
         yield client
 
-        async with client.key_value_service("test", "cdt_test") as kv:
-            for key in ["rec1", "rec2", "rec3"]:
-                await kv.delete(key)
+        for key in ["rec1", "rec2", "rec3"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
 
 
 @pytest.mark.asyncio
@@ -1026,36 +1037,39 @@ class TestExistsAndCount:
 async def client_with_list_data(aerospike_host, client_policy):
     """Setup test data with various lists for advanced list DSL tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
-        async with client.key_value_service("test", "list_dsl_test") as kv:
-            for key in ["rec1", "rec2", "rec3", "rec4"]:
-                await kv.delete(key)
+        session = client.create_session()
+        ds = DataSet.of("test", "list_dsl_test")
 
-            # rec1: sorted list with values 10, 20, 30, 40, 50
-            await kv.put("rec1", {
-                "values": [10, 20, 30, 40, 50],
-                "tags": ["alpha", "beta", "gamma"],
-            })
-            # rec2: list with some duplicates
-            await kv.put("rec2", {
-                "values": [5, 15, 25, 35, 45],
-                "tags": ["alpha", "delta"],
-            })
-            # rec3: list with value 30
-            await kv.put("rec3", {
-                "values": [100, 30, 200],
-                "tags": ["beta", "epsilon"],
-            })
-            # rec4: different range
-            await kv.put("rec4", {
-                "values": [1, 2, 3, 4, 5],
-                "tags": ["zeta"],
-            })
+        for key in ["rec1", "rec2", "rec3", "rec4"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+        await session.upsert(ds.id("rec1")).put({
+            "values": [10, 20, 30, 40, 50],
+            "tags": ["alpha", "beta", "gamma"],
+        }).execute()
+        await session.upsert(ds.id("rec2")).put({
+            "values": [5, 15, 25, 35, 45],
+            "tags": ["alpha", "delta"],
+        }).execute()
+        await session.upsert(ds.id("rec3")).put({
+            "values": [100, 30, 200],
+            "tags": ["beta", "epsilon"],
+        }).execute()
+        await session.upsert(ds.id("rec4")).put({
+            "values": [1, 2, 3, 4, 5],
+            "tags": ["zeta"],
+        }).execute()
 
         yield client
 
-        async with client.key_value_service("test", "list_dsl_test") as kv:
-            for key in ["rec1", "rec2", "rec3", "rec4"]:
-                await kv.delete(key)
+        for key in ["rec1", "rec2", "rec3", "rec4"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
 
 
 @pytest.mark.asyncio
@@ -1205,28 +1219,35 @@ class TestAdvancedListDsl:
 async def client_with_map_data(aerospike_host, client_policy):
     """Setup test data with maps for advanced map DSL tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
-        async with client.key_value_service("test", "map_dsl_test") as kv:
-            for key in ["rec1", "rec2", "rec3"]:
-                await kv.delete(key)
+        session = client.create_session()
+        ds = DataSet.of("test", "map_dsl_test")
 
-            await kv.put("rec1", {
-                "scores": {"alice": 90, "bob": 85, "charlie": 95},
-                "metadata": {"type": "premium", "level": 3},
-            })
-            await kv.put("rec2", {
-                "scores": {"dave": 75, "eve": 80},
-                "metadata": {"type": "basic", "level": 1},
-            })
-            await kv.put("rec3", {
-                "scores": {"frank": 100, "grace": 70, "heidi": 88},
-                "metadata": {"type": "premium", "level": 2},
-            })
+        for key in ["rec1", "rec2", "rec3"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+        await session.upsert(ds.id("rec1")).put({
+            "scores": {"alice": 90, "bob": 85, "charlie": 95},
+            "metadata": {"type": "premium", "level": 3},
+        }).execute()
+        await session.upsert(ds.id("rec2")).put({
+            "scores": {"dave": 75, "eve": 80},
+            "metadata": {"type": "basic", "level": 1},
+        }).execute()
+        await session.upsert(ds.id("rec3")).put({
+            "scores": {"frank": 100, "grace": 70, "heidi": 88},
+            "metadata": {"type": "premium", "level": 2},
+        }).execute()
 
         yield client
 
-        async with client.key_value_service("test", "map_dsl_test") as kv:
-            for key in ["rec1", "rec2", "rec3"]:
-                await kv.delete(key)
+        for key in ["rec1", "rec2", "rec3"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
 
 
 @pytest.mark.asyncio
@@ -1307,33 +1328,39 @@ class TestAdvancedMapDsl:
 async def client_with_nested_data(aerospike_host, client_policy):
     """Setup test data with deeply nested structures."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
-        async with client.key_value_service("test", "nested_dsl_test") as kv:
-            for key in ["rec1", "rec2"]:
-                await kv.delete(key)
+        session = client.create_session()
+        ds = DataSet.of("test", "nested_dsl_test")
 
-            # Nested list: list of lists
-            await kv.put("rec1", {
-                "nested_list": [[10, 20, 30], [40, 50, 60], [70, 80, 90]],
-                "nested_map": {
-                    "a": {"aa": 100, "ab": 200},
-                    "b": {"ba": 300, "bb": 400},
-                },
-                "simple_list": [1, 2, 3, 4, 5],
-            })
-            await kv.put("rec2", {
-                "nested_list": [[5, 10], [15, 20], [25, 30]],
-                "nested_map": {
-                    "a": {"aa": 50, "ab": 60},
-                    "b": {"ba": 70, "bb": 80},
-                },
-                "simple_list": [10, 20, 30],
-            })
+        for key in ["rec1", "rec2"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+        await session.upsert(ds.id("rec1")).put({
+            "nested_list": [[10, 20, 30], [40, 50, 60], [70, 80, 90]],
+            "nested_map": {
+                "a": {"aa": 100, "ab": 200},
+                "b": {"ba": 300, "bb": 400},
+            },
+            "simple_list": [1, 2, 3, 4, 5],
+        }).execute()
+        await session.upsert(ds.id("rec2")).put({
+            "nested_list": [[5, 10], [15, 20], [25, 30]],
+            "nested_map": {
+                "a": {"aa": 50, "ab": 60},
+                "b": {"ba": 70, "bb": 80},
+            },
+            "simple_list": [10, 20, 30],
+        }).execute()
 
         yield client
 
-        async with client.key_value_service("test", "nested_dsl_test") as kv:
-            for key in ["rec1", "rec2"]:
-                await kv.delete(key)
+        for key in ["rec1", "rec2"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
 
 
 @pytest.mark.asyncio
@@ -1460,32 +1487,35 @@ class TestMapKeyOperationsDsl:
 async def client_with_relative_range_data(aerospike_host, client_policy):
     """Setup test data for relative range operations."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
-        async with client.key_value_service("test", "rel_range_test") as kv:
-            for key in ["rec1", "rec2", "rec3"]:
-                await kv.delete(key)
+        session = client.create_session()
+        ds = DataSet.of("test", "rel_range_test")
 
-            # List data for value-relative rank range testing
-            # When sorted: [0, 4, 5, 9, 11, 15]
-            await kv.put("rec1", {
-                "numbers": [0, 4, 5, 9, 11, 15],
-                "scores": {"alice": 70, "bob": 80, "charlie": 90, "dave": 100},
-            })
-            # When sorted: [1, 3, 7, 12, 20]
-            await kv.put("rec2", {
-                "numbers": [1, 3, 7, 12, 20],
-                "scores": {"alice": 60, "bob": 75, "charlie": 85},
-            })
-            # When sorted: [2, 6, 10, 14, 18]
-            await kv.put("rec3", {
-                "numbers": [2, 6, 10, 14, 18],
-                "scores": {"alice": 55, "bob": 65, "charlie": 95, "dave": 105},
-            })
+        for key in ["rec1", "rec2", "rec3"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+        await session.upsert(ds.id("rec1")).put({
+            "numbers": [0, 4, 5, 9, 11, 15],
+            "scores": {"alice": 70, "bob": 80, "charlie": 90, "dave": 100},
+        }).execute()
+        await session.upsert(ds.id("rec2")).put({
+            "numbers": [1, 3, 7, 12, 20],
+            "scores": {"alice": 60, "bob": 75, "charlie": 85},
+        }).execute()
+        await session.upsert(ds.id("rec3")).put({
+            "numbers": [2, 6, 10, 14, 18],
+            "scores": {"alice": 55, "bob": 65, "charlie": 95, "dave": 105},
+        }).execute()
 
         yield client
 
-        async with client.key_value_service("test", "rel_range_test") as kv:
-            for key in ["rec1", "rec2", "rec3"]:
-                await kv.delete(key)
+        for key in ["rec1", "rec2", "rec3"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
 
 
 @pytest.mark.asyncio
@@ -1650,3 +1680,132 @@ class TestDslErrorHandling:
                 .where("$.numbers.[invalidSyntax] == 100")
                 .execute()
             )
+
+
+# =============================================================================
+# Advanced expression filter tests (JFC FilterExpTest equivalents)
+# =============================================================================
+
+@pytest_asyncio.fixture
+async def filter_session(aerospike_host, client_policy):
+    """Session with test data matching JFC FilterExpTest setUp.
+
+    Key "A": A=1, B=1.1, C="abcde",      D=1, E=-1
+    Key "B": A=2, B=2.2, C="abcdeabcde",  D=1, E=-2
+    Key "C": A=0, B=-1.0, C="1"
+    """
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        session = client.create_session()
+        ds = DataSet.of("test", "filter_exp_test")
+
+        for key in ["A", "B", "C"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+        await session.upsert(ds.id("A")).put({"A": 1, "B": 1.1, "C": "abcde", "D": 1, "E": -1}).execute()
+        await session.upsert(ds.id("B")).put({"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2}).execute()
+        await session.upsert(ds.id("C")).put({"A": 0, "B": -1.0, "C": "1"}).execute()
+
+        yield session, ds
+
+        for key in ["A", "B", "C"]:
+            try:
+                await session.delete(ds.id(key)).execute()
+            except Exception:
+                pass
+
+
+@pytest.mark.asyncio
+class TestAdvancedExpFilters:
+    """Integration tests for advanced expression filter functions.
+
+    Covers arshift, countOneBits, findBitLeft, findBitRight, min, max,
+    and when (conditional). Each test verifies both the positive (matching)
+    and negative (filtered-out) paths using DSL expressions with
+    fail_on_filtered_out().
+    """
+
+    async def _assert_filtered_out(self, session, key, dsl):
+        """Query with DSL filter that should NOT match, expect FILTERED_OUT."""
+        from aerospike_async.exceptions import ResultCode
+        from aerospike_fluent.exceptions import AerospikeError
+
+        with pytest.raises(AerospikeError) as exc_info:
+            rs = await (
+                session.query(key)
+                .where(dsl)
+                .fail_on_filtered_out()
+                .execute()
+            )
+            await rs.first_or_raise()
+        assert exc_info.value.result_code == ResultCode.FILTERED_OUT
+
+    async def _assert_matches(self, session, key, dsl, bin_name, expected_value):
+        """Query with DSL filter that SHOULD match, validate returned bin."""
+        rs = await (
+            session.query(key)
+            .bins([bin_name])
+            .where(dsl)
+            .fail_on_filtered_out()
+            .execute()
+        )
+        rr = await rs.first_or_raise()
+        assert rr.record.bins[bin_name] == expected_value
+
+    async def test_filter_arshift(self, filter_session):
+        """Arithmetic right shift: arshift(-2, 62) == -1 for key B."""
+        session, ds = filter_session
+        key = ds.id("B")
+        await self._assert_filtered_out(session, key, "not (($.E >> 62) == -1)")
+        await self._assert_matches(session, key, "($.E >> 62) == -1", "E", -2)
+
+    async def test_filter_bit_count(self, filter_session):
+        """Bit count (popcount): countOneBits(1) == 1 for key A."""
+        session, ds = filter_session
+        key = ds.id("A")
+        await self._assert_filtered_out(session, key, "not (countOneBits($.A) == 1)")
+        await self._assert_matches(session, key, "countOneBits($.A) == 1", "A", 1)
+
+    async def test_filter_lscan(self, filter_session):
+        """Left scan: findBitLeft(1, true) == 63 for key A."""
+        session, ds = filter_session
+        key = ds.id("A")
+        await self._assert_filtered_out(session, key, "not (findBitLeft($.A, true) == 63)")
+        await self._assert_matches(session, key, "findBitLeft($.A, true) == 63", "A", 1)
+
+    async def test_filter_rscan(self, filter_session):
+        """Right scan: findBitRight(1, true) == 63 for key A."""
+        session, ds = filter_session
+        key = ds.id("A")
+        await self._assert_filtered_out(session, key, "not (findBitRight($.A, true) == 63)")
+        await self._assert_matches(session, key, "findBitRight($.A, true) == 63", "A", 1)
+
+    async def test_filter_min(self, filter_session):
+        """Min of bins: min(1, 1, -1) == -1 for key A."""
+        session, ds = filter_session
+        key = ds.id("A")
+        await self._assert_filtered_out(session, key, "not (min($.A, $.D, $.E) == -1)")
+        await self._assert_matches(session, key, "min($.A, $.D, $.E) == -1", "A", 1)
+
+    async def test_filter_max(self, filter_session):
+        """Max of bins: max(1, 1, -1) == 1 for key A."""
+        session, ds = filter_session
+        key = ds.id("A")
+        await self._assert_filtered_out(session, key, "not (max($.A, $.D, $.E) == 1)")
+        await self._assert_matches(session, key, "max($.A, $.D, $.E) == 1", "A", 1)
+
+    async def test_filter_cond(self, filter_session):
+        """Conditional: when A==1 => D-E == 2 for key A."""
+        session, ds = filter_session
+        key = ds.id("A")
+        when_expr = (
+            "when($.A == 0 => $.D + $.E, "
+            "$.A == 1 => $.D - $.E, "
+            "$.A == 2 => $.D * $.E, "
+            "default => -1)"
+        )
+        cond_dsl = f"({when_expr}) == 2"
+        await self._assert_filtered_out(session, key, f"not ({cond_dsl})")
+        await self._assert_matches(session, key, cond_dsl, "A", 1)

@@ -30,13 +30,13 @@ from aerospike_async import (
     RecordExistsAction,
 )
 
-from aerospike_fluent.aio.operations.key_value import (
+from aerospike_fluent.aio.operations.query import (
     _EXP_READ_DEFAULT,
     _EXP_READ_EVAL_NO_FAIL,
     _EXP_WRITE_CREATE_ONLY,
     _EXP_WRITE_DEFAULT,
     _EXP_WRITE_UPDATE_ONLY,
-    BinBuilder,
+    _build_exp_write_flags,
 )
 from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.exceptions import convert_pac_exception
@@ -84,18 +84,14 @@ class BatchBinBuilder:
         self._key_op._operations.append(Operation.put(self._bin_name, value))
         return self._key_op
     
-    def increment_by(self, value: int) -> BatchKeyOperationBuilder:
-        """
-        Increment a bin value.
-        
-        Args:
-            value: The amount to increment by.
-        
-        Returns:
-            The parent BatchKeyOperationBuilder for chaining.
-        """
+    def add(self, value: int) -> BatchKeyOperationBuilder:
+        """Add *value* to the bin (numeric increment)."""
         self._key_op._operations.append(Operation.add(self._bin_name, value))
         return self._key_op
+
+    def increment_by(self, value: int) -> BatchKeyOperationBuilder:
+        """Alias for :meth:`add`."""
+        return self.add(value)
     
     def append(self, value: str) -> BatchKeyOperationBuilder:
         """
@@ -164,7 +160,7 @@ class BatchBinBuilder:
         Returns:
             The parent BatchKeyOperationBuilder for chaining.
         """
-        flags = BinBuilder._build_write_flags(
+        flags = _build_exp_write_flags(
             _EXP_WRITE_CREATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
         )
         expr = parse_dsl(expression) if isinstance(expression, str) else expression
@@ -191,7 +187,7 @@ class BatchBinBuilder:
         Returns:
             The parent BatchKeyOperationBuilder for chaining.
         """
-        flags = BinBuilder._build_write_flags(
+        flags = _build_exp_write_flags(
             _EXP_WRITE_UPDATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
         )
         expr = parse_dsl(expression) if isinstance(expression, str) else expression
@@ -218,7 +214,7 @@ class BatchBinBuilder:
         Returns:
             The parent BatchKeyOperationBuilder for chaining.
         """
-        flags = BinBuilder._build_write_flags(
+        flags = _build_exp_write_flags(
             _EXP_WRITE_DEFAULT, ignore_op_failure, ignore_eval_failure, delete_if_null,
         )
         expr = parse_dsl(expression) if isinstance(expression, str) else expression
@@ -235,7 +231,7 @@ class BatchKeyOperationBuilder:
     
     Example:
         batch.insert(key1).bin("name").set_to("Alice") \\
-             .update(key2).bin("counter").increment_by(1)
+             .update(key2).bin("counter").add(1)
     """
     
     def __init__(
@@ -325,7 +321,7 @@ class BatchOperationBuilder:
         ```python
         results = await session.batch() \\
             .insert(key1).bin("name").set_to("Alice").bin("age").set_to(25) \\
-            .update(key2).bin("counter").increment_by(1) \\
+            .update(key2).bin("counter").add(1) \\
             .delete(key3) \\
             .execute()
         ```
@@ -374,7 +370,7 @@ class BatchOperationBuilder:
             A BatchKeyOperationBuilder for chaining bin operations.
         
         Example:
-            batch.update(key).bin("counter").increment_by(1)
+            batch.update(key).bin("counter").add(1)
         """
         op = BatchKeyOperationBuilder(self, key, BatchOpType.UPDATE)
         self._key_operations.append(op)

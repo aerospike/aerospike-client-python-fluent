@@ -56,9 +56,9 @@ class TestBatchOperations:
         
         # Clean up first
         try:
-            await session.delete(key1).delete()
-            await session.delete(key2).delete()
-            await session.delete(key3).delete()
+            await session.delete(key1).execute()
+            await session.delete(key2).execute()
+            await session.delete(key3).execute()
         except Exception:
             pass
         
@@ -79,25 +79,28 @@ class TestBatchOperations:
         assert len(results) == 3
         
         # Verify records were created
-        record1 = await session.key_value(key=key1).get()
+        rs1 = await session.query(key1).execute()
+        record1 = await rs1.first_or_raise()
         assert record1 is not None
-        assert record1.bins["name"] == "Alice"
-        assert record1.bins["age"] == 25
-        
-        record2 = await session.key_value(key=key2).get()
+        assert record1.record.bins["name"] == "Alice"
+        assert record1.record.bins["age"] == 25
+
+        rs2 = await session.query(key2).execute()
+        record2 = await rs2.first_or_raise()
         assert record2 is not None
-        assert record2.bins["name"] == "Bob"
-        assert record2.bins["age"] == 30
-        
-        record3 = await session.key_value(key=key3).get()
+        assert record2.record.bins["name"] == "Bob"
+        assert record2.record.bins["age"] == 30
+
+        rs3 = await session.query(key3).execute()
+        record3 = await rs3.first_or_raise()
         assert record3 is not None
-        assert record3.bins["name"] == "Charlie"
-        assert record3.bins["age"] == 35
-        
+        assert record3.record.bins["name"] == "Charlie"
+        assert record3.record.bins["age"] == 35
+
         # Cleanup
-        await session.delete(key1).delete()
-        await session.delete(key2).delete()
-        await session.delete(key3).delete()
+        await session.delete(key1).execute()
+        await session.delete(key2).execute()
+        await session.delete(key3).execute()
 
     async def test_batch_mixed_operations(self, client: FluentClient, users: DataSet):
         """Test batch with mixed insert, update, and delete operations."""
@@ -108,19 +111,19 @@ class TestBatchOperations:
         key3 = users.id("batch_mixed_3")
         
         # Setup: create initial records
-        await session.key_value(key=key1).put({"counter": 10})
-        await session.key_value(key=key2).put({"name": "ToDelete"})
-        
+        await session.upsert(key1).put({"counter": 10}).execute()
+        await session.upsert(key2).put({"name": "ToDelete"}).execute()
+
         # Clean key3 if exists
         try:
-            await session.delete(key3).delete()
+            await session.delete(key3).execute()
         except Exception:
             pass
         
         # Execute mixed batch operations
         stream = await (
             session.batch()
-                .update(key1).bin("counter").increment_by(5)
+                .update(key1).bin("counter").add(5)
                 .delete(key2)
                 .insert(key3).bin("status").set_to("new")
                 .execute()
@@ -130,22 +133,25 @@ class TestBatchOperations:
         assert len(results) == 3
         
         # Verify update worked
-        record1 = await session.key_value(key=key1).get()
+        rs1 = await session.query(key1).execute()
+        record1 = await rs1.first_or_raise()
         assert record1 is not None
-        assert record1.bins["counter"] == 15
-        
+        assert record1.record.bins["counter"] == 15
+
         # Verify delete worked
-        record2 = await session.key_value(key=key2).get()
-        assert record2 is None
-        
+        exists_stream = await session.exists(key2).respond_all_keys().execute()
+        result = await exists_stream.first()
+        assert result is not None and result.as_bool() is False
+
         # Verify insert worked
-        record3 = await session.key_value(key=key3).get()
+        rs3 = await session.query(key3).execute()
+        record3 = await rs3.first_or_raise()
         assert record3 is not None
-        assert record3.bins["status"] == "new"
-        
+        assert record3.record.bins["status"] == "new"
+
         # Cleanup
-        await session.delete(key1).delete()
-        await session.delete(key3).delete()
+        await session.delete(key1).execute()
+        await session.delete(key3).execute()
 
     async def test_batch_upsert_operations(self, client: FluentClient, users: DataSet):
         """Test batch upsert operations."""
@@ -170,9 +176,10 @@ class TestBatchOperations:
         )
         
         # Verify initial values
-        record1 = await session.key_value(key=key1).get()
-        assert record1.bins["value"] == "initial1"
-        
+        rs1 = await session.query(key1).execute()
+        record1 = await rs1.first_or_raise()
+        assert record1.record.bins["value"] == "initial1"
+
         # Second batch: update existing records (upsert)
         await (
             session.batch()
@@ -182,15 +189,17 @@ class TestBatchOperations:
         )
         
         # Verify updated values
-        record1 = await session.key_value(key=key1).get()
-        assert record1.bins["value"] == "updated1"
-        
-        record2 = await session.key_value(key=key2).get()
-        assert record2.bins["value"] == "updated2"
-        
+        rs1 = await session.query(key1).execute()
+        record1 = await rs1.first_or_raise()
+        assert record1.record.bins["value"] == "updated1"
+
+        rs2 = await session.query(key2).execute()
+        record2 = await rs2.first_or_raise()
+        assert record2.record.bins["value"] == "updated2"
+
         # Cleanup
-        await session.delete(key1).delete()
-        await session.delete(key2).delete()
+        await session.delete(key1).execute()
+        await session.delete(key2).execute()
 
     async def test_batch_delete_multiple_keys(self, client: FluentClient, users: DataSet):
         """Test deleting multiple records in a single batch."""
@@ -201,10 +210,10 @@ class TestBatchOperations:
         key3 = users.id("batch_del_3")
         
         # Setup: create records
-        await session.key_value(key=key1).put({"data": "1"})
-        await session.key_value(key=key2).put({"data": "2"})
-        await session.key_value(key=key3).put({"data": "3"})
-        
+        await session.upsert(key1).put({"data": "1"}).execute()
+        await session.upsert(key2).put({"data": "2"}).execute()
+        await session.upsert(key3).put({"data": "3"}).execute()
+
         # Delete all in one batch
         stream = await (
             session.batch()
@@ -218,9 +227,10 @@ class TestBatchOperations:
         assert len(results) == 3
         
         # Verify all deleted
-        assert await session.key_value(key=key1).get() is None
-        assert await session.key_value(key=key2).get() is None
-        assert await session.key_value(key=key3).get() is None
+        for k in (key1, key2, key3):
+            exists_stream = await session.exists(k).respond_all_keys().execute()
+            result = await exists_stream.first()
+            assert result is not None and result.as_bool() is False
 
     async def test_batch_empty_raises_error(self, client: FluentClient):
         """Test that executing an empty batch raises an error."""
@@ -237,9 +247,9 @@ class TestBatchOperations:
         key2 = users.id("batch_str_2")
         
         # Setup
-        await session.key_value(key=key1).put({"message": "Hello"})
-        await session.key_value(key=key2).put({"message": "World"})
-        
+        await session.upsert(key1).put({"message": "Hello"}).execute()
+        await session.upsert(key2).put({"message": "World"}).execute()
+
         # Append and prepend in batch
         await (
             session.batch()
@@ -249,15 +259,17 @@ class TestBatchOperations:
         )
         
         # Verify
-        record1 = await session.key_value(key=key1).get()
-        assert record1.bins["message"] == "Hello World"
-        
-        record2 = await session.key_value(key=key2).get()
-        assert record2.bins["message"] == "Hello World"
-        
+        rs1 = await session.query(key1).execute()
+        record1 = await rs1.first_or_raise()
+        assert record1.record.bins["message"] == "Hello World"
+
+        rs2 = await session.query(key2).execute()
+        record2 = await rs2.first_or_raise()
+        assert record2.record.bins["message"] == "Hello World"
+
         # Cleanup
-        await session.delete(key1).delete()
-        await session.delete(key2).delete()
+        await session.delete(key1).execute()
+        await session.delete(key2).execute()
 
 
 class TestHomogeneousBatchOperations:
@@ -285,16 +297,16 @@ class TestHomogeneousBatchOperations:
             list_data = [j * i for j in range(i)]
             
             if i != 6:
-                await session.key_value(key=key).put({
+                await session.upsert(key).put({
                     "bbin": f"{value_prefix}{i}",
                     "lbin": list_data,
-                })
+                }).execute()
             else:
                 # Record 6 has integer value instead of string
-                await session.key_value(key=key).put({
+                await session.upsert(key).put({
                     "bbin": i,
                     "lbin": list_data,
-                })
+                }).execute()
         
         yield {
             "session": session,
@@ -308,7 +320,7 @@ class TestHomogeneousBatchOperations:
         for i in range(1, size + 1):
             key = users.id(f"{key_prefix}{i}")
             try:
-                await session.delete(key).delete()
+                await session.delete(key).execute()
             except Exception:
                 pass
 
@@ -326,9 +338,10 @@ class TestHomogeneousBatchOperations:
         
         # Create list of keys
         keys = users.ids(*[f"{key_prefix}{i}" for i in range(1, size + 1)])
-        
+
         # Check existence of all keys
-        results = await (await session.exists(keys).respond_all_keys().execute()).collect()
+        stream = await session.exists(*keys).respond_all_keys().execute()
+        results = await stream.collect()
 
         assert len(results) == size
         for i, result in enumerate(results):
@@ -349,9 +362,9 @@ class TestHomogeneousBatchOperations:
         
         # Create list of keys
         keys = users.ids(*[f"{key_prefix}{i}" for i in range(1, size + 1)])
-        
+
         # Read all keys with specific bin
-        stream = await session.query(keys).bins(["bbin"]).execute()
+        stream = await session.query(*keys).bins(["bbin"]).execute()
 
         results = await stream.collect()
 
@@ -380,9 +393,9 @@ class TestHomogeneousBatchOperations:
         
         # Create list of keys
         keys = users.ids(*[f"{key_prefix}{i}" for i in range(1, size + 1)])
-        
+
         # Read headers only (no bins)
-        stream = await session.query(keys).with_no_bins().execute()
+        stream = await session.query(*keys).with_no_bins().execute()
 
         results = await stream.collect()
 
@@ -407,20 +420,23 @@ class TestHomogeneousBatchOperations:
         keys = users.ids(*[first_key + i for i in range(num_keys)])
         
         for i, key in enumerate(keys):
-            await session.key_value(key=key).put({"bbin": first_key + i})
-        
+            await session.upsert(key).put({"bbin": first_key + i}).execute()
+
         # Ensure keys exist
-        exists_results = await (await session.exists(keys).respond_all_keys().execute()).collect()
+        exists_stream = await session.exists(*keys).respond_all_keys().execute()
+        exists_results = await exists_stream.collect()
         assert len(exists_results) == num_keys
         for result in exists_results:
             assert result.as_bool() is True
 
         # Delete all keys using homogeneous batch delete
-        delete_results = await (await session.delete(keys).respond_all_keys().execute()).collect()
+        delete_stream = await session.delete(*keys).respond_all_keys().execute()
+        delete_results = await delete_stream.collect()
         assert len(delete_results) == num_keys
 
         # Ensure keys no longer exist
-        exists_after = await (await session.exists(keys).respond_all_keys().execute()).collect()
+        exists_after_stream = await session.exists(*keys).respond_all_keys().execute()
+        exists_after = await exists_after_stream.collect()
         assert len(exists_after) == num_keys
         for result in exists_after:
             assert result.as_bool() is False
@@ -436,12 +452,13 @@ class TestHomogeneousBatchOperations:
         key3 = users.id("vararg_exist_3")
         
         # Create some records
-        await session.key_value(key=key1).put({"data": "1"})
-        await session.key_value(key=key2).put({"data": "2"})
+        await session.upsert(key1).put({"data": "1"}).execute()
+        await session.upsert(key2).put({"data": "2"}).execute()
         # key3 intentionally not created
-        
-        # Check exists using varargs
-        results = await (await session.exists(key1, key2, key3).execute()).collect()
+
+        # Check exists using varargs (respond_all_keys to include non-existent key3)
+        stream = await session.exists(key1, key2, key3).respond_all_keys().execute()
+        results = await stream.collect()
 
         assert len(results) == 3
         assert results[0].as_bool() is True   # key1 exists
@@ -449,8 +466,8 @@ class TestHomogeneousBatchOperations:
         assert results[2].as_bool() is False  # key3 does not exist
         
         # Cleanup
-        await session.delete(key1).delete()
-        await session.delete(key2).delete()
+        await session.delete(key1).execute()
+        await session.delete(key2).execute()
 
     async def test_batch_delete_with_varargs(
         self, client: FluentClient, users: DataSet
@@ -463,17 +480,19 @@ class TestHomogeneousBatchOperations:
         key3 = users.id("vararg_del_3")
         
         # Create records
-        await session.key_value(key=key1).put({"data": "1"})
-        await session.key_value(key=key2).put({"data": "2"})
-        await session.key_value(key=key3).put({"data": "3"})
-        
+        await session.upsert(key1).put({"data": "1"}).execute()
+        await session.upsert(key2).put({"data": "2"}).execute()
+        await session.upsert(key3).put({"data": "3"}).execute()
+
         # Delete using varargs
-        results = await (await session.delete(key1, key2, key3).execute()).collect()
+        stream = await session.delete(key1, key2, key3).execute()
+        results = await stream.collect()
 
         assert len(results) == 3
 
         # Verify all deleted
-        exists_results = await (await session.exists(key1, key2, key3).execute()).collect()
+        exists_stream = await session.exists(key1, key2, key3).execute()
+        exists_results = await exists_stream.collect()
         for result in exists_results:
             assert result.as_bool() is False
 
@@ -489,7 +508,7 @@ class TestRecordResultIntegration:
         key_exists = users.id("rr_exists_yes")
         key_missing = users.id("rr_exists_no")
 
-        await session.key_value(key=key_exists).put({"v": 1})
+        await session.upsert(key_exists).put({"v": 1}).execute()
         try:
             await session.delete(key_missing).delete()
         except Exception:
@@ -508,7 +527,7 @@ class TestRecordResultIntegration:
         assert not results[1].is_ok
         assert results[1].result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
-        await session.delete(key_exists).delete()
+        await session.delete(key_exists).execute()
 
     async def test_or_raise_on_not_found_result(
         self, client: FluentClient, users: DataSet
@@ -518,9 +537,9 @@ class TestRecordResultIntegration:
         key_exists = users.id("rr_or_raise_ok")
         key_missing = users.id("rr_or_raise_fail")
 
-        await session.key_value(key=key_exists).put({"v": 1})
+        await session.upsert(key_exists).put({"v": 1}).execute()
         try:
-            await session.delete(key_missing).delete()
+            await session.delete(key_missing).execute()
         except Exception:
             pass
 
@@ -539,7 +558,7 @@ class TestRecordResultIntegration:
             results[1].or_raise()
         assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
-        await session.delete(key_exists).delete()
+        await session.delete(key_exists).execute()
 
     async def test_failures_filters_stream(
         self, client: FluentClient, users: DataSet
@@ -550,10 +569,10 @@ class TestRecordResultIntegration:
         key2 = users.id("rr_fail_filt_2")
         key3 = users.id("rr_fail_filt_3")
 
-        await session.key_value(key=key1).put({"v": 1})
-        await session.key_value(key=key2).put({"v": 2})
+        await session.upsert(key1).put({"v": 1}).execute()
+        await session.upsert(key2).put({"v": 2}).execute()
         try:
-            await session.delete(key3).delete()
+            await session.delete(key3).execute()
         except Exception:
             pass
 
@@ -567,8 +586,8 @@ class TestRecordResultIntegration:
         assert len(fails) == 1
         assert fails[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
-        await session.delete(key1).delete()
-        await session.delete(key2).delete()
+        await session.delete(key1).execute()
+        await session.delete(key2).execute()
 
     async def test_first_on_query_stream(
         self, client: FluentClient, users: DataSet
@@ -577,7 +596,7 @@ class TestRecordResultIntegration:
         session = client.create_session()
         key = users.id("rr_first")
 
-        await session.key_value(key=key).put({"v": 42})
+        await session.upsert(key).put({"v": 42}).execute()
 
         stream = await session.query(key).execute()
         result = await stream.first()
@@ -586,7 +605,7 @@ class TestRecordResultIntegration:
         assert result.is_ok
         assert result.record_or_raise().bins["v"] == 42
 
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_first_or_raise_on_batch_query_with_missing_key(
         self, client: FluentClient, users: DataSet
@@ -596,7 +615,7 @@ class TestRecordResultIntegration:
         key_missing = users.id("rr_first_or_raise_miss")
 
         try:
-            await session.delete(key_missing).delete()
+            await session.delete(key_missing).execute()
         except Exception:
             pass
 
@@ -617,7 +636,7 @@ class TestRecordResultIntegration:
         keys = users.ids(*[f"rr_del_{i}" for i in range(3)])
 
         for key in keys:
-            await session.key_value(key=key).put({"v": 1})
+            await session.upsert(key).put({"v": 1}).execute()
 
         stream = await session.delete(*keys).execute()
         results = await stream.collect()
@@ -636,7 +655,7 @@ class TestBatchExpressionOps:
         keys = [users.id(f"bexp_{i}") for i in range(3)]
 
         for i, key in enumerate(keys):
-            await session.key_value(key=key).put({"A": (i + 1) * 10})
+            await session.upsert(key).put({"A": (i + 1) * 10}).execute()
 
         stream = await (
             session.batch()
@@ -651,7 +670,7 @@ class TestBatchExpressionOps:
             assert r.is_ok
 
         for i, key in enumerate(keys):
-            rs = await session.query(key=key).bin("C").get().execute()
+            rs = await session.query(key).bin("C").get().execute()
             rec = await rs.first_or_raise()
             assert rec.record.bins["C"] == (i + 1) * 10 + 1
 
@@ -660,8 +679,8 @@ class TestBatchExpressionOps:
         session = client.create_session()
         keys = [users.id(f"bexp_sel_{i}") for i in range(2)]
 
-        await session.key_value(key=keys[0]).put({"A": 5, "B": 3})
-        await session.key_value(key=keys[1]).put({"A": 10, "B": 7})
+        await session.upsert(keys[0]).put({"A": 5, "B": 3}).execute()
+        await session.upsert(keys[1]).put({"A": 10, "B": 7}).execute()
 
         stream = await (
             session.batch()
@@ -681,7 +700,7 @@ class TestBatchExpressionOps:
         session = client.create_session()
         key = users.id("bexp_mixed")
 
-        await session.key_value(key=key).put({"A": 10})
+        await session.upsert(key).put({"A": 10}).execute()
 
         stream = await (
             session.batch()
@@ -694,7 +713,7 @@ class TestBatchExpressionOps:
         assert len(results) == 1
         assert results[0].is_ok
 
-        rs = await session.query(key=key).bin("tag").get().bin("doubled").get().execute()
+        rs = await session.query(key).bin("tag").get().bin("doubled").get().execute()
         rec = await rs.first_or_raise()
         assert rec.record.bins["tag"] == "done"
         assert rec.record.bins["doubled"] == 20

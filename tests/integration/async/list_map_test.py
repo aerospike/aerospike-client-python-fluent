@@ -45,7 +45,7 @@ class TestListMap:
 
         # Delete if exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -56,7 +56,8 @@ class TestListMap:
         await session.upsert(key).bin(bin_name).set_to(list_data).execute()
 
         # Retrieve and verify
-        record = await session.key_value(key=key).get()
+        result = await (await session.query(key).execute()).first_or_raise()
+        record = result.record
         assert record is not None
         received_list = record.bins[bin_name]
         
@@ -66,7 +67,7 @@ class TestListMap:
         assert received_list[2] == "string3"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_list_complex(self, client: FluentClient, test_set: DataSet):
         """Test storing and retrieving a list with mixed types."""
@@ -76,7 +77,7 @@ class TestListMap:
 
         # Delete if exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -88,7 +89,8 @@ class TestListMap:
         await session.upsert(key).bin(bin_name).set_to(list_data).execute()
 
         # Retrieve and verify
-        record = await session.key_value(key=key).get()
+        result = await (await session.query(key).execute()).first_or_raise()
+        record = result.record
         assert record is not None
         received_list = record.bins[bin_name]
 
@@ -99,7 +101,7 @@ class TestListMap:
         assert received_list[2] == blob
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_map_strings(self, client: FluentClient, test_set: DataSet):
         """Test storing and retrieving a map of strings."""
@@ -109,7 +111,7 @@ class TestListMap:
 
         # Delete if exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -124,7 +126,8 @@ class TestListMap:
         await session.upsert(key).bin(bin_name).set_to(map_data).execute()
 
         # Retrieve and verify
-        record = await session.key_value(key=key).get()
+        result = await (await session.query(key).execute()).first_or_raise()
+        record = result.record
         assert record is not None
         received_map = record.bins[bin_name]
 
@@ -134,7 +137,7 @@ class TestListMap:
         assert received_map["key3"] == "string3"
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_map_complex(self, client: FluentClient, test_set: DataSet):
         """Test storing and retrieving a map with mixed types."""
@@ -144,14 +147,14 @@ class TestListMap:
 
         # Delete if exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
         # Create complex map
         blob = bytes([3, 52, 125])
         inner_list = [100034, 12384955, 3, 512]
-        
+
         map_data = {
             "key1": "string1",
             "key2": 2,
@@ -165,7 +168,8 @@ class TestListMap:
         await session.upsert(key).bin(bin_name).set_to(map_data).execute()
 
         # Retrieve and verify
-        record = await session.key_value(key=key).get()
+        result = await (await session.query(key).execute()).first_or_raise()
+        record = result.record
         assert record is not None
         received_map = record.bins[bin_name]
 
@@ -185,7 +189,7 @@ class TestListMap:
         assert received_map["key6"] is False
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()
 
     async def test_list_map_combined(self, client: FluentClient, test_set: DataSet):
         """Test storing and retrieving nested lists and maps."""
@@ -195,7 +199,7 @@ class TestListMap:
 
         # Delete if exists
         try:
-            await session.delete(key).delete()
+            await session.delete(key).execute()
         except Exception:
             pass
 
@@ -208,14 +212,15 @@ class TestListMap:
             3: blob,
             "list": inner_list
         }
-        
+
         list_data = ["string1", 8, inner_list, inner_map]
 
         # Store
         await session.upsert(key).bin(bin_name).set_to(list_data).execute()
 
         # Retrieve and verify
-        record = await session.key_value(key=key).get()
+        result = await (await session.query(key).execute()).first_or_raise()
+        record = result.record
         assert record is not None
         received = record.bins[bin_name]
 
@@ -240,4 +245,4 @@ class TestListMap:
         assert received_inner2[1] == 5
 
         # Cleanup
-        await session.delete(key).delete()
+        await session.delete(key).execute()

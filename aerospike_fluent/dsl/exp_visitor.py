@@ -2556,6 +2556,25 @@ class ExpressionConditionVisitor(ConditionVisitor):
         resolved = [_resolve_for_arithmetic(v, has_float=has_float) for v in visited]
         return FilterExpression.min(resolved)
 
+    def visitCountOneBitsFunction(self, ctx: ConditionParser.CountOneBitsFunctionContext) -> FilterExpression:
+        arg = self.visit(ctx.expression())
+        resolved = _resolve_for_arithmetic(arg, has_float=False)
+        return FilterExpression.int_count(resolved)
+
+    def visitFindBitLeftFunction(self, ctx: ConditionParser.FindBitLeftFunctionContext) -> FilterExpression:
+        value = self.visit(ctx.expression(0))
+        search = self.visit(ctx.expression(1))
+        resolved_value = _resolve_for_arithmetic(value, has_float=False)
+        resolved_search = _resolve_for_arithmetic(search, has_float=False)
+        return FilterExpression.int_lscan(resolved_value, resolved_search)
+
+    def visitFindBitRightFunction(self, ctx: ConditionParser.FindBitRightFunctionContext) -> FilterExpression:
+        value = self.visit(ctx.expression(0))
+        search = self.visit(ctx.expression(1))
+        resolved_value = _resolve_for_arithmetic(value, has_float=False)
+        resolved_search = _resolve_for_arithmetic(search, has_float=False)
+        return FilterExpression.int_rscan(resolved_value, resolved_search)
+
     def _operand_to_python_value(self, oper_ctx: ConditionParser.OperandContext) -> Any:
         """Extract a Python value from an operand that must be a constant (for list/map literals)."""
         if oper_ctx.numberOperand() is not None:
@@ -2569,13 +2588,19 @@ class ExpressionConditionVisitor(ConditionVisitor):
         if oper_ctx.booleanOperand() is not None:
             return oper_ctx.booleanOperand().getText().lower() == "true"
         if oper_ctx.listConstant() is not None:
+            lc = oper_ctx.listConstant()
+            if lc.LIST_TYPE_DESIGNATOR() is not None:
+                return []
             return [
                 self._operand_to_python_value(o)
-                for o in oper_ctx.listConstant().operand()
+                for o in lc.operand()
             ]
         if oper_ctx.orderedMapConstant() is not None:
+            omc = oper_ctx.orderedMapConstant()
+            if omc.MAP_TYPE_DESIGNATOR() is not None:
+                return {}
             result: dict = {}
-            for pair in oper_ctx.orderedMapConstant().mapPairConstant():
+            for pair in omc.mapPairConstant():
                 key_oper = pair.mapKeyOperand()
                 if key_oper.intOperand() is not None:
                     key = int(key_oper.intOperand().getText(), 0)
@@ -2589,7 +2614,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
         )
 
     def visitListConstant(self, ctx: ConditionParser.ListConstantContext) -> ExprOrDeferred:
-        """Visit list constant: [val1, val2, ...]"""
+        """Visit list constant: [val1, val2, ...] or [] (empty)"""
+        if ctx.LIST_TYPE_DESIGNATOR() is not None:
+            return TypedExpr(FilterExpression.list_val([]), InferredType.LIST)
         values: List[Any] = []
         for oper_ctx in ctx.operand():
             values.append(self._operand_to_python_value(oper_ctx))
@@ -2597,7 +2624,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
         return TypedExpr(expr, InferredType.LIST)
 
     def visitOrderedMapConstant(self, ctx: ConditionParser.OrderedMapConstantContext) -> ExprOrDeferred:
-        """Visit ordered map constant: {key1: val1, key2: val2, ...}"""
+        """Visit ordered map constant: {key1: val1, key2: val2, ...} or {} (empty)"""
+        if ctx.MAP_TYPE_DESIGNATOR() is not None:
+            return TypedExpr(FilterExpression.map_val({}), InferredType.MAP)
         result: dict = {}
         for pair in ctx.mapPairConstant():
             key_oper = pair.mapKeyOperand()

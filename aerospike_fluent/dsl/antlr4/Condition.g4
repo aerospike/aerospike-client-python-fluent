@@ -95,6 +95,9 @@ functionCall
     | 'pow' '(' expression ',' expression ')'                                   # PowFunction
     | 'max' '(' expression (',' expression)+ ')'                                # MaxFunction
     | 'min' '(' expression (',' expression)+ ')'                                # MinFunction
+    | 'countOneBits' '(' expression ')'                                          # CountOneBitsFunction
+    | 'findBitLeft' '(' expression ',' expression ')'                            # FindBitLeftFunction
+    | 'findBitRight' '(' expression ',' expression ')'                           # FindBitRightFunction
     ;
 
 numberOperand: intOperand | floatOperand;
@@ -114,9 +117,9 @@ stringOperand: QUOTED_STRING;
 
 QUOTED_STRING: ('\'' (~'\'')* '\'') | ('"' (~'"')* '"');
 
-listConstant: '[' operand? (',' operand)* ']';
+listConstant: LIST_TYPE_DESIGNATOR | '[' operand (',' operand)* ']';
 
-orderedMapConstant: '{' mapPairConstant? (',' mapPairConstant)* '}';
+orderedMapConstant: MAP_TYPE_DESIGNATOR | '{' mapPairConstant (',' mapPairConstant)* '}';
 
 mapPairConstant: mapKeyOperand ':' operand;
 

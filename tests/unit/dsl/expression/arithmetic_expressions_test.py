@@ -654,3 +654,86 @@ class TestNumberLiterals:
         )
         result = parse_dsl("(0x1 << 8) == 0x100")
         assert result == expected
+
+
+class TestBitScanFunctions:
+    """Test countOneBits, findBitLeft, findBitRight DSL functions."""
+
+    # --- countOneBits ---
+    def test_count_one_bits_literal(self):
+        """Spec: countOneBits(-1) == 64"""
+        expected = Exp.eq(
+            Exp.int_count(Exp.int_val(-1)),
+            Exp.int_val(64)
+        )
+        result = parse_dsl("countOneBits(-1) == 64")
+        assert result == expected
+
+    def test_count_one_bits_bin(self):
+        expected = Exp.eq(
+            Exp.int_count(Exp.int_bin("A")),
+            Exp.int_val(1)
+        )
+        result = parse_dsl("countOneBits($.A) == 1")
+        assert result == expected
+
+    def test_count_one_bits_in_comparison(self):
+        expected = Exp.gt(
+            Exp.int_count(Exp.int_bin("flags")),
+            Exp.int_val(3)
+        )
+        result = parse_dsl("countOneBits($.flags) > 3")
+        assert result == expected
+
+    # --- findBitLeft ---
+    def test_find_bit_left_true(self):
+        """Spec: findBitLeft(30, true)"""
+        expected = Exp.eq(
+            Exp.int_lscan(Exp.int_val(30), Exp.bool_val(True)),
+            Exp.int_val(58)
+        )
+        result = parse_dsl("findBitLeft(30, true) == 58")
+        assert result == expected
+
+    def test_find_bit_left_bin(self):
+        expected = Exp.eq(
+            Exp.int_lscan(Exp.int_bin("A"), Exp.bool_val(True)),
+            Exp.int_val(63)
+        )
+        result = parse_dsl("findBitLeft($.A, true) == 63")
+        assert result == expected
+
+    def test_find_bit_left_false(self):
+        expected = Exp.lt(
+            Exp.int_lscan(Exp.int_bin("mask"), Exp.bool_val(False)),
+            Exp.int_val(10)
+        )
+        result = parse_dsl("findBitLeft($.mask, false) < 10")
+        assert result == expected
+
+    # --- findBitRight ---
+    def test_find_bit_right_true(self):
+        """Spec: findBitRight(27, false)"""
+        expected = Exp.eq(
+            Exp.int_rscan(Exp.int_val(27), Exp.bool_val(False)),
+            Exp.int_val(61)
+        )
+        result = parse_dsl("findBitRight(27, false) == 61")
+        assert result == expected
+
+    def test_find_bit_right_bin(self):
+        expected = Exp.eq(
+            Exp.int_rscan(Exp.int_bin("A"), Exp.bool_val(True)),
+            Exp.int_val(63)
+        )
+        result = parse_dsl("findBitRight($.A, true) == 63")
+        assert result == expected
+
+    def test_find_bit_right_nested(self):
+        """countOneBits nested inside findBitRight comparison."""
+        expected = Exp.gt(
+            Exp.int_rscan(Exp.int_bin("val"), Exp.bool_val(True)),
+            Exp.int_count(Exp.int_bin("val"))
+        )
+        result = parse_dsl("findBitRight($.val, true) > countOneBits($.val)")
+        assert result == expected

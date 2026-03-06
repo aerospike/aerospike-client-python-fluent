@@ -17,7 +17,7 @@
 
 from aerospike_async import AuthMode
 
-from aerospike_fluent.aio import FluentClient, KeyValueService, Session, TransactionalSession, ClusterDefinition, Host
+from aerospike_fluent.aio import FluentClient, Session, TransactionalSession, ClusterDefinition, Host
 from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.dsl.exceptions import DslParseException
 from aerospike_fluent.dsl.filter_gen import Index, IndexContext, IndexTypeEnum, ParseResult
@@ -38,6 +38,7 @@ from aerospike_fluent.exceptions import (
     SerializationError,
     TimeoutError,
 )
+from aerospike_fluent.error_strategy import ErrorHandler, ErrorStrategy, OnError
 from aerospike_fluent.exp import Exp, val
 from aerospike_fluent.policy.behavior import Behavior
 from aerospike_fluent.record_result import RecordResult
@@ -59,6 +60,8 @@ __all__ = [
     "ConnectionError",
     "DataSet",
     "DslParseException",
+    "ErrorHandler",
+    "ErrorStrategy",
     "Exp",
     "FluentClient",
     "GenerationError",
@@ -68,7 +71,7 @@ __all__ = [
     "IndexTypeEnum",
     "InvalidNamespaceError",
     "InvalidNodeError",
-    "KeyValueService",
+    "OnError",
     "parse_ctx",
     "parse_dsl",
     "parse_dsl_with_index",

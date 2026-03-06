@@ -20,7 +20,7 @@ from __future__ import annotations
 import typing
 from typing import Awaitable, Dict, List, Optional, overload, Union
 
-from aerospike_async import Key, RecordExistsAction, WritePolicy
+from aerospike_async import Key
 
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.dataset import DataSet
@@ -28,13 +28,9 @@ from aerospike_fluent.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
     from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
-    from aerospike_fluent.aio.operations.batch_delete import BatchDeleteOperation
-    from aerospike_fluent.aio.operations.batch_exists import BatchExistsOperation
-    from aerospike_fluent.aio.operations.key_value import KeyValueOperation
-    from aerospike_fluent.aio.operations.query import QueryBuilder
+    from aerospike_fluent.aio.operations.query import QueryBuilder, WriteSegmentBuilder
     from aerospike_fluent.aio.operations.index import IndexBuilder
-    from aerospike_fluent.aio.services.key_value_service import KeyValueService
-    from aerospike_fluent.aio.services.transactional_session import TransactionalSession
+    from aerospike_fluent.aio.transactional_session import TransactionalSession
     from aerospike_fluent.aio.info import InfoCommands
 
 
@@ -49,29 +45,13 @@ class Session:
     Sessions are lightweight and can be created multiple times from the
     same client, each with different behaviors for different use cases.
 
-    Example:
-        ```python
-        # Create a session with default behavior
+    Example::
+
         async with FluentClient("localhost:3000") as client:
             session = client.create_session(Behavior.DEFAULT)
 
-            # Use session for operations
-            record = await session.key_value(
-                namespace="test",
-                set_name="users",
-                key="user123"
-            ).get()
-
-        # Create different sessions for different use cases
-        fast_session = client.create_session(Behavior.DEFAULT.derive_with_changes(
-            name="fast",
-            total_timeout=timedelta(seconds=5)
-        ))
-        durable_session = client.create_session(Behavior.DEFAULT.derive_with_changes(
-            name="durable",
-            max_retries=5
-        ))
-        ```
+            rs = await session.query(users.id(1)).execute()
+            await session.upsert(users.id(2)).bin("name").set_to("Tim").execute()
     """
 
     def __init__(self, client: FluentClient, behavior: Behavior) -> None:
@@ -116,7 +96,7 @@ class Session:
             # Chain multiple operations across different keys
             results = await session.batch() \\
                 .insert(key1).bin("name").set_to("Alice").bin("age").set_to(25) \\
-                .update(key2).bin("counter").increment_by(1) \\
+                .update(key2).bin("counter").add(1) \\
                 .upsert(key3).put({"status": "active"}) \\
                 .delete(key4) \\
                 .execute()
@@ -133,61 +113,81 @@ class Session:
 
         return BatchOperationBuilder(self._client._client, self._behavior)
 
-    @typing.overload
-    def key_value(
-        self,
-        *,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create a key-value operation builder from a Key object."""
-        ...
+    # -- Internal helpers -----------------------------------------------------
 
-    @typing.overload
-    def key_value(
+    def _resolve_keys(
         self,
-        *,
-        dataset: DataSet,
-        key: Union[str, int, bytes],
-    ) -> KeyValueOperation:
-        """Create a key-value operation builder using a DataSet."""
-        ...
-
-    @typing.overload
-    def key_value(
-        self,
-        namespace: str,
-        set_name: str,
-        key: Union[str, int],
-    ) -> KeyValueOperation:
-        """Create a key-value operation builder with explicit namespace/set."""
-        ...
-
-    def key_value(
-        self,
+        arg1: Optional[Union[Key, List[Key]]] = None,
+        arg2: Optional[Key] = None,
+        *more_keys: Key,
+        key: Optional[Key] = None,
+        dataset: Optional[DataSet] = None,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
-        key: Optional[Union[str, int, bytes, Key]] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-    ) -> KeyValueOperation:
-        """
-        Create a key-value operation builder.
+        key_value: Optional[Union[str, int, bytes]] = None,
+    ) -> List[Key]:
+        """Resolve mixed positional/keyword arguments into a flat list of Keys."""
+        all_keys: List[Key] = []
 
-        See FluentClient.key_value() for full documentation.
-        """
-        if isinstance(key, Key):
-            return self._client.key_value(key=key, behavior=self._behavior)
-        elif dataset is not None and key is not None:
-            return self._client.key_value(dataset=dataset, key=key, behavior=self._behavior)
-        elif namespace is not None and set_name is not None and key is not None:
-            return self._client.key_value(namespace, set_name, key, behavior=self._behavior)
-        else:
-            raise ValueError(
-                "Invalid arguments. Use one of:\n"
-                "  - key_value(key=Key(...))\n"
-                "  - key_value(dataset=DataSet(...), key=...)\n"
-                "  - key_value(namespace=..., set_name=..., key=...)"
-            )
+        if arg1 is not None:
+            if isinstance(arg1, Key):
+                all_keys.append(arg1)
+                if isinstance(arg2, Key):
+                    all_keys.append(arg2)
+                all_keys.extend(more_keys)
+            elif isinstance(arg1, list):
+                if not arg1:
+                    raise ValueError("keys list cannot be empty")
+                all_keys.extend(arg1)
+            else:
+                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
+        elif key is not None:
+            all_keys.append(key)
+        elif key_value is not None:
+            if dataset is not None:
+                all_keys.append(dataset.id(key_value))
+            elif namespace is not None and set_name is not None:
+                all_keys.append(Key(namespace, set_name, key_value))
+            else:
+                raise ValueError(
+                    "Either dataset or (namespace and set_name) must be provided with key_value"
+                )
+
+        if not all_keys:
+            raise ValueError("At least one key must be provided")
+        return all_keys
+
+    def _build_write_segment(
+        self,
+        op_type: str,
+        arg1: Optional[Union[Key, List[Key]]] = None,
+        arg2: Optional[Key] = None,
+        *more_keys: Key,
+        key: Optional[Key] = None,
+        dataset: Optional[DataSet] = None,
+        namespace: Optional[str] = None,
+        set_name: Optional[str] = None,
+        key_value: Optional[Union[str, int, bytes]] = None,
+    ) -> WriteSegmentBuilder:
+        """Resolve keys and create a :class:`WriteSegmentBuilder`."""
+        from aerospike_fluent.aio.operations.query import QueryBuilder
+
+        all_keys = self._resolve_keys(
+            arg1, arg2, *more_keys,
+            key=key, dataset=dataset,
+            namespace=namespace, set_name=set_name, key_value=key_value,
+        )
+        first = all_keys[0]
+        qb = QueryBuilder(
+            client=self._client._client,
+            namespace=first.namespace,
+            set_name=first.set_name,
+            behavior=self._behavior,
+        )
+        target: Union[Key, List[Key]] = all_keys[0] if len(all_keys) == 1 else all_keys
+        return qb._start_write_verb(op_type, target)
+
+    # -- Read entry point -----------------------------------------------------
 
     @typing.overload
     def query(
@@ -336,47 +336,6 @@ class Session:
                 "  - index(namespace=..., set_name=...)"
             )
 
-    @typing.overload
-    def key_value_service(
-        self,
-        *,
-        dataset: DataSet,
-    ) -> KeyValueService:
-        """Create a key-value service from a DataSet."""
-        ...
-
-    @typing.overload
-    def key_value_service(
-        self,
-        namespace: str,
-        set_name: str,
-    ) -> KeyValueService:
-        """Create a key-value service with explicit namespace/set."""
-        ...
-
-    def key_value_service(
-        self,
-        namespace: Optional[str] = None,
-        set_name: Optional[str] = None,
-        *,
-        dataset: Optional[DataSet] = None,
-    ) -> KeyValueService:
-        """
-        Create a key-value service with shared namespace and set context.
-
-        See FluentClient.key_value_service() for full documentation.
-        """
-        if dataset is not None:
-            return self._client.key_value_service(dataset=dataset)
-        elif namespace is not None and set_name is not None:
-            return self._client.key_value_service(namespace, set_name)
-        else:
-            raise ValueError(
-                "Invalid arguments. Use either:\n"
-                "  - key_value_service(dataset=DataSet(...))\n"
-                "  - key_value_service(namespace=..., set_name=...)"
-            )
-
     def transaction_session(self) -> TransactionalSession:
         """
         Create a transactional session.
@@ -494,8 +453,8 @@ class Session:
         Example:
             ```python
             async def transfer_funds(tx_session):
-                await tx_session.key_value("test", "accounts", "acc1").put({"balance": 100})
-                await tx_session.key_value("test", "accounts", "acc2").put({"balance": 200})
+                await tx_session.upsert(accounts.id("acc1")).put({"balance": 100}).execute()
+                await tx_session.upsert(accounts.id("acc2")).put({"balance": 200}).execute()
 
             await session.do_in_transaction(transfer_funds)
             ```
@@ -505,32 +464,7 @@ class Session:
         async with self.transaction_session() as tx_session:
             return await operation(tx_session)
 
-    # Convenience methods for write operations
-    @typing.overload
-    def upsert(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create an upsert operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def upsert(
-        self,
-        keys: List[Key],
-    ) -> KeyValueOperation:
-        """Create an upsert operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def upsert(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> KeyValueOperation:
-        """Create an upsert operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
+    # -- Write entry points ---------------------------------------------------
 
     def upsert(
         self,
@@ -542,99 +476,21 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> KeyValueOperation:
+    ) -> WriteSegmentBuilder:
+        """Create an upsert (create or update) write segment.
+
+        Returns a :class:`WriteSegmentBuilder` for chaining bin writes,
+        policies, and ``execute()``.
+
+        Example::
+
+            await session.upsert(users.id(1)).bin("name").set_to("Tim").execute()
         """
-        Create an upsert (create or update) operation builder.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `upsert(key)`
-        2. Positional List[Key]: `upsert([key1, key2])` (returns first key's operation)
-        3. Varargs Keys: `upsert(key1, key2, key3)` (returns first key's operation)
-        4. Keyword arguments (legacy): `upsert(key=key)`, `upsert(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            A KeyValueOperation builder for chaining operations.
-
-        Example:
-            ```python
-            users = DataSet.of("test", "users")
-            key = users.id("user123")
-
-            # Single key (positional)
-            await session.upsert(key).put({"name": "John", "age": 30})
-
-            # Keyword arguments (legacy)
-            await session.upsert(key=key).put({"name": "John", "age": 30})
-            await session.upsert(dataset=users, key_value="user123").put({"name": "John"})
-            ```
-        """
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            # Check if it's a single Key
-            if isinstance(arg1, Key):
-                # If arg2 is also a Key, or there are varargs, treat as multiple keys
-                # For now, multiple keys not fully supported - return first key's operation
-                # TODO: Add batch upsert support
-                return self.key_value(key=arg1)
-            # Check if it's a List[Key]
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                # For now, return first key's operation
-                # TODO: Add batch upsert support
-                return self.key_value(key=arg1[0])
-
-        # Fall back to keyword arguments (legacy style)
-        if key is not None:
-            return self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                return self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                return self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
-
-    @typing.overload
-    def insert(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create an insert operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def insert(
-        self,
-        keys: List[Key],
-    ) -> KeyValueOperation:
-        """Create an insert operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def insert(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> KeyValueOperation:
-        """Create an insert operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
+        return self._build_write_segment(
+            "upsert", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     def insert(
         self,
@@ -646,85 +502,13 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> KeyValueOperation:
-        """
-        Create an insert (create only) operation builder.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `insert(key)`
-        2. Positional List[Key]: `insert([key1, key2])` (returns first key's operation)
-        3. Varargs Keys: `insert(key1, key2, key3)` (returns first key's operation)
-        4. Keyword arguments (legacy): `insert(key=key)`, `insert(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            A KeyValueOperation builder for chaining operations.
-        """
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            if isinstance(arg1, Key):
-                op = self.key_value(key=arg1)
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                op = self.key_value(key=arg1[0])
-            else:
-                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
-        elif key is not None:
-            op = self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                op = self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                op = self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
-
-        # Set write policy to CreateOnly for insert semantics
-        if op._write_policy is None:
-            op._write_policy = WritePolicy()
-        op._write_policy.record_exists_action = RecordExistsAction.CREATE_ONLY
-        return op
-
-    @typing.overload
-    def update(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create an update operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def update(
-        self,
-        keys: List[Key],
-    ) -> KeyValueOperation:
-        """Create an update operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def update(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> KeyValueOperation:
-        """Create an update operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
+    ) -> WriteSegmentBuilder:
+        """Create an insert (create-only) write segment."""
+        return self._build_write_segment(
+            "insert", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     def update(
         self,
@@ -736,85 +520,13 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> KeyValueOperation:
-        """
-        Create an update (update only) operation builder.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `update(key)`
-        2. Positional List[Key]: `update([key1, key2])` (returns first key's operation)
-        3. Varargs Keys: `update(key1, key2, key3)` (returns first key's operation)
-        4. Keyword arguments (legacy): `update(key=key)`, `update(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            A KeyValueOperation builder for chaining operations.
-        """
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            if isinstance(arg1, Key):
-                op = self.key_value(key=arg1)
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                op = self.key_value(key=arg1[0])
-            else:
-                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
-        elif key is not None:
-            op = self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                op = self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                op = self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
-
-        # Set write policy to UpdateOnly for update semantics
-        if op._write_policy is None:
-            op._write_policy = WritePolicy()
-        op._write_policy.record_exists_action = RecordExistsAction.UPDATE_ONLY
-        return op
-
-    @typing.overload
-    def replace(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create a replace operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def replace(
-        self,
-        keys: List[Key],
-    ) -> KeyValueOperation:
-        """Create a replace operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def replace(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> KeyValueOperation:
-        """Create a replace operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
+    ) -> WriteSegmentBuilder:
+        """Create an update (update-only) write segment."""
+        return self._build_write_segment(
+            "update", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     def replace(
         self,
@@ -826,85 +538,13 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> KeyValueOperation:
-        """
-        Create a replace (replace only) operation builder.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `replace(key)`
-        2. Positional List[Key]: `replace([key1, key2])` (returns first key's operation)
-        3. Varargs Keys: `replace(key1, key2, key3)` (returns first key's operation)
-        4. Keyword arguments (legacy): `replace(key=key)`, `replace(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            A KeyValueOperation builder for chaining operations.
-        """
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            if isinstance(arg1, Key):
-                op = self.key_value(key=arg1)
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                op = self.key_value(key=arg1[0])
-            else:
-                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
-        elif key is not None:
-            op = self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                op = self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                op = self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
-
-        # Set write policy to Replace for replace semantics (create or replace)
-        if op._write_policy is None:
-            op._write_policy = WritePolicy()
-        op._write_policy.record_exists_action = RecordExistsAction.REPLACE
-        return op
-
-    @typing.overload
-    def replace_if_exists(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create a replace-if-exists operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def replace_if_exists(
-        self,
-        keys: List[Key],
-    ) -> KeyValueOperation:
-        """Create a replace-if-exists operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def replace_if_exists(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> KeyValueOperation:
-        """Create a replace-if-exists operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
+    ) -> WriteSegmentBuilder:
+        """Create a replace write segment."""
+        return self._build_write_segment(
+            "replace", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     def replace_if_exists(
         self,
@@ -916,97 +556,13 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> KeyValueOperation:
-        """
-        Create a replace-if-exists (replace only if record exists) operation builder.
-
-        This operation will fail if the record does not exist.
-        All bins not in the write command will be deleted.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `replace_if_exists(key)`
-        2. Positional List[Key]: `replace_if_exists([key1, key2])` (returns first key's operation)
-        3. Varargs Keys: `replace_if_exists(key1, key2, key3)` (returns first key's operation)
-        4. Keyword arguments (legacy): `replace_if_exists(key=key)`, `replace_if_exists(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            A KeyValueOperation builder for chaining operations.
-
-        Example:
-            ```python
-            users = DataSet.of("test", "users")
-            key = users.id("user123")
-
-            # Replace only if exists - fails if record doesn't exist
-            await session.replace_if_exists(key).put({"name": "New Name", "status": "updated"})
-            ```
-        """
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            if isinstance(arg1, Key):
-                op = self.key_value(key=arg1)
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                op = self.key_value(key=arg1[0])
-            else:
-                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
-        elif key is not None:
-            op = self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                op = self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                op = self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
-
-        # Set write policy to ReplaceOnly - fail if record doesn't exist
-        if op._write_policy is None:
-            op._write_policy = WritePolicy()
-        op._write_policy.record_exists_action = RecordExistsAction.REPLACE_ONLY
-        return op
-
-    @typing.overload
-    def delete(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create a delete operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def delete(
-        self,
-        keys: List[Key],
-    ) -> "BatchDeleteOperation":
-        """Create a batch delete operation builder for multiple Keys."""
-        ...
-
-    @typing.overload
-    def delete(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "BatchDeleteOperation":
-        """Create a batch delete operation builder for multiple Keys (varargs)."""
-        ...
+    ) -> WriteSegmentBuilder:
+        """Create a replace-if-exists write segment."""
+        return self._build_write_segment(
+            "replace_if_exists", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     def delete(
         self,
@@ -1018,110 +574,19 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> Union[KeyValueOperation, "BatchDeleteOperation"]:
+    ) -> WriteSegmentBuilder:
+        """Create a delete write segment.
+
+        Example::
+
+            await session.delete(users.id(1)).execute()
+            await session.delete(users.ids(1, 2, 3)).execute()
         """
-        Create a delete operation builder.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `delete(key)`
-        2. Positional List[Key]: `delete([key1, key2])`
-        3. Varargs Keys: `delete(key1, key2, key3)`
-        4. Keyword arguments (legacy): `delete(key=key)`, `delete(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            KeyValueOperation for single key, BatchDeleteOperation for multiple keys.
-
-        Example:
-            ```python
-            users = DataSet.of("test", "users")
-            key = users.id("user123")
-
-            # Single key (positional)
-            await session.delete(key).delete()
-
-            # Multiple keys (List)
-            await session.delete([key1, key2, key3]).execute()
-
-            # Multiple keys (varargs)
-            await session.delete(key1, key2, key3).execute()
-
-            # Keyword arguments (legacy)
-            await session.delete(key=key).delete()
-            await session.delete(dataset=users, key_value="user123").delete()
-            ```
-        """
-        from aerospike_fluent.aio.operations.batch_delete import BatchDeleteOperation
-
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            # Check if it's a single Key
-            if isinstance(arg1, Key):
-                # If arg2 is also a Key, or there are varargs, treat as multiple keys
-                if isinstance(arg2, Key) or keys:
-                    all_keys = [arg1]
-                    if isinstance(arg2, Key):
-                        all_keys.append(arg2)
-                    if keys:
-                        all_keys.extend(keys)
-                    return BatchDeleteOperation(self._client._async_client, all_keys, self._behavior)
-                else:
-                    return self.key_value(key=arg1)
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                return BatchDeleteOperation(self._client._async_client, arg1, self._behavior)
-
-        # Fall back to keyword arguments (legacy style)
-        if key is not None:
-            return self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                return self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                return self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
-
-    @typing.overload
-    def touch(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create a touch operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def touch(
-        self,
-        keys: List[Key],
-    ) -> KeyValueOperation:
-        """Create a touch operation builder for multiple Keys (returns first key's operation)."""
-        ...
-
-    @typing.overload
-    def touch(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> KeyValueOperation:
-        """Create a touch operation builder for multiple Keys (varargs, returns first key's operation)."""
-        ...
+        return self._build_write_segment(
+            "delete", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     def touch(
         self,
@@ -1133,91 +598,13 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> KeyValueOperation:
-        """
-        Create a touch (update TTL) operation builder.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `touch(key)`
-        2. Positional List[Key]: `touch([key1, key2])` (returns first key's operation)
-        3. Varargs Keys: `touch(key1, key2, key3)` (returns first key's operation)
-        4. Keyword arguments (legacy): `touch(key=key)`, `touch(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            A KeyValueOperation builder for chaining operations.
-
-        Example:
-            ```python
-            users = DataSet.of("test", "users")
-            key = users.id("user123")
-
-            # Single key (positional)
-            await session.touch(key).touch()
-
-            # Keyword arguments (legacy)
-            await session.touch(key=key).touch()
-            ```
-        """
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            if isinstance(arg1, Key):
-                return self.key_value(key=arg1)
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                return self.key_value(key=arg1[0])
-            else:
-                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
-        elif key is not None:
-            return self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                return self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                return self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
-
-    @typing.overload
-    def exists(
-        self,
-        key: Key,
-    ) -> KeyValueOperation:
-        """Create an exists operation builder for a single Key."""
-        ...
-
-    @typing.overload
-    def exists(
-        self,
-        keys: List[Key],
-    ) -> "BatchExistsOperation":
-        """Create a batch exists operation builder for multiple Keys."""
-        ...
-
-    @typing.overload
-    def exists(
-        self,
-        key1: Key,
-        key2: Key,
-        *keys: Key,
-    ) -> "BatchExistsOperation":
-        """Create a batch exists operation builder for multiple Keys (varargs)."""
-        ...
+    ) -> WriteSegmentBuilder:
+        """Create a touch (reset TTL) write segment."""
+        return self._build_write_segment(
+            "touch", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     def exists(
         self,
@@ -1229,81 +616,19 @@ class Session:
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
-    ) -> Union[KeyValueOperation, "BatchExistsOperation"]:
+    ) -> WriteSegmentBuilder:
+        """Create an exists-check write segment.
+
+        Example::
+
+            rs = await session.exists(users.id(1)).execute()
+            found = (await rs.first()).as_bool()
         """
-        Create an exists (check existence) operation builder.
-
-        Supports multiple calling styles:
-
-        1. Positional single Key: `exists(key)`
-        2. Positional List[Key]: `exists([key1, key2])`
-        3. Varargs Keys: `exists(key1, key2, key3)`
-        4. Keyword arguments (legacy): `exists(key=key)`, `exists(dataset=..., key_value=...)`
-
-        Args:
-            arg1: A Key object, List[Key], or None (for keyword args).
-            arg2: Second Key (for varargs).
-            *keys: Additional Keys (for varargs).
-            key: A Key object (keyword arg, preferred).
-            dataset: A DataSet to use for namespace/set.
-            namespace: The namespace name (if not using Key or DataSet).
-            set_name: The set name (if not using Key or DataSet).
-            key_value: The key value (if not using Key object).
-
-        Returns:
-            KeyValueOperation for single key, BatchExistsOperation for multiple keys.
-
-        Example:
-            ```python
-            users = DataSet.of("test", "users")
-            key = users.id("user123")
-
-            # Single key (positional)
-            exists = await session.exists(key).exists()
-
-            # Multiple keys - batch operation
-            results = await session.exists(users.ids("user1", "user2", "user3")).execute()
-            for exists in results:
-                print(f"exists: {exists}")
-            ```
-        """
-        from aerospike_fluent.aio.operations.batch_exists import BatchExistsOperation
-
-        # Handle positional arguments (fluent API)
-        if arg1 is not None:
-            # Check if it's a single Key
-            if isinstance(arg1, Key):
-                # If arg2 is also a Key, or there are varargs, treat as multiple keys
-                if isinstance(arg2, Key) or keys:
-                    all_keys = [arg1]
-                    if isinstance(arg2, Key):
-                        all_keys.append(arg2)
-                    if keys:
-                        all_keys.extend(keys)
-                    return BatchExistsOperation(self._client._client, all_keys, self._behavior)
-                else:
-                    return self.key_value(key=arg1)
-            elif isinstance(arg1, list):
-                if len(arg1) == 0:
-                    raise ValueError("keys list cannot be empty")
-                if not isinstance(arg1[0], Key):
-                    raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                return BatchExistsOperation(self._client._client, arg1, self._behavior)
-            else:
-                raise TypeError(f"Expected Key or List[Key], got {type(arg1)}")
-
-        # Fall back to keyword arguments (legacy style)
-        if key is not None:
-            return self.key_value(key=key)
-        elif key_value is not None:
-            if dataset is not None:
-                return self.key_value(dataset=dataset, key=key_value)
-            elif namespace is not None and set_name is not None:
-                return self.key_value(namespace, set_name, key_value)
-            else:
-                raise ValueError("Either dataset or (namespace and set_name) must be provided with key_value")
-        else:
-            raise ValueError("Either key (Key object) or key_value must be provided")
+        return self._build_write_segment(
+            "exists", arg1, arg2, *keys,
+            key=key, dataset=dataset, namespace=namespace,
+            set_name=set_name, key_value=key_value,
+        )
 
     async def truncate(self, dataset: DataSet, before_nanos: Optional[int] = None) -> None:
         """
