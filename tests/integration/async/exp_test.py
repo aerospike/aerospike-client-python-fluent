@@ -1809,3 +1809,91 @@ class TestAdvancedExpFilters:
         cond_dsl = f"({when_expr}) == 2"
         await self._assert_filtered_out(session, key, f"not ({cond_dsl})")
         await self._assert_matches(session, key, cond_dsl, "A", 1)
+
+
+@pytest.mark.asyncio
+class TestInExpression:
+    """Test the IN operator: expression in expression → boolean.
+
+    Uses the client_with_cdt_data fixture which has:
+      rec1: names=["alice","bob","charlie"], numbers=[10,20,30,40,50]
+      rec2: names=["dave","eve"], numbers=[5,15,25,35,45]
+      rec3: names=["frank"], numbers=[100,200,300]
+    """
+
+    async def test_string_in_list_bin_with_exp(self, client_with_cdt_data):
+        """Filter: "bob" in $.names — should match rec1 only."""
+        from aerospike_async import ListReturnType
+        filter_exp = Exp.list_get_by_value(
+            ListReturnType.EXISTS,
+            Exp.string_val("bob"),
+            Exp.list_bin("names"),
+            [],
+        )
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .filter_expression(filter_exp)
+            .execute()
+        )
+        records = []
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
+        assert len(records) == 1
+        assert "bob" in records[0].bins["names"]
+
+    async def test_string_in_list_bin_with_dsl(self, client_with_cdt_data):
+        """Filter via DSL: "bob" in $.names — should match rec1 only."""
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .where('"bob" in $.names')
+            .execute()
+        )
+        records = []
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
+        assert len(records) == 1
+        assert "bob" in records[0].bins["names"]
+
+    async def test_int_in_list_bin_with_dsl(self, client_with_cdt_data):
+        """Filter via DSL: 20 in $.numbers — matches rec1 only (numbers=[10,20,30,40,50])."""
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .where("20 in $.numbers")
+            .execute()
+        )
+        records = []
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
+        assert len(records) == 1
+        assert 20 in records[0].bins["numbers"]
+
+    async def test_in_combined_with_and(self, client_with_cdt_data):
+        """Filter: "alice" in $.names and $.info.age == 30 — rec1 only."""
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .where('"alice" in $.names and $.info.age == 30')
+            .execute()
+        )
+        records = []
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
+        assert len(records) == 1
+        assert records[0].bins["info"]["name"] == "Alice"
+        assert records[0].bins["info"]["age"] == 30
+
+    async def test_in_no_match(self, client_with_cdt_data):
+        """Filter: "nonexistent" in $.names — should match nothing."""
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .where('"nonexistent" in $.names')
+            .execute()
+        )
+        records = []
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
+        assert len(records) == 0
