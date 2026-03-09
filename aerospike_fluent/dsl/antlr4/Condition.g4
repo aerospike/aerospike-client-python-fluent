@@ -29,6 +29,7 @@ comparisonExpression
     | additiveExpression '<=' additiveExpression                                # LessThanOrEqualExpression
     | additiveExpression '==' additiveExpression                                # EqualityExpression
     | additiveExpression '!=' additiveExpression                                # InequalityExpression
+    | additiveExpression 'in' additiveExpression                                # InExpression
     | additiveExpression                                                        # AdditiveExpressionWrapper
     ;
 
@@ -226,6 +227,7 @@ MAP_TYPE_DESIGNATOR: '{}';
 mapKey
     : NAME_IDENTIFIER
     | QUOTED_STRING
+    | 'in'
     ;
 
 mapValue: '{=' valueIdentifier '}';

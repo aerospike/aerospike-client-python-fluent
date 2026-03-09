@@ -1144,6 +1144,79 @@ def _resolve_for_comparison(left: ExprOrDeferred, right: ExprOrDeferred) -> tupl
     return resolved_left, resolved_right
 
 
+def _infer_element_type(values: list) -> InferredType:
+    """Infer element type from a list of Python values.
+
+    Returns the type of the first non-None element, or UNKNOWN if empty.
+    Raises DslParseException if elements have mixed types.
+    """
+    inferred = InferredType.UNKNOWN
+    for v in values:
+        if v is None:
+            continue
+        if isinstance(v, bool):
+            current = InferredType.BOOL
+        elif isinstance(v, int):
+            current = InferredType.INT
+        elif isinstance(v, float):
+            current = InferredType.FLOAT
+        elif isinstance(v, str):
+            current = InferredType.STRING
+        elif isinstance(v, list):
+            current = InferredType.LIST
+        elif isinstance(v, dict):
+            current = InferredType.MAP
+        else:
+            current = InferredType.UNKNOWN
+        if inferred == InferredType.UNKNOWN:
+            inferred = current
+        elif inferred != current:
+            raise DslParseException(
+                f"IN list elements must all be of the same type; "
+                f"found {inferred.name} and {current.name}"
+            )
+    return inferred
+
+
+def _resolve_for_in_value(value: ExprOrDeferred, list_expr: ExprOrDeferred) -> FilterExpression:
+    """Resolve the left operand of an IN expression (the value to search for).
+
+    Type inference priority:
+      1. Left operand's own type (if explicit/known)
+      2. Element type inferred from a right-side list constant
+      3. Default to STRING
+    """
+    if value is None:
+        raise DslParseException("Left operand of 'in' cannot be None")
+
+    hint = _get_type_hint(value)
+    if hint != InferredType.UNKNOWN:
+        return _resolve_deferred(value, hint)
+
+    if isinstance(list_expr, TypedExpr) and list_expr.type_hint == InferredType.LIST:
+        if isinstance(list_expr.value, list) and list_expr.value:
+            element_type = _infer_element_type(list_expr.value)
+            if element_type != InferredType.UNKNOWN:
+                return _resolve_deferred(value, element_type)
+
+    return _resolve_deferred(value, InferredType.STRING)
+
+
+def _resolve_for_in_list(expr: ExprOrDeferred) -> FilterExpression:
+    """Resolve the right operand of an IN expression (must be a list)."""
+    if expr is None:
+        raise DslParseException("Right operand of 'in' cannot be None")
+    if isinstance(expr, DeferredBin):
+        return expr.to_expression(InferredType.LIST)
+    if isinstance(expr, CDTPath):
+        return expr.to_expression(InferredType.LIST)
+    if isinstance(expr, TypedExpr):
+        return expr.expr
+    if isinstance(expr, FilterExpression):
+        return expr
+    raise DslParseException("Right operand of 'in' must be a list expression")
+
+
 def _resolve_for_arithmetic(expr: ExprOrDeferred, has_float: bool = False) -> FilterExpression:
     """Resolve deferred bin/CDT path for arithmetic operations.
 
@@ -1381,6 +1454,23 @@ class ExpressionConditionVisitor(ConditionVisitor):
         right = self.visit(ctx.additiveExpression(1))
         resolved_left, resolved_right = _resolve_for_comparison(left, right)
         return FilterExpression.le(resolved_left, resolved_right)
+
+    def visitInExpression(self, ctx: ConditionParser.InExpressionContext) -> Optional[FilterExpression]:
+        """Visit IN expression: left in right → boolean.
+
+        Translates to list_get_by_value(ListReturnType.EXISTS, left, right).
+        The right side must be a list; the left can be any supported type.
+        """
+        left = self.visit(ctx.additiveExpression(0))
+        right = self.visit(ctx.additiveExpression(1))
+        resolved_value = _resolve_for_in_value(left, right)
+        resolved_list = _resolve_for_in_list(right)
+        return FilterExpression.list_get_by_value(
+            ListReturnType.EXISTS,
+            resolved_value,
+            resolved_list,
+            [],
+        )
 
     def visitComparisonExpressionWrapper(self, ctx: ConditionParser.ComparisonExpressionWrapperContext) -> Optional[FilterExpression]:
         """Pass through wrapper."""
@@ -1958,7 +2048,6 @@ class ExpressionConditionVisitor(ConditionVisitor):
     
     def _parse_map_part(self, ctx) -> Optional[CDTPart]:
         """Parse a map part from the parse tree."""
-        # Check for mapKey: NAME_IDENTIFIER or QUOTED_STRING
         if hasattr(ctx, 'mapKey') and ctx.mapKey() is not None:
             key_ctx = ctx.mapKey()
             if hasattr(key_ctx, 'NAME_IDENTIFIER') and key_ctx.NAME_IDENTIFIER() is not None:
@@ -1966,6 +2055,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
                 return MapKeyPart(key)
             elif hasattr(key_ctx, 'QUOTED_STRING') and key_ctx.QUOTED_STRING() is not None:
                 key = _unquote(key_ctx.QUOTED_STRING().getText())
+                return MapKeyPart(key)
+            else:
+                key = key_ctx.getText()
                 return MapKeyPart(key)
 
         # Check for mapIndex: {INT}
@@ -2616,12 +2708,12 @@ class ExpressionConditionVisitor(ConditionVisitor):
     def visitListConstant(self, ctx: ConditionParser.ListConstantContext) -> ExprOrDeferred:
         """Visit list constant: [val1, val2, ...] or [] (empty)"""
         if ctx.LIST_TYPE_DESIGNATOR() is not None:
-            return TypedExpr(FilterExpression.list_val([]), InferredType.LIST)
+            return TypedExpr(FilterExpression.list_val([]), InferredType.LIST, [])
         values: List[Any] = []
         for oper_ctx in ctx.operand():
             values.append(self._operand_to_python_value(oper_ctx))
         expr = FilterExpression.list_val(values)
-        return TypedExpr(expr, InferredType.LIST)
+        return TypedExpr(expr, InferredType.LIST, values)
 
     def visitOrderedMapConstant(self, ctx: ConditionParser.OrderedMapConstantContext) -> ExprOrDeferred:
         """Visit ordered map constant: {key1: val1, key2: val2, ...} or {} (empty)"""
