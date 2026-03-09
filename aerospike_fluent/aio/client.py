@@ -73,7 +73,6 @@ class FluentClient:
         self._seeds = seeds
         if policy is None:
             policy = ClientPolicy()
-            policy.use_services_alternate = True
         self._policy = policy
         self._client: Optional[AsyncClient] = None
         self._connected = False

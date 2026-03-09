@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import os
 import typing
 from typing import List, Optional, Union
 
@@ -122,7 +123,9 @@ class ClusterDefinition:
         self._password: Optional[str] = None
         self._cluster_name: Optional[str] = None
         self._preferred_racks: Optional[List[int]] = None
-        self._use_services_alternate = False
+        self._use_services_alternate = os.environ.get(
+            "AEROSPIKE_USE_SERVICES_ALTERNATE", ""
+        ).strip().lower() in ("true", "1", "yes")
         self._fail_if_not_connected = True
         self._ip_map: Optional[dict[str, str]] = None
         self._tls_builder: Optional[TlsBuilder] = None
@@ -342,8 +345,7 @@ class ClusterDefinition:
         """Build a ClientPolicy from the configuration."""
         policy = ClientPolicy()
 
-        # Services alternate (default to True to match FluentClient behavior)
-        policy.use_services_alternate = self._use_services_alternate if self._use_services_alternate else True
+        policy.use_services_alternate = self._use_services_alternate
 
         policy.fail_if_not_connected = self._fail_if_not_connected
 

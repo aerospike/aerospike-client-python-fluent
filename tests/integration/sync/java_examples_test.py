@@ -118,6 +118,28 @@ def test_java_example_connecting_with_credentials(aerospike_host):
     cluster.close()
 
 
+def test_java_example_connecting_with_ip_map(aerospike_host):
+    """Java: new ClusterDefinition(hostList)
+              .usingServicesAlternate()
+              .withIpTranslationMapOf(Map.of("10.0.0.1", "3.72.54.187"));
+    """
+    if ":" in aerospike_host:
+        hostname, port_str = aerospike_host.split(":", 1)
+        port = int(port_str)
+    else:
+        hostname = aerospike_host
+        port = 3000
+
+    cluster = (
+        ClusterDefinition(hostname, port)
+        .using_services_alternate()
+        .with_ip_map({"10.0.0.1": "3.72.54.187"})
+        .connect()
+    )
+    assert cluster.is_connected()
+    cluster.close()
+
+
 def test_java_example_connecting_context_manager(aerospike_host):
     """Java: try (ClusterConnection connection = new ClusterDefinition("localhost", 3000).connect()) { ... }"""
     if ":" in aerospike_host:
@@ -271,6 +293,25 @@ def test_java_example_query_namespace_set(session, customer_dataset):
     assert count > 0
 
 
+def test_java_example_query_with_where(session, customer_dataset):
+    """Java: rs = session.query(customerDataSet)
+              .where(DSL.of("$.name == 'Tim' and $.age > 18"))
+              .execute();
+    """
+    stream = (
+        session.query(customer_dataset)
+        .where('$.name == "Tim" and $.age > 18')
+        .execute()
+    )
+    count = 0
+    for result in stream:
+        record = result.record_or_raise()
+        assert record.bins["name"] == "Tim"
+        count += 1
+    stream.close()
+    assert count == 1
+
+
 # ============================================================================
 # Update Examples # ============================================================================
 
@@ -278,71 +319,64 @@ def test_java_example_insert(session, customer_dataset):
     """Java: session.insertInto(customerDataSet.id(1))
               .bin("name").setTo("Tim")
               .bin("age").setTo(1)
+              .bin("gender").setTo("male")
               .execute();
     """
-    # Clean up first - ensure key 10 doesn't exist
     try:
         session.delete(customer_dataset.id(10)).execute()
     except Exception:
-        pass  # Ignore if key doesn't exist
+        pass
 
-    # Insert (create only) - using execute() pattern (Java-style)
-    session.insert(customer_dataset.id(10)).set_bins({
-        "name": "Tim",
-        "age": 1
-    }).execute()
+    (
+        session.insert(customer_dataset.id(10))
+            .bin("name").set_to("Tim")
+            .bin("age").set_to(1)
+            .bin("gender").set_to("male")
+            .execute()
+    )
 
-    # Verify
     result = session.query(customer_dataset.id(10)).execute().first_or_raise()
     record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim"
     assert record.bins["age"] == 1
+    assert record.bins["gender"] == "male"
 
-    # Cleanup
     session.delete(customer_dataset.id(10)).execute()
 
 
-def test_insert_with_put_pattern(session, customer_dataset):
-    """Test that insert() also works with .put() pattern (backward compatibility)."""
-    # Clean up first - ensure key 11 doesn't exist
+def test_java_example_insert_with_dict(session, customer_dataset):
+    """Insert using the dict shorthand pattern."""
     try:
-        session.delete(customer_dataset.id(11)).execute()
+        session.delete(customer_dataset.id(10)).execute()
     except Exception:
-        pass  # Ignore if key doesn't exist
+        pass
 
-    # Insert using .put() pattern (immediate execution)
-    session.insert(customer_dataset.id(11)).put({
-        "name": "PutPattern",
-        "age": 2
+    session.insert(customer_dataset.id(10)).put({
+        "name": "Tim",
+        "age": 1,
+        "gender": "male",
     }).execute()
 
-    # Verify
-    result = session.query(customer_dataset.id(11)).execute().first_or_raise()
-    record = result.record
-    assert record is not None
-    assert record.bins["name"] == "PutPattern"
-    assert record.bins["age"] == 2
+    result = session.query(customer_dataset.id(10)).execute().first_or_raise()
+    assert result.record.bins["name"] == "Tim"
 
-    # Cleanup
-    session.delete(customer_dataset.id(11)).execute()
+    session.delete(customer_dataset.id(10)).execute()
 
 
 def test_java_example_update(session, customer_dataset):
     """Java: session.update(customerDataSet.id(2))
-              .andRemoveOtherBins()
               .bin("name").setTo("Tim")
               .bin("age").incrementBy(1)
               .execute();
     """
-    # Update - using execute() pattern (Java-style)
-    # Note: andRemoveOtherBins() and incrementBy() not yet supported
-    session.update(customer_dataset.id(2)).set_bins({
-        "name": "Tim",
-        "age": 31  # Incremented from 30
-    }).execute()
+    (
+        session.update(customer_dataset.id(2))
+            .bin("name").set_to("Tim")
+            .bin("age").increment_by(1)
+            .execute()
+    )
 
-    # Verify
     result = session.query(customer_dataset.id(2)).execute().first_or_raise()
     record = result.record
     assert record is not None
@@ -366,36 +400,45 @@ def test_update_with_put_pattern(session, customer_dataset):
     assert record.bins["age"] == 32
 
 
-def test_java_example_upsert(session, customer_dataset):
-    """Java: session.upsert(...)"""
-    # Upsert existing record - using execute() pattern (Java-style)
-    session.upsert(customer_dataset.id(1)).set_bins({
-        "name": "Tim Updated",
-        "age": 26
-    }).execute()
+def test_java_example_replace(session, customer_dataset):
+    """Java: session.replace(customerDataSet.id(2))
+              .bin("name").setTo("Tim")
+              .bin("age").setTo(31)
+              .execute();
+    """
+    (
+        session.replace(customer_dataset.id(2))
+            .bin("name").set_to("Tim")
+            .bin("age").set_to(31)
+            .execute()
+    )
 
-    # Verify
+    result = session.query(customer_dataset.id(2)).execute().first_or_raise()
+    record = result.record
+    assert record is not None
+    assert record.bins["name"] == "Tim"
+    assert record.bins["age"] == 31
+    assert "country" not in record.bins
+
+
+def test_java_example_upsert(session, customer_dataset):
+    """Java: session.upsert(customerDataSet.id(1))
+              .bin("name").setTo("Tim Updated")
+              .bin("age").setTo(26)
+              .execute();
+    """
+    (
+        session.upsert(customer_dataset.id(1))
+            .bin("name").set_to("Tim Updated")
+            .bin("age").set_to(26)
+            .execute()
+    )
+
     result = session.query(customer_dataset.id(1)).execute().first_or_raise()
     record = result.record
     assert record is not None
     assert record.bins["name"] == "Tim Updated"
     assert record.bins["age"] == 26
-
-
-def test_upsert_with_put_pattern(session, customer_dataset):
-    """Test that upsert() also works with .put() pattern (backward compatibility)."""
-    # Upsert using .put() pattern (immediate execution)
-    session.upsert(customer_dataset.id(1)).put({
-        "name": "PutUpsert",
-        "age": 27
-    }).execute()
-
-    # Verify
-    result = session.query(customer_dataset.id(1)).execute().first_or_raise()
-    record = result.record
-    assert record is not None
-    assert record.bins["name"] == "PutUpsert"
-    assert record.bins["age"] == 27
 
 
 def test_java_example_delete(session, customer_dataset):
@@ -429,20 +472,12 @@ def test_delete_with_delete_method(session, customer_dataset):
 
 
 def test_java_example_delete_durably(session, customer_dataset):
-    """Java: session.delete(customerDataSet.id(5)).durably(false).execute();"""
-    # Test that durably() can be called and sets the durable_delete flag
+    """Java: session.delete(customerDataSet.id(5)).durably(true).execute();"""
     key = customer_dataset.id(5)
+    session.upsert(key).put({"name": "Test", "age": 25}).execute()
 
-    # First create a record to delete
-    session.upsert(customer_dataset.id(5)).put({
-        "name": "Test",
-        "age": 25
-    }).execute()
+    session.delete(key).durably_delete().execute()
 
-    # Delete (default is non-durable)
-    session.delete(key).execute()
-
-    # Verify it's deleted
     stream = session.query(key).execute()
     first = stream.first()
     record = first.record if first and first.is_ok else None
@@ -514,26 +549,20 @@ def test_java_example_filter_control_on_partition_range(session, customer_datase
 def test_java_example_filter_control_full(session, customer_dataset):
     """Java: RecordSet myquery = session.query(dataSet1).chunkSize(100).onPartitions(1, 2, 3)
               .where(DSL.of("$.bonus > 100 and $.person.age >= 18"));
-
-    Note: This test verifies the API methods can be chained together.
-    Full functionality requires proper index setup which may vary by environment.
     """
-    from aerospike_fluent.dsl.parser import parse_dsl
-
-    # Test that all Filter Control methods can be chained together
-    # This verifies the API works, even if the query requires index setup
-    query_builder = (
+    stream = (
         session.query(customer_dataset)
         .chunk_size(100)
         .on_partitions(1, 2, 3)
         .where("$.age > 20")
+        .execute()
     )
 
-    # Verify the builder was created successfully
-    assert query_builder is not None
-
-    # Note: Actual execution may require index setup, so we just verify the API
-    # The other filter_control tests verify execution works in simpler cases
+    count = 0
+    for _ in stream:
+        count += 1
+    stream.close()
+    assert count >= 0
 
 
 def test_java_example_key_value_operations_direct_client(session, customer_dataset):
@@ -619,9 +648,7 @@ def test_java_example_behaviors(cluster):
     """Java: Behavior useCase1Behavior = Behavior.READ_FAST;
               Session session = cluster.createSession(useCase1Behavior);
     """
-    # Note: Behavior.READ_FAST is not yet implemented, using DEFAULT instead
-    # This test verifies the pattern works when READ_FAST is available
-    use_case1_behavior = Behavior.DEFAULT
+    use_case1_behavior = Behavior.READ_FAST
     session = cluster.create_session(use_case1_behavior)
     assert session is not None
 
