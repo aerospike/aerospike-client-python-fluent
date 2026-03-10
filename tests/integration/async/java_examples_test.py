@@ -487,8 +487,10 @@ async def test_java_example_delete(session, customer_dataset):
 
 
 @pytest.mark.asyncio
-async def test_java_example_delete_durably(session, customer_dataset):
+async def test_java_example_delete_durably(session, customer_dataset, enterprise):
     """Java: session.delete(customerDataSet.id(5)).durably(true).execute();"""
+    if not enterprise:
+        pytest.skip("Requires Enterprise Edition")
     key = customer_dataset.id(5)
     await session.upsert(key).put({"name": "Test", "age": 25}).execute()
 

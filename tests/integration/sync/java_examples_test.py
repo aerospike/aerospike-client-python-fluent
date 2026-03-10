@@ -471,8 +471,10 @@ def test_delete_with_delete_method(session, customer_dataset):
     assert record is None
 
 
-def test_java_example_delete_durably(session, customer_dataset):
+def test_java_example_delete_durably(session, customer_dataset, enterprise):
     """Java: session.delete(customerDataSet.id(5)).durably(true).execute();"""
+    if not enterprise:
+        pytest.skip("Requires Enterprise Edition")
     key = customer_dataset.id(5)
     session.upsert(key).put({"name": "Test", "age": 25}).execute()
 
