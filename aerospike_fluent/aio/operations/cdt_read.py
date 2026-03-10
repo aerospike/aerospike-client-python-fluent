@@ -96,6 +96,10 @@ class CdtReadBuilder(Generic[T]):
     def get_reverse_ranks(self) -> T:
         return self._emit(self._rt.REVERSE_RANK)
 
+    def exists(self) -> T:
+        """Check whether the selected CDT element(s) exist."""
+        return self._emit(self._rt.EXISTS)
+
 
 class CdtReadInvertableBuilder(CdtReadBuilder[T]):
     """Terminal read actions with inverted (all-others) variants.

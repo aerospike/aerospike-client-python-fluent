@@ -24,6 +24,12 @@ from aerospike_async import (
     Filter,
     FilterExpression,
     Key,
+    ListOperation,
+    ListOrderType,
+    ListPolicy,
+    ListReturnType,
+    MapOperation,
+    MapReturnType,
     PartitionFilter,
     QueryDuration,
     QueryPolicy,
@@ -31,6 +37,10 @@ from aerospike_async import (
     Replica,
 )
 
+from aerospike_fluent.aio.operations.cdt_write import (
+    CdtWriteBuilder,
+    CdtWriteInvertableBuilder,
+)
 from aerospike_fluent.aio.operations.query import (
     QueryBinBuilder,
     QueryBuilder,
@@ -345,6 +355,10 @@ class SyncWriteSegmentBuilder(_SyncWriteVerbs):
         """Start a bin-level write operation."""
         return SyncWriteBinBuilder(self, bin_name)
 
+    def add_operation(self, op: Any) -> None:
+        """Append an operation (used by CDT action builders)."""
+        self._wsb.add_operation(op)
+
     def put(self, bins: dict) -> SyncWriteSegmentBuilder:
         """Set multiple bins at once."""
         self._wsb.put(bins)
@@ -593,6 +607,220 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def get(self) -> SyncWriteSegmentBuilder:
         """Read the bin value back within a write operate."""
         return self._sync_segment.get(self._bin)
+
+    # -- CDT list structural operations ---------------------------------------
+
+    def list_add(self, value: Any) -> SyncWriteSegmentBuilder:
+        """Add *value* to an ordered list (sorted insert)."""
+        self._sync_segment.add_operation(
+            ListOperation.append(self._bin, value, ListPolicy(ListOrderType.ORDERED, None)),
+        )
+        return self._sync_segment
+
+    def list_append(self, value: Any) -> SyncWriteSegmentBuilder:
+        """Append *value* to the end of an unordered list."""
+        self._sync_segment.add_operation(
+            ListOperation.append(self._bin, value, ListPolicy(None, None)),
+        )
+        return self._sync_segment
+
+    # -- Map navigation (singular -> CdtWriteBuilder) -------------------------
+
+    def on_map_index(self, index: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to a map element by index."""
+        b = self._bin
+        return CdtWriteBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_index(b, index, rt),
+            lambda rt: MapOperation.remove_by_index(b, index, rt),
+            MapReturnType, is_map=True,
+        )
+
+    def on_map_key(self, key: Any) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to a map element by key."""
+        b = self._bin
+        return CdtWriteBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_key(b, key, rt),
+            lambda rt: MapOperation.remove_by_key(b, key, rt),
+            MapReturnType, is_map=True,
+        )
+
+    def on_map_rank(self, rank: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to a map element by rank (0 = lowest value)."""
+        b = self._bin
+        return CdtWriteBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_rank(b, rank, rt),
+            lambda rt: MapOperation.remove_by_rank(b, rank, rt),
+            MapReturnType, is_map=True,
+        )
+
+    # -- Map navigation (invertable -> CdtWriteInvertableBuilder) -------------
+
+    def on_map_value(self, value: Any) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to map elements matching a value."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_value(b, value, rt),
+            lambda rt: MapOperation.remove_by_value(b, value, rt),
+            MapReturnType, is_map=True,
+        )
+
+    def on_map_index_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to map elements by index range."""
+        b = self._bin
+        if count is None:
+            get_f = lambda rt: MapOperation.get_by_index_range_from(b, index, rt)
+            rm_f = lambda rt: MapOperation.remove_by_index_range_from(b, index, rt)
+        else:
+            get_f = lambda rt: MapOperation.get_by_index_range(b, index, count, rt)
+            rm_f = lambda rt: MapOperation.remove_by_index_range(b, index, count, rt)
+        return CdtWriteInvertableBuilder(
+            self._sync_segment, get_f, rm_f, MapReturnType, is_map=True,
+        )
+
+    def on_map_key_range(
+        self, start: Any, end: Any,
+    ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to map elements by key range [start, end)."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_key_range(b, start, end, rt),
+            lambda rt: MapOperation.remove_by_key_range(b, start, end, rt),
+            MapReturnType, is_map=True,
+        )
+
+    def on_map_rank_range(
+        self, rank: int, count: Optional[int] = None,
+    ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to map elements by rank range."""
+        b = self._bin
+        if count is None:
+            get_f = lambda rt: MapOperation.get_by_rank_range_from(b, rank, rt)
+            rm_f = lambda rt: MapOperation.remove_by_rank_range_from(b, rank, rt)
+        else:
+            get_f = lambda rt: MapOperation.get_by_rank_range(b, rank, count, rt)
+            rm_f = lambda rt: MapOperation.remove_by_rank_range(b, rank, count, rt)
+        return CdtWriteInvertableBuilder(
+            self._sync_segment, get_f, rm_f, MapReturnType, is_map=True,
+        )
+
+    def on_map_value_range(
+        self, start: Any, end: Any,
+    ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to map elements by value range [start, end)."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_value_range(b, start, end, rt),
+            lambda rt: MapOperation.remove_by_value_range(b, start, end, rt),
+            MapReturnType, is_map=True,
+        )
+
+    def on_map_key_list(self, keys: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to map elements matching a list of keys."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_key_list(b, keys, rt),
+            lambda rt: MapOperation.remove_by_key_list(b, keys, rt),
+            MapReturnType, is_map=True,
+        )
+
+    def on_map_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to map elements matching a list of values."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: MapOperation.get_by_value_list(b, values, rt),
+            lambda rt: MapOperation.remove_by_value_list(b, values, rt),
+            MapReturnType, is_map=True,
+        )
+
+    # -- List navigation (singular -> CdtWriteBuilder) ------------------------
+
+    def on_list_index(self, index: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to a list element by index."""
+        b = self._bin
+        return CdtWriteBuilder(
+            self._sync_segment,
+            lambda rt: ListOperation.get_by_index(b, index, rt),
+            lambda rt: ListOperation.remove_by_index(b, index, rt),
+            ListReturnType, is_map=False,
+        )
+
+    def on_list_rank(self, rank: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to a list element by rank (0 = lowest value)."""
+        b = self._bin
+        return CdtWriteBuilder(
+            self._sync_segment,
+            lambda rt: ListOperation.get_by_rank(b, rank, rt),
+            lambda rt: ListOperation.remove_by_rank(b, rank, rt),
+            ListReturnType, is_map=False,
+        )
+
+    # -- List navigation (invertable -> CdtWriteInvertableBuilder) ------------
+
+    def on_list_value(self, value: Any) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to list elements matching a value."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: ListOperation.get_by_value(b, value, rt),
+            lambda rt: ListOperation.remove_by_value(b, value, rt),
+            ListReturnType, is_map=False,
+        )
+
+    def on_list_index_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to list elements by index range."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: ListOperation.get_by_index_range(b, index, count, rt),
+            lambda rt: ListOperation.remove_by_index_range(b, index, count, rt),
+            ListReturnType, is_map=False,
+        )
+
+    def on_list_rank_range(
+        self, rank: int, count: Optional[int] = None,
+    ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to list elements by rank range."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: ListOperation.get_by_rank_range(b, rank, count, rt),
+            lambda rt: ListOperation.remove_by_rank_range(b, rank, count, rt),
+            ListReturnType, is_map=False,
+        )
+
+    def on_list_value_range(
+        self, start: Any, end: Any,
+    ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to list elements by value range [start, end)."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: ListOperation.get_by_value_range(b, start, end, rt),
+            lambda rt: ListOperation.remove_by_value_range(b, start, end, rt),
+            ListReturnType, is_map=False,
+        )
+
+    def on_list_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
+        """Navigate to list elements matching a list of values."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._sync_segment,
+            lambda rt: ListOperation.get_by_value_list(b, values, rt),
+            lambda rt: ListOperation.remove_by_value_list(b, values, rt),
+            ListReturnType, is_map=False,
+        )
 
     # -- Expression operations ------------------------------------------------
 
