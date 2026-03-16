@@ -13,16 +13,25 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""CDT action builders for write contexts (read + remove terminals).
+"""CDT action builders for write contexts.
 
-Extends the read-only builders from ``cdt_read`` with ``remove()`` and
-inverted ``remove_all_others()`` terminals.  Used by ``WriteBinBuilder``
-when CDT navigation is performed inside a write segment.
+Extends the read-only builders from ``cdt_read`` with:
+
+- ``remove()`` / ``remove_all_others()`` terminals
+- ``set_to(value)`` / ``add(value)`` write terminals (map key navigation)
+- Nested navigation that preserves write capability through the chain
 """
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
+
+from aerospike_async import (
+    CTX,
+    MapOperation,
+    MapPolicy,
+    MapReturnType,
+)
 
 from aerospike_fluent.aio.operations.cdt_read import (
     CdtReadBuilder,
@@ -30,6 +39,8 @@ from aerospike_fluent.aio.operations.cdt_read import (
     T,
     _ReturnTypeCls,
 )
+
+_DEFAULT_MAP_POLICY = MapPolicy(None, None)
 
 
 class _RemoveMixin:
@@ -50,13 +61,14 @@ class _RemoveMixin:
 
 
 class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
-    """CDT action builder with read *and* remove terminals.
+    """CDT action builder with read, remove, and write terminals.
 
-    Inherits all read terminals (get_values, count, exists, …) from
-    ``CdtReadBuilder`` and adds ``remove()``.
+    Inherits all read terminals and navigation from ``CdtReadBuilder``.
+    Adds ``remove()``, and on map-key paths ``set_to()`` / ``add()``.
+    Navigation returns ``CdtWriteBuilder`` to preserve write capability.
     """
 
-    __slots__ = ("_remove_factory",)
+    __slots__ = ("_remove_factory", "_set_to_factory", "_add_factory")
 
     def __init__(
         self,
@@ -66,9 +78,68 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         return_type_cls: _ReturnTypeCls,
         *,
         is_map: bool,
+        bin_name: str = "",
+        ctx: Sequence[Any] = (),
+        to_ctx: Callable[[], Any] | None = None,
+        set_to_factory: Callable[[Any], Any] | None = None,
+        add_factory: Callable[[Any], Any] | None = None,
     ) -> None:
-        super().__init__(parent, op_factory, return_type_cls, is_map=is_map)
+        super().__init__(
+            parent, op_factory, return_type_cls, is_map=is_map,
+            bin_name=bin_name, ctx=ctx, to_ctx=to_ctx,
+        )
         self._remove_factory = remove_factory
+        self._set_to_factory = set_to_factory
+        self._add_factory = add_factory
+
+    def _build_navigated(
+        self, *, op_factory: Callable[[Any], Any],
+        rt_cls: _ReturnTypeCls, is_map: bool,
+        ctx: Sequence[Any], to_ctx: Callable[[], Any],
+        **extra: Any,
+    ) -> CdtWriteBuilder[T]:
+        return CdtWriteBuilder(
+            self._parent, op_factory,
+            extra.get("remove_factory", self._remove_factory),
+            rt_cls, is_map=is_map,
+            bin_name=self._bin_name, ctx=ctx, to_ctx=to_ctx,
+            set_to_factory=extra.get("set_to_factory"),
+            add_factory=extra.get("add_factory"),
+        )
+
+    def on_map_key(self, key: Any) -> CdtWriteBuilder[T]:
+        """Navigate into a map element by key (supports set_to / add)."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_navigated(
+            op_factory=lambda rt: MapOperation.get_by_key(b, key, rt).set_context(ctx_l),
+            remove_factory=lambda rt: MapOperation.remove_by_key(b, key, rt).set_context(ctx_l),
+            set_to_factory=lambda v: MapOperation.put(b, key, v, _DEFAULT_MAP_POLICY).set_context(ctx_l),
+            add_factory=lambda v: MapOperation.increment_value(b, key, v, _DEFAULT_MAP_POLICY).set_context(ctx_l),
+            rt_cls=MapReturnType, is_map=True,
+            ctx=new_ctx, to_ctx=lambda: CTX.map_key(key),
+        )
+
+    # -- Write terminals ------------------------------------------------------
+
+    def set_to(self, value: Any) -> T:
+        """Set the value at the current CDT path."""
+        if self._set_to_factory is None:
+            raise TypeError(
+                "set_to() requires on_map_key() navigation"
+            )
+        op = self._set_to_factory(value)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def add(self, value: Any) -> T:
+        """Increment the value at the current CDT path."""
+        if self._add_factory is None:
+            raise TypeError(
+                "add() requires on_map_key() navigation"
+            )
+        op = self._add_factory(value)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
 
 
 class CdtWriteInvertableBuilder(_RemoveMixin, CdtReadInvertableBuilder[T]):
@@ -76,7 +147,7 @@ class CdtWriteInvertableBuilder(_RemoveMixin, CdtReadInvertableBuilder[T]):
 
     Inherits all read and inverted-read terminals from
     ``CdtReadInvertableBuilder`` and adds ``remove()`` /
-    ``remove_all_others()``.
+    ``remove_all_others()``.  Does not support further navigation.
     """
 
     __slots__ = ("_remove_factory",)
