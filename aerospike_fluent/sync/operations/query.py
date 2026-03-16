@@ -21,6 +21,7 @@ from typing import Any, List, Optional, overload, Union
 
 from aerospike_async import (
     BasePolicy,
+    CTX,
     Filter,
     FilterExpression,
     Key,
@@ -29,6 +30,7 @@ from aerospike_async import (
     ListPolicy,
     ListReturnType,
     MapOperation,
+    MapPolicy,
     MapReturnType,
     PartitionFilter,
     QueryDuration,
@@ -634,16 +636,21 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: MapOperation.get_by_index(b, index, rt),
             lambda rt: MapOperation.remove_by_index(b, index, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_index(index),
         )
 
     def on_map_key(self, key: Any) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
         """Navigate to a map element by key."""
         b = self._bin
+        _mp = MapPolicy(None, None)
         return CdtWriteBuilder(
             self._sync_segment,
             lambda rt: MapOperation.get_by_key(b, key, rt),
             lambda rt: MapOperation.remove_by_key(b, key, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_key(key),
+            set_to_factory=lambda v: MapOperation.put(b, key, v, _mp),
+            add_factory=lambda v: MapOperation.increment_value(b, key, v, _mp),
         )
 
     def on_map_rank(self, rank: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
@@ -654,6 +661,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: MapOperation.get_by_rank(b, rank, rt),
             lambda rt: MapOperation.remove_by_rank(b, rank, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_rank(rank),
         )
 
     # -- Map navigation (invertable -> CdtWriteInvertableBuilder) -------------
@@ -752,6 +760,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: ListOperation.get_by_index(b, index, rt),
             lambda rt: ListOperation.remove_by_index(b, index, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_index(index),
         )
 
     def on_list_rank(self, rank: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
@@ -762,6 +771,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: ListOperation.get_by_rank(b, rank, rt),
             lambda rt: ListOperation.remove_by_rank(b, rank, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_rank(rank),
         )
 
     # -- List navigation (invertable -> CdtWriteInvertableBuilder) ------------

@@ -48,12 +48,17 @@ async def client(aerospike_host, client_policy):
         for i in range(1, 4):
             settings = {"theme": "dark", "volume": i * 10, "notifications": True}
             scores = [i * 10, i * 20, i * 30]
+            nested = {
+                "level1": {"a": i * 100, "b": i * 200},
+                "level2": {"x": i, "y": i + 1},
+            }
             await session.upsert(ds.id(f"{KEY_PREFIX}{i}")).put({
                 "name": f"user{i}",
                 "age": 20 + i,
                 "score": i * 100,
                 "settings": settings,
                 "scores": scores,
+                "nested": nested,
             }).execute()
 
         yield client
@@ -358,3 +363,115 @@ class TestInvertedReads:
         assert 10 not in vals
         assert 20 in vals
         assert 30 in vals
+
+
+# ===================================================================
+# Expression reads (select_from)
+# ===================================================================
+
+class TestExpressionReads:
+
+    @pytest.mark.asyncio
+    async def test_select_from_simple(self, client):
+        rs = await (
+            client.query(key=_key(1))
+                .bin("age_plus_20").select_from("$.age + 20")
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["age_plus_20"] == 41
+
+    @pytest.mark.asyncio
+    async def test_select_from_multiple(self, client):
+        rs = await (
+            client.query(key=_key(2))
+                .bin("double_age").select_from("$.age * 2")
+                .bin("triple_score").select_from("$.score * 3")
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["double_age"] == 44   # (20+2)*2
+        assert result.record.bins["triple_score"] == 600  # 200*3
+
+    @pytest.mark.asyncio
+    async def test_select_from_with_get(self, client):
+        rs = await (
+            client.query(key=_key(1))
+                .bin("name").get()
+                .bin("age_in_10").select_from("$.age + 10")
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["name"] == "user1"
+        assert result.record.bins["age_in_10"] == 31
+
+
+# ===================================================================
+# Nested CDT read navigation
+# ===================================================================
+
+class TestNestedCdtReads:
+
+    @pytest.mark.asyncio
+    async def test_nested_map_key_get_values(self, client):
+        """Read a value 2 levels deep: nested.level1.a"""
+        session = client.create_session()
+        rs = await (
+            await session.query(_key(1))
+                .bin("nested").on_map_key("level1").on_map_key("a").get_values()
+                .execute()
+        ).first_or_raise()
+        assert rs.record.bins["nested"] == 100
+
+    @pytest.mark.asyncio
+    async def test_nested_map_key_count(self, client):
+        """Count at a nested path should be 1 for a scalar."""
+        session = client.create_session()
+        rs = await (
+            await session.query(_key(1))
+                .bin("nested").on_map_key("level1").on_map_key("b").count()
+                .execute()
+        ).first_or_raise()
+        assert rs.record.bins["nested"] == 1
+
+    @pytest.mark.asyncio
+    async def test_nested_map_key_different_branches(self, client):
+        """Read from two different nested branches in separate queries."""
+        session = client.create_session()
+        rs1 = await (
+            await session.query(_key(2))
+                .bin("nested").on_map_key("level1").on_map_key("a").get_values()
+                .execute()
+        ).first_or_raise()
+        assert rs1.record.bins["nested"] == 200
+
+        rs2 = await (
+            await session.query(_key(2))
+                .bin("nested").on_map_key("level2").on_map_key("x").get_values()
+                .execute()
+        ).first_or_raise()
+        assert rs2.record.bins["nested"] == 2
+
+    @pytest.mark.asyncio
+    async def test_nested_map_key_with_flat_bin(self, client):
+        """Combine a nested CDT read with a flat bin read."""
+        session = client.create_session()
+        rs = await (
+            await session.query(_key(3))
+                .bin("nested").on_map_key("level1").on_map_key("a").get_values()
+                .bin("name").get()
+                .execute()
+        ).first_or_raise()
+        assert rs.record.bins["nested"] == 300
+        assert rs.record.bins["name"] == "user3"
+
+    @pytest.mark.asyncio
+    async def test_nested_map_key_get_values_key3(self, client):
+        """Read nested value for a different key to verify data independence."""
+        session = client.create_session()
+        rs = await (
+            await session.query(_key(3))
+                .bin("nested").on_map_key("level2").on_map_key("y").get_values()
+                .execute()
+        ).first_or_raise()
+        assert rs.record.bins["nested"] == 4

@@ -13,13 +13,15 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for CDT write operations: exists, remove, list_add, list_append.
+"""Unit tests for CDT write operations.
 
 Covers:
 - CdtReadBuilder.exists() terminal
 - CdtWriteBuilder / CdtWriteInvertableBuilder remove terminals
 - WriteBinBuilder CDT navigation returning write-capable builders
 - WriteBinBuilder list_add / list_append operations
+- Nested CDT navigation (CTX accumulation)
+- set_to() / add() write terminals
 """
 
 import pytest
@@ -393,3 +395,159 @@ class TestQueryBinBuilderExists:
         result = qbb.on_map_index(0).exists()
         assert result is parent
         assert len(parent.operations) == 1
+
+
+# ===================================================================
+# Nested CDT navigation
+# ===================================================================
+
+class TestNestedNavigation:
+    """Verify nested navigation preserves builder type and accumulates CTX."""
+
+    def _build(self, bin_name: str = "mybin"):
+        qb = _make_qb()
+        qb._single_key = _make_key()
+        segment = WriteSegmentBuilder(qb)
+        return WriteBinBuilder(segment, bin_name), segment
+
+    def test_on_map_key_returns_navigable_builder(self):
+        wbb, _ = self._build()
+        b1 = wbb.on_map_key("k1")
+        assert isinstance(b1, CdtWriteBuilder)
+        b2 = b1.on_map_key("k2")
+        assert isinstance(b2, CdtWriteBuilder)
+
+    def test_nested_navigation_produces_operation(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("outer").on_map_key("inner").get_values()
+        assert result is segment
+        assert len(segment._qb._operations) == 1
+        op = segment._qb._operations[0]
+        assert isinstance(op, MapOperation)
+
+    def test_three_deep_navigation(self):
+        wbb, segment = self._build()
+        wbb.on_map_key("a").on_map_key("b").on_map_key("c").get_values()
+        assert len(segment._qb._operations) == 1
+
+    def test_nested_remove(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("outer").on_map_key("inner").remove()
+        assert result is segment
+        assert len(segment._qb._operations) == 1
+
+    def test_nested_exists(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("outer").on_map_key("inner").exists()
+        assert result is segment
+        assert len(segment._qb._operations) == 1
+
+    def test_map_key_then_list_index(self):
+        wbb, segment = self._build()
+        wbb.on_map_key("items").on_list_index(0).get_values()
+        assert len(segment._qb._operations) == 1
+
+    def test_map_key_then_map_index(self):
+        wbb, segment = self._build()
+        wbb.on_map_key("nested").on_map_index(0).get_values()
+        assert len(segment._qb._operations) == 1
+
+    def test_list_index_then_map_key(self):
+        wbb, segment = self._build()
+        wbb.on_list_index(0).on_map_key("name").get_values()
+        assert len(segment._qb._operations) == 1
+
+    def test_non_navigable_builder_raises(self):
+        parent = _OpCollector()
+        builder = CdtWriteBuilder(
+            parent,
+            lambda rt: f"get_{rt}",
+            lambda rt: f"rm_{rt}",
+            MapReturnType, is_map=True,
+        )
+        with pytest.raises(TypeError, match="does not support further navigation"):
+            builder.on_map_key("x")
+
+    def test_read_path_nested_navigation(self):
+        qbb = QueryBinBuilder(_OpCollector(), "mybin")
+        b1 = qbb.on_map_key("outer")
+        assert isinstance(b1, CdtReadBuilder)
+        b2 = b1.on_map_key("inner")
+        assert isinstance(b2, CdtReadBuilder)
+
+    def test_read_path_nested_produces_operation(self):
+        parent = _OpCollector()
+        qbb = QueryBinBuilder(parent, "mybin")
+        result = qbb.on_map_key("outer").on_map_key("inner").get_values()
+        assert result is parent
+        assert len(parent.operations) == 1
+
+
+# ===================================================================
+# set_to() / add() write terminals
+# ===================================================================
+
+class TestWriteTerminals:
+    """Verify set_to() and add() on CdtWriteBuilder."""
+
+    def _build(self, bin_name: str = "mybin"):
+        qb = _make_qb()
+        qb._single_key = _make_key()
+        segment = WriteSegmentBuilder(qb)
+        return WriteBinBuilder(segment, bin_name), segment
+
+    def test_set_to_on_map_key(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("k").set_to(42)
+        assert result is segment
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_add_on_map_key(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("k").add(5)
+        assert result is segment
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_set_to_not_available_on_map_index(self):
+        wbb, _ = self._build()
+        b = wbb.on_map_index(0)
+        with pytest.raises(TypeError, match="set_to.*requires on_map_key"):
+            b.set_to(42)
+
+    def test_add_not_available_on_map_rank(self):
+        wbb, _ = self._build()
+        b = wbb.on_map_rank(0)
+        with pytest.raises(TypeError, match="add.*requires on_map_key"):
+            b.add(5)
+
+    def test_set_to_not_available_on_list_index(self):
+        wbb, _ = self._build()
+        b = wbb.on_list_index(0)
+        with pytest.raises(TypeError, match="set_to.*requires on_map_key"):
+            b.set_to(42)
+
+    def test_nested_set_to(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("outer").on_map_key("inner").set_to(99)
+        assert result is segment
+        assert len(segment._qb._operations) == 1
+
+    def test_nested_add(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("outer").on_map_key("inner").add(10)
+        assert result is segment
+        assert len(segment._qb._operations) == 1
+
+    def test_set_to_chaining_then_bin(self):
+        wbb, segment = self._build()
+        result = wbb.on_map_key("k").set_to(42).bin("other").set_to("x")
+        assert isinstance(result, WriteSegmentBuilder)
+        assert len(segment._qb._operations) == 2
+
+    def test_set_to_after_nested_nav_loses_setter_on_non_key(self):
+        wbb, _ = self._build()
+        b = wbb.on_map_key("outer").on_map_index(0)
+        with pytest.raises(TypeError, match="set_to.*requires on_map_key"):
+            b.set_to(42)

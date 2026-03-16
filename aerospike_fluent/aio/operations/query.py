@@ -28,6 +28,7 @@ from aerospike_async import (
     BatchReadPolicy,
     BatchWriteOp,
     BatchWritePolicy,
+    CTX,
     Client,
     Expiration,
     ExpOperation,
@@ -41,6 +42,7 @@ from aerospike_async import (
     ListPolicy,
     ListReturnType,
     MapOperation,
+    MapPolicy,
     MapReturnType,
     Operation,
     PartitionFilter,
@@ -2057,16 +2059,21 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: MapOperation.get_by_index(b, index, rt),
             lambda rt: MapOperation.remove_by_index(b, index, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_index(index),
         )
 
     def on_map_key(self, key: Any) -> CdtWriteBuilder[WriteSegmentBuilder]:
         """Navigate to a map element by key."""
         b = self._bin
+        _mp = MapPolicy(None, None)
         return CdtWriteBuilder(
             self._segment,
             lambda rt: MapOperation.get_by_key(b, key, rt),
             lambda rt: MapOperation.remove_by_key(b, key, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_key(key),
+            set_to_factory=lambda v: MapOperation.put(b, key, v, _mp),
+            add_factory=lambda v: MapOperation.increment_value(b, key, v, _mp),
         )
 
     def on_map_rank(self, rank: int) -> CdtWriteBuilder[WriteSegmentBuilder]:
@@ -2077,6 +2084,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: MapOperation.get_by_rank(b, rank, rt),
             lambda rt: MapOperation.remove_by_rank(b, rank, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_rank(rank),
         )
 
     # -- Map navigation (invertable -> CdtWriteInvertableBuilder) -------------
@@ -2175,6 +2183,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: ListOperation.get_by_index(b, index, rt),
             lambda rt: ListOperation.remove_by_index(b, index, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_index(index),
         )
 
     def on_list_rank(self, rank: int) -> CdtWriteBuilder[WriteSegmentBuilder]:
@@ -2185,6 +2194,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: ListOperation.get_by_rank(b, rank, rt),
             lambda rt: ListOperation.remove_by_rank(b, rank, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_rank(rank),
         )
 
     # -- List navigation (invertable -> CdtWriteInvertableBuilder) ------------
@@ -2344,8 +2354,8 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         return CdtReadBuilder(
             self._parent,
             lambda rt: MapOperation.get_by_index(b, index, rt),
-            MapReturnType,
-            is_map=True,
+            MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_index(index),
         )
 
     def on_map_key(self, key: Any) -> CdtReadBuilder[_T]:
@@ -2354,8 +2364,8 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         return CdtReadBuilder(
             self._parent,
             lambda rt: MapOperation.get_by_key(b, key, rt),
-            MapReturnType,
-            is_map=True,
+            MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_key(key),
         )
 
     def on_map_rank(self, rank: int) -> CdtReadBuilder[_T]:
@@ -2364,8 +2374,8 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         return CdtReadBuilder(
             self._parent,
             lambda rt: MapOperation.get_by_rank(b, rank, rt),
-            MapReturnType,
-            is_map=True,
+            MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_rank(rank),
         )
 
     # -- Map navigation (singular invertable -> CdtReadInvertableBuilder) -----
@@ -2462,8 +2472,8 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         return CdtReadBuilder(
             self._parent,
             lambda rt: ListOperation.get_by_index(b, index, rt),
-            ListReturnType,
-            is_map=False,
+            ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_index(index),
         )
 
     def on_list_rank(self, rank: int) -> CdtReadBuilder[_T]:
@@ -2472,8 +2482,8 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         return CdtReadBuilder(
             self._parent,
             lambda rt: ListOperation.get_by_rank(b, rank, rt),
-            ListReturnType,
-            is_map=False,
+            ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_rank(rank),
         )
 
     # -- List navigation (singular invertable -> CdtReadInvertableBuilder) ----

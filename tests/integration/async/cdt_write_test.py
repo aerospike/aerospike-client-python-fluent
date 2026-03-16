@@ -29,7 +29,7 @@ DS = DataSet.of(NS, SET)
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
-        for key_id in range(1, 20):
+        for key_id in range(1, 40):
             await session.delete(DS.id(key_id)).execute()
         yield c
 
@@ -266,11 +266,351 @@ class TestCdtWriteCombined:
 
         await (
             session.update(k)
-            .bin("scores").list_append(40)
-            .bin("meta").on_map_key("x").remove()
-            .execute()
+                .bin("scores").list_append(40)
+                .bin("meta").on_map_key("x").remove()
+                .execute()
         )
 
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["scores"] == [10, 20, 30, 40]
         assert result.record.bins["meta"] == {"y": 2}
+
+
+# ===================================================================
+# Nested navigation: set_to / add
+# ===================================================================
+
+class TestNestedSetTo:
+    """Nested CDT navigation with set_to() write terminal."""
+
+    @pytest.mark.asyncio
+    async def test_set_to_on_map_key(self, client):
+        """Set a value at a single-level map key."""
+        session = client.create_session()
+        k = DS.id(15)
+        await session.upsert(k).put({"ratings": {"a": 1, "b": 2}}).execute()
+
+        await session.update(k).bin("ratings").on_map_key("a").set_to(10).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["ratings"] == {"a": 10, "b": 2}
+
+    @pytest.mark.asyncio
+    async def test_set_to_creates_new_key(self, client):
+        """set_to() on a non-existent key creates it."""
+        session = client.create_session()
+        k = DS.id(16)
+        await session.upsert(k).put({"m": {"a": 1}}).execute()
+
+        await session.update(k).bin("m").on_map_key("b").set_to(2).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["m"] == {"a": 1, "b": 2}
+
+    @pytest.mark.asyncio
+    async def test_nested_set_to_two_deep(self, client):
+        """Set a value at a 2-deep nested map path."""
+        session = client.create_session()
+        k = DS.id(17)
+        await session.upsert(k).put({
+            "rooms": {"room1": {"rate": 100, "avail": True}},
+        }).execute()
+
+        await (
+            session.update(k)
+                .bin("rooms").on_map_key("room1").on_map_key("rate").set_to(150)
+                .execute()
+        )
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["rooms"]["room1"]["rate"] == 150
+        assert result.record.bins["rooms"]["room1"]["avail"] is True
+
+
+class TestNestedAdd:
+    """Nested CDT navigation with add() (increment) terminal."""
+
+    @pytest.mark.asyncio
+    async def test_add_on_map_key(self, client):
+        """Increment a value at a single-level map key."""
+        session = client.create_session()
+        k = DS.id(18)
+        await session.upsert(k).put({"counters": {"views": 10}}).execute()
+
+        await session.update(k).bin("counters").on_map_key("views").add(5).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["counters"]["views"] == 15
+
+    @pytest.mark.asyncio
+    async def test_nested_add_two_deep(self, client):
+        """Increment at a 2-deep nested map path."""
+        session = client.create_session()
+        k = DS.id(19)
+        await session.upsert(k).put({
+            "rooms": {"room1": {"rates": {"base": 100}}},
+        }).execute()
+
+        await (
+            session.update(k)
+                .bin("rooms").on_map_key("room1").on_map_key("rates").on_map_key("base").add(10)
+                .execute()
+        )
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["rooms"]["room1"]["rates"]["base"] == 110
+
+
+class TestNestedCombined:
+    """Combined nested write operations."""
+
+    @pytest.mark.asyncio
+    async def test_nested_set_to_and_flat_read(self, client):
+        """Combine nested set_to with flat read in one execute."""
+        session = client.create_session()
+        k = DS.id(20)
+        await session.upsert(k).put({
+            "meta": {"status": "draft"},
+            "scores": [10, 20],
+        }).execute()
+
+        await (
+            session.update(k)
+                .bin("meta").on_map_key("status").set_to("published")
+                .bin("scores").list_append(30)
+                .execute()
+        )
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["meta"]["status"] == "published"
+        assert result.record.bins["scores"] == [10, 20, 30]
+
+    @pytest.mark.asyncio
+    async def test_multiple_nested_writes_same_map(self, client):
+        """Multiple set_to operations on different keys in the same map."""
+        session = client.create_session()
+        k = DS.id(21)
+        await session.upsert(k).put({"info": {"a": 1, "b": 2, "c": 3}}).execute()
+
+        await (
+            session.update(k)
+                .bin("info").on_map_key("a").set_to(10)
+                .bin("info").on_map_key("c").set_to(30)
+                .execute()
+        )
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["info"] == {"a": 10, "b": 2, "c": 30}
+
+
+# ===================================================================
+# Product ratings workflow (end-to-end CDT map operations)
+# ===================================================================
+
+class TestProductRatingsWorkflow:
+    """End-to-end CDT map workflow: write, read by key/rank/range, update, remove."""
+
+    @pytest.mark.asyncio
+    async def test_bulk_set_to_multiple_keys(self, client):
+        """Write multiple map entries in one upsert."""
+        session = client.create_session()
+        k = DS.id(22)
+        await session.upsert(k).put({"name": "product"}).execute()
+
+        await (
+            session.upsert(k)
+                .bin("ratings").on_map_key("alice").set_to(5)
+                .bin("ratings").on_map_key("bob").set_to(4)
+                .bin("ratings").on_map_key("carol").set_to(4)
+                .bin("ratings").on_map_key("dave").set_to(3)
+                .bin("ratings").on_map_key("eve").set_to(5)
+                .bin("ratings").on_map_key("frank").set_to(2)
+                .bin("ratings").on_map_key("grace").set_to(4)
+                .execute()
+        )
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        ratings = result.record.bins["ratings"]
+        assert len(ratings) == 7
+        assert ratings["alice"] == 5
+        assert ratings["frank"] == 2
+
+    @pytest.mark.asyncio
+    async def test_read_by_map_key(self, client):
+        """Read a specific map entry by key."""
+        session = client.create_session()
+        k = DS.id(23)
+        await session.upsert(k).put({
+            "ratings": {"alice": 5, "bob": 4, "carol": 3},
+        }).execute()
+
+        result = await (
+            await session.query(k).bin("ratings").on_map_key("alice").get_values().execute()
+        ).first_or_raise()
+        assert result.record.bins["ratings"] == 5
+
+    @pytest.mark.asyncio
+    async def test_read_highest_by_rank(self, client):
+        """Read the highest-ranked entry (rank -1)."""
+        session = client.create_session()
+        k = DS.id(24)
+        await session.upsert(k).put({
+            "ratings": {"alice": 5, "bob": 3, "carol": 4},
+        }).execute()
+
+        result = await (
+            await session.query(k)
+                .bin("ratings").on_map_rank(-1).get_keys_and_values()
+                .execute()
+        ).first_or_raise()
+        assert result.record.bins["ratings"] == {"alice": 5}
+
+    @pytest.mark.asyncio
+    async def test_count_by_value_range(self, client):
+        """Count entries within a value range [4, 6)."""
+        session = client.create_session()
+        k = DS.id(25)
+        await session.upsert(k).put({
+            "ratings": {"alice": 5, "bob": 4, "carol": 3, "dave": 5, "eve": 2},
+        }).execute()
+
+        result = await (
+            await session.query(k)
+                .bin("ratings").on_map_value_range(4, 6).count()
+                .execute()
+        ).first_or_raise()
+        assert result.record.bins["ratings"] == 3
+
+    @pytest.mark.asyncio
+    async def test_update_then_remove_then_verify(self, client):
+        """Update a rating, remove another, then verify the map state."""
+        session = client.create_session()
+        k = DS.id(26)
+        await session.upsert(k).put({
+            "ratings": {"alice": 5, "bob": 3, "carol": 4, "dave": 2},
+        }).execute()
+
+        await session.upsert(k).bin("ratings").on_map_key("bob").set_to(5).execute()
+        await session.upsert(k).bin("ratings").on_map_key("dave").remove().execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        ratings = result.record.bins["ratings"]
+        assert ratings == {"alice": 5, "bob": 5, "carol": 4}
+
+    @pytest.mark.asyncio
+    async def test_count_after_update_and_remove(self, client):
+        """Verify value-range count changes after updates and removals."""
+        session = client.create_session()
+        k = DS.id(27)
+        await session.upsert(k).put({
+            "ratings": {"a": 5, "b": 4, "c": 3, "d": 5, "e": 2, "f": 4},
+        }).execute()
+
+        result = await (
+            await session.query(k).bin("ratings").on_map_value_range(4, 6).count().execute()
+        ).first_or_raise()
+        assert result.record.bins["ratings"] == 4
+
+        await session.upsert(k).bin("ratings").on_map_key("c").set_to(5).execute()
+        await session.upsert(k).bin("ratings").on_map_key("e").remove().execute()
+
+        result = await (
+            await session.query(k).bin("ratings").on_map_value_range(4, 6).count().execute()
+        ).first_or_raise()
+        assert result.record.bins["ratings"] == 5
+
+
+# ===================================================================
+# CDT reads within write operations
+# ===================================================================
+
+class TestCdtReadsInWriteContext:
+    """CDT read operations (get_values, count) issued as part of an upsert/update."""
+
+    @pytest.mark.asyncio
+    async def test_cdt_read_in_upsert(self, client):
+        """Read a CDT value as part of an upsert; the result is returned."""
+        session = client.create_session()
+        k = DS.id(28)
+        await session.upsert(k).put({"info": {"name": "Alice", "age": 30}}).execute()
+
+        rs = await (
+            session.upsert(k)
+                .bin("info").on_map_key("name").get_values()
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["info"] == "Alice"
+
+    @pytest.mark.asyncio
+    async def test_cdt_count_in_upsert(self, client):
+        """Count CDT elements in an upsert context."""
+        session = client.create_session()
+        k = DS.id(29)
+        await session.upsert(k).put({"tags": {"a": 1, "b": 2, "c": 3}}).execute()
+
+        rs = await (
+            session.upsert(k)
+                .bin("tags").on_map_key_range("a", "c").count()
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["tags"] == 2
+
+    @pytest.mark.asyncio
+    async def test_mixed_cdt_read_and_write_in_upsert(self, client):
+        """Mix CDT reads and writes on different bins in a single upsert."""
+        session = client.create_session()
+        k = DS.id(30)
+        await session.upsert(k).put({
+            "rooms": {"r1": {"rate": 100}, "r2": {"rate": 200}},
+            "meta": {"ver": 1},
+        }).execute()
+
+        rs = await (
+            session.upsert(k)
+                .bin("rooms").on_map_key("r1").get_values()
+                .bin("meta").on_map_key("ver").set_to(2)
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["rooms"] == {"rate": 100}
+
+        verify = await (await session.query(k).execute()).first_or_raise()
+        assert verify.record.bins["meta"]["ver"] == 2
+
+    @pytest.mark.asyncio
+    async def test_cdt_read_and_flat_write_in_upsert(self, client):
+        """CDT read + flat bin write in the same upsert."""
+        session = client.create_session()
+        k = DS.id(31)
+        await session.upsert(k).put({"scores": {"math": 90, "sci": 85}}).execute()
+
+        rs = await (
+            session.upsert(k)
+                .bin("scores").on_map_key("math").get_values()
+                .bin("status").set_to("reviewed")
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["scores"] == 90
+
+        verify = await (await session.query(k).execute()).first_or_raise()
+        assert verify.record.bins["status"] == "reviewed"
+
+    @pytest.mark.asyncio
+    async def test_inverted_count_in_write_context(self, client):
+        """Inverted count (count_all_others) in an upsert context."""
+        session = client.create_session()
+        k = DS.id(32)
+        await session.upsert(k).put({
+            "data": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5},
+        }).execute()
+
+        rs = await (
+            session.upsert(k)
+                .bin("data").on_map_key_range("b", "d").count_all_others()
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["data"] == 3
