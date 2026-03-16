@@ -111,7 +111,7 @@ class CdtReadBuilder(Generic[T]):
         ctx: Sequence[Any], to_ctx: Callable[[], Any],
         **_extra: Any,
     ) -> CdtReadBuilder[T]:
-        """Create a navigated builder of the same flavour.
+        """Create a navigated builder of the same flavor.
 
         Subclasses override to preserve their builder type and extra
         fields (e.g. ``remove_factory``, ``set_to_factory``).

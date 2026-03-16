@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 class ErrorStrategy(Enum):
     """Strategy for handling per-record errors during execution.
 
-    Pass to ``execute(on_error=...)`` to override the default behaviour::
+    Pass to ``execute(on_error=...)`` to override the default behavior::
 
         stream = await (
             session.query(k1, k2)
