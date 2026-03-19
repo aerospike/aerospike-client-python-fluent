@@ -29,9 +29,12 @@ from aerospike_async import (
     ListOrderType,
     ListPolicy,
     ListReturnType,
+    ListSortFlags,
     MapOperation,
+    MapOrder,
     MapPolicy,
     MapReturnType,
+    MapWriteFlags,
     PartitionFilter,
     QueryDuration,
     QueryPolicy,
@@ -39,6 +42,7 @@ from aerospike_async import (
     Replica,
 )
 
+from aerospike_fluent.aio.operations.cdt_read import _map_item_pairs
 from aerospike_fluent.aio.operations.cdt_write import (
     CdtWriteBuilder,
     CdtWriteInvertableBuilder,
@@ -624,6 +628,107 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         self._sync_segment.add_operation(
             ListOperation.append(self._bin, value, ListPolicy(None, None)),
         )
+        return self._sync_segment
+
+    # -- Collection-level map -------------------------------------------------
+
+    def map_clear(self) -> SyncWriteSegmentBuilder:
+        """Remove all entries from the map bin."""
+        self._sync_segment.add_operation(MapOperation.clear(self._bin))
+        return self._sync_segment
+
+    def map_size(self) -> SyncWriteSegmentBuilder:
+        """Return the map element count (read within operate)."""
+        self._sync_segment.add_operation(MapOperation.size(self._bin))
+        return self._sync_segment
+
+    def map_upsert_items(self, items: Any) -> SyncWriteSegmentBuilder:
+        """Put multiple map entries (create or update each key)."""
+        pairs = _map_item_pairs(items)
+        self._sync_segment.add_operation(
+            MapOperation.put_items(self._bin, pairs, MapPolicy(None, None)),
+        )
+        return self._sync_segment
+
+    def map_insert_items(self, items: Any) -> SyncWriteSegmentBuilder:
+        """Put map entries only for keys that do not yet exist."""
+        pairs = _map_item_pairs(items)
+        policy = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
+        self._sync_segment.add_operation(
+            MapOperation.put_items(self._bin, pairs, policy),
+        )
+        return self._sync_segment
+
+    def map_update_items(self, items: Any) -> SyncWriteSegmentBuilder:
+        """Update existing map entries only (no new keys)."""
+        pairs = _map_item_pairs(items)
+        policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
+        self._sync_segment.add_operation(
+            MapOperation.put_items(self._bin, pairs, policy),
+        )
+        return self._sync_segment
+
+    def map_create(self, order: MapOrder) -> SyncWriteSegmentBuilder:
+        """Create an empty map with the given key order."""
+        self._sync_segment.add_operation(MapOperation.create(self._bin, order))
+        return self._sync_segment
+
+    def map_set_policy(self, order: MapOrder) -> SyncWriteSegmentBuilder:
+        """Set map sort order policy without changing entries."""
+        self._sync_segment.add_operation(
+            MapOperation.set_map_policy(self._bin, MapPolicy(order, None)),
+        )
+        return self._sync_segment
+
+    # -- Collection-level list ------------------------------------------------
+
+    def list_clear(self) -> SyncWriteSegmentBuilder:
+        """Remove all elements from the list bin."""
+        self._sync_segment.add_operation(ListOperation.clear(self._bin))
+        return self._sync_segment
+
+    def list_sort(
+        self, flags: ListSortFlags = ListSortFlags.DEFAULT,
+    ) -> SyncWriteSegmentBuilder:
+        """Sort the list bin."""
+        self._sync_segment.add_operation(ListOperation.sort(self._bin, flags))
+        return self._sync_segment
+
+    def list_size(self) -> SyncWriteSegmentBuilder:
+        """Return the list element count (read within operate)."""
+        self._sync_segment.add_operation(ListOperation.size(self._bin))
+        return self._sync_segment
+
+    def list_append_items(self, items: Any) -> SyncWriteSegmentBuilder:
+        """Append values to an unordered list."""
+        self._sync_segment.add_operation(
+            ListOperation.append_items(
+                self._bin, items, ListPolicy(None, None),
+            ),
+        )
+        return self._sync_segment
+
+    def list_add_items(self, items: Any) -> SyncWriteSegmentBuilder:
+        """Insert values into an ordered list (sorted positions)."""
+        self._sync_segment.add_operation(
+            ListOperation.append_items(
+                self._bin, items, ListPolicy(ListOrderType.ORDERED, None),
+            ),
+        )
+        return self._sync_segment
+
+    def list_create(
+        self, order: ListOrderType, *, pad: bool = False, persist_index: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Create an empty list with the given order."""
+        self._sync_segment.add_operation(
+            ListOperation.create(self._bin, order, pad, persist_index),
+        )
+        return self._sync_segment
+
+    def list_set_order(self, order: ListOrderType) -> SyncWriteSegmentBuilder:
+        """Set list sort order without changing elements."""
+        self._sync_segment.add_operation(ListOperation.set_order(self._bin, order))
         return self._sync_segment
 
     # -- Map navigation (singular -> CdtWriteBuilder) -------------------------

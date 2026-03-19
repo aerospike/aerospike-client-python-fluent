@@ -45,19 +45,13 @@ pip install -e ".[dev]"
 
 ## Configuration
 
-Edit `aerospike.env` to match your Aerospike server:
-
-```bash
-export AEROSPIKE_HOST=127.0.0.1:3100
-```
-
-For manual runs (outside of pytest), source it:
+Edit `aerospike.env` in the repo root for your Aerospike endpoints (committed as a team default; use a local clone-only copy if you must not share edits).
 
 ```bash
 source aerospike.env
 ```
 
-Tests automatically load `aerospike.env` via `conftest.py`.
+`aerospike.env.example` is an optional duplicate baseline. Tests load `aerospike.env` when that file exists; otherwise `conftest.py` loads `aerospike.env.example` for unset variables only (so CI env vars still win).
 
 ## Running Tests
 

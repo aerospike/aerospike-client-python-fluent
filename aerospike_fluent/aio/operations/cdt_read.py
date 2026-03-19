@@ -34,6 +34,7 @@ for the next selector with ``.set_context()`` applied.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Callable, Generic, Sequence, TypeVar, Union
 
 from aerospike_async import (
@@ -47,6 +48,13 @@ from aerospike_async import (
 T = TypeVar("T")
 
 _ReturnTypeCls = Union[type[MapReturnType], type[ListReturnType]]
+
+
+def _map_item_pairs(items: Mapping[Any, Any] | Sequence[tuple[Any, Any]]) -> list[tuple[Any, Any]]:
+    """Normalize mapping or sequence of pairs for ``MapOperation.put_items``."""
+    if isinstance(items, Mapping):
+        return list(items.items())
+    return list(items)
 
 
 class CdtReadBuilder(Generic[T]):
@@ -104,6 +112,18 @@ class CdtReadBuilder(Generic[T]):
             raise TypeError("This builder does not support further navigation")
         new_ctx = self._ctx + (self._to_ctx(),)
         return self._bin_name, new_ctx, list(new_ctx)
+
+    def _context_list_for_nested_ops(self) -> list[Any]:
+        """CDT context for collection-level ops at the current selection.
+
+        First-hop builders from a bin store only ``_to_ctx`` until a deeper
+        navigation pushes it into ``_ctx``. Terminals like ``map_clear`` or
+        ``map_size`` must include both.
+        """
+        out = list(self._ctx)
+        if self._to_ctx is not None:
+            out.append(self._to_ctx())
+        return out
 
     def _build_navigated(
         self, *, op_factory: Callable[[Any], Any],
@@ -204,6 +224,22 @@ class CdtReadBuilder(Generic[T]):
     def exists(self) -> T:
         """Check whether the selected CDT element(s) exist."""
         return self._emit(self._rt.EXISTS)
+
+    def map_size(self) -> T:
+        """Return the element count of the map at the current CDT path."""
+        op = MapOperation.size(self._bin_name).set_context(
+            self._context_list_for_nested_ops(),
+        )
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def list_size(self) -> T:
+        """Return the element count of the list at the current CDT path."""
+        op = ListOperation.size(self._bin_name).set_context(
+            self._context_list_for_nested_ops(),
+        )
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
 
 
 class CdtReadInvertableBuilder(CdtReadBuilder[T]):
