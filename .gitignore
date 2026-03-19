@@ -50,6 +50,7 @@ dmypy.json
 # Environment
 .env
 *.env.local
+aerospike.env
 
 # OS
 .DS_Store

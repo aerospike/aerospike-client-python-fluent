@@ -31,13 +31,18 @@ from aerospike_async import (
     ListOperation,
     ListOrderType,
     ListReturnType,
+    ListSortFlags,
     MapOperation,
+    MapOrder,
+    MapPolicy,
     MapReturnType,
+    MapWriteFlags,
 )
 
 from aerospike_fluent.aio.operations.cdt_read import (
     CdtReadBuilder,
     CdtReadInvertableBuilder,
+    _map_item_pairs,
 )
 from aerospike_fluent.aio.operations.cdt_write import (
     CdtWriteBuilder,
@@ -551,3 +556,176 @@ class TestWriteTerminals:
         b = wbb.on_map_key("outer").on_map_index(0)
         with pytest.raises(TypeError, match="set_to.*requires on_map_key"):
             b.set_to(42)
+
+
+# ===================================================================
+# Collection-level map (WriteBinBuilder)
+# ===================================================================
+
+class TestCollectionLevelMapOps:
+
+    def _build(self, bin_name: str = "m"):
+        qb = _make_qb()
+        qb._single_key = _make_key()
+        segment = WriteSegmentBuilder(qb)
+        return WriteBinBuilder(segment, bin_name), segment
+
+    def test_map_clear(self):
+        wbb, segment = self._build()
+        wbb.map_clear()
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_map_size(self):
+        wbb, segment = self._build()
+        wbb.map_size()
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_map_upsert_items_from_dict(self):
+        wbb, segment = self._build()
+        wbb.map_upsert_items({"a": 1, "b": 2})
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_map_insert_items_uses_create_only_policy(self):
+        p = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
+        assert int(p.flags) & int(MapWriteFlags.CREATE_ONLY)
+
+    def test_map_update_items_uses_update_only_policy(self):
+        p = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
+        assert int(p.flags) & int(MapWriteFlags.UPDATE_ONLY)
+
+    def test_map_create(self):
+        wbb, segment = self._build()
+        wbb.map_create(MapOrder.KEY_ORDERED)
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_map_set_policy(self):
+        wbb, segment = self._build()
+        wbb.map_set_policy(MapOrder.KEY_ORDERED)
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+
+# ===================================================================
+# Collection-level list (WriteBinBuilder)
+# ===================================================================
+
+class TestCollectionLevelListOps:
+
+    def _build(self, bin_name: str = "lst"):
+        qb = _make_qb()
+        qb._single_key = _make_key()
+        segment = WriteSegmentBuilder(qb)
+        return WriteBinBuilder(segment, bin_name), segment
+
+    def test_list_clear(self):
+        wbb, segment = self._build()
+        wbb.list_clear()
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_list_sort_default_flags(self):
+        wbb, segment = self._build()
+        wbb.list_sort()
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_list_sort_descending(self):
+        wbb, segment = self._build()
+        wbb.list_sort(ListSortFlags.DESCENDING)
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_list_size(self):
+        wbb, segment = self._build()
+        wbb.list_size()
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_list_append_items(self):
+        wbb, segment = self._build()
+        wbb.list_append_items([1, 2, 3])
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_list_add_items(self):
+        wbb, segment = self._build()
+        wbb.list_add_items([3, 1, 2])
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_list_create(self):
+        wbb, segment = self._build()
+        wbb.list_create(ListOrderType.ORDERED)
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_list_set_order(self):
+        wbb, segment = self._build()
+        wbb.list_set_order(ListOrderType.ORDERED)
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+
+# ===================================================================
+# Nested collection-level (CdtWriteBuilder + context)
+# ===================================================================
+
+class TestNestedCollectionOps:
+
+    def _build(self):
+        qb = _make_qb()
+        qb._single_key = _make_key()
+        segment = WriteSegmentBuilder(qb)
+        wbb = WriteBinBuilder(segment, "root")
+        return wbb, segment
+
+    def test_nested_map_clear_produces_single_map_op(self):
+        wbb, segment = self._build()
+        wbb.on_map_key("inner").map_clear()
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_nested_map_upsert_items(self):
+        wbb, segment = self._build()
+        wbb.on_map_key("inner").map_upsert_items({"x": 1})
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_nested_list_append_items(self):
+        wbb, segment = self._build()
+        wbb.on_map_key("inner").list_append_items([1, 2])
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+
+# ===================================================================
+# Read path: nested map_size / list_size
+# ===================================================================
+
+class TestReadPathNestedCollectionSize:
+
+    def test_nested_map_size_on_query_bin_builder(self):
+        parent = _OpCollector()
+        qbb = QueryBinBuilder(parent, "data")
+        qbb.on_map_key("sub").map_size()
+        assert len(parent.operations) == 1
+        assert isinstance(parent.operations[0], MapOperation)
+
+    def test_nested_list_size(self):
+        parent = _OpCollector()
+        qbb = QueryBinBuilder(parent, "data")
+        qbb.on_map_key("sub").list_size()
+        assert len(parent.operations) == 1
+        assert isinstance(parent.operations[0], ListOperation)
+
+
+# ===================================================================
+# _map_item_pairs helper
+# ===================================================================
+
+class TestMapItemPairs:
+
+    def test_dict_to_pairs(self):
+        pairs = _map_item_pairs({"a": 1, "b": 2})
+        assert sorted(pairs) == [("a", 1), ("b", 2)]
+
+    def test_sequence_passthrough(self):
+        assert _map_item_pairs([("x", 10)]) == [("x", 10)]

@@ -16,7 +16,11 @@
 """Integration tests for sync CDT write operations: list_add, list_append, remove, exists."""
 
 import pytest
+from aerospike_async import ListOrderType, ListSortFlags, MapOrder
+from aerospike_async.exceptions import ResultCode
+
 from aerospike_fluent import DataSet, SyncFluentClient
+from aerospike_fluent.exceptions import AerospikeError
 
 
 NS = "test"
@@ -28,7 +32,7 @@ DS = DataSet.of(NS, SET)
 def client(aerospike_host, client_policy):
     with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
-        for key_id in range(1, 40):
+        for key_id in range(1, 52):
             session.delete(DS.id(key_id)).execute()
         yield c
 
@@ -576,3 +580,213 @@ class TestCdtReadsInWriteContext:
         )
         result = rs.first_or_raise()
         assert result.record.bins["data"] == 3
+
+
+# ===================================================================
+# Collection-level map operations
+# ===================================================================
+
+class TestMapCollectionOps:
+    """Top-level and nested map collection CDT operations."""
+
+    def test_map_clear_top_level(self, client):
+        session = client.create_session()
+        k = DS.id(33)
+        session.upsert(k).put({"m": {"a": 1, "b": 2}}).execute()
+
+        session.update(k).bin("m").map_clear().execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["m"] == {}
+
+    def test_map_clear_nested(self, client):
+        session = client.create_session()
+        k = DS.id(34)
+        session.upsert(k).put({"outer": {"inner": {"x": 1, "y": 2}}}).execute()
+
+        session.update(k).bin("outer").on_map_key("inner").map_clear().execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["outer"]["inner"] == {}
+
+    def test_map_upsert_items(self, client):
+        session = client.create_session()
+        k = DS.id(35)
+        session.upsert(k).put({"m": {"a": 1}}).execute()
+
+        session.update(k).bin("m").map_upsert_items({"b": 2, "c": 3}).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["m"] == {"a": 1, "b": 2, "c": 3}
+
+    def test_map_insert_items_new_keys_only(self, client):
+        session = client.create_session()
+        k = DS.id(36)
+        session.upsert(k).put({"m": {"a": 1}}).execute()
+
+        session.update(k).bin("m").map_insert_items({"b": 2}).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["m"] == {"a": 1, "b": 2}
+
+    def test_map_update_items_existing_keys_only(self, client):
+        session = client.create_session()
+        k = DS.id(37)
+        session.upsert(k).put({"m": {"a": 1, "b": 2}}).execute()
+
+        session.update(k).bin("m").map_update_items({"a": 10}).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["m"] == {"a": 10, "b": 2}
+
+    def test_map_insert_items_rejects_existing_key(self, client):
+        """CREATE_ONLY refuses to overwrite an existing map key."""
+        session = client.create_session()
+        k = DS.id(49)
+        session.upsert(k).put({"m": {"a": 1}}).execute()
+
+        with pytest.raises(AerospikeError) as exc_info:
+            session.update(k).bin("m").map_insert_items({"a": 2}).execute()
+        assert exc_info.value.result_code == ResultCode.ELEMENT_EXISTS
+
+    def test_map_update_items_rejects_new_key(self, client):
+        """UPDATE_ONLY refuses to create a map entry for a missing key."""
+        session = client.create_session()
+        k = DS.id(50)
+        session.upsert(k).put({"m": {"a": 1}}).execute()
+
+        with pytest.raises(AerospikeError) as exc_info:
+            session.update(k).bin("m").map_update_items({"b": 2}).execute()
+        assert exc_info.value.result_code == ResultCode.ELEMENT_NOT_FOUND
+
+    def test_map_create_then_upsert_key_ordered(self, client):
+        session = client.create_session()
+        k = DS.id(38)
+        session.upsert(k).put({"p": 1}).execute()
+
+        session.update(k).bin("ord").map_create(MapOrder.KEY_ORDERED).execute()
+        session.update(k).bin("ord").map_upsert_items({"c": 3, "a": 1, "b": 2}).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert list(result.record.bins["ord"].keys()) == ["a", "b", "c"]
+
+    def test_map_set_policy_key_ordered(self, client):
+        session = client.create_session()
+        k = DS.id(39)
+        session.upsert(k).put({"m": {"z": 1, "a": 2}}).execute()
+
+        session.update(k).bin("m").map_set_policy(MapOrder.KEY_ORDERED).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert list(result.record.bins["m"].keys()) == ["a", "z"]
+
+    def test_map_size_in_update_context(self, client):
+        session = client.create_session()
+        k = DS.id(40)
+        session.upsert(k).put({"m": {"x": 1, "y": 2, "z": 3}}).execute()
+
+        rs = session.update(k).bin("m").map_size().execute()
+        result = rs.first_or_raise()
+        assert result.record.bins["m"] == 3
+
+
+# ===================================================================
+# Collection-level list operations
+# ===================================================================
+
+class TestListCollectionOps:
+    """List clear, sort, bulk append, create, and order."""
+
+    def test_list_clear(self, client):
+        session = client.create_session()
+        k = DS.id(41)
+        session.upsert(k).put({"lst": [1, 2, 3]}).execute()
+
+        session.update(k).bin("lst").list_clear().execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["lst"] == []
+
+    def test_list_sort_descending(self, client):
+        session = client.create_session()
+        k = DS.id(42)
+        session.upsert(k).put({"lst": [1, 5, 3, 2]}).execute()
+
+        session.update(k).bin("lst").list_sort(ListSortFlags.DESCENDING).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["lst"] == [5, 3, 2, 1]
+
+    def test_list_append_items(self, client):
+        session = client.create_session()
+        k = DS.id(43)
+        session.upsert(k).put({"lst": [1, 2]}).execute()
+
+        session.update(k).bin("lst").list_append_items([3, 4]).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["lst"] == [1, 2, 3, 4]
+
+    def test_list_add_items_ordered(self, client):
+        session = client.create_session()
+        k = DS.id(44)
+        session.upsert(k).put({"name": "x", "scores": []}).execute()
+        session.update(k).bin("scores").list_set_order(
+            ListOrderType.ORDERED,
+        ).execute()
+        session.update(k).bin("scores").list_add_items([30, 10, 20]).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["scores"] == [10, 20, 30]
+
+    def test_empty_list_then_append_items(self, client):
+        session = client.create_session()
+        k = DS.id(45)
+        session.upsert(k).put({"t": 1, "items": []}).execute()
+        session.update(k).bin("items").list_append_items(["a", "b"]).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["items"] == ["a", "b"]
+
+    def test_list_set_order(self, client):
+        session = client.create_session()
+        k = DS.id(46)
+        session.upsert(k).put({"lst": [3, 1, 2]}).execute()
+
+        session.update(k).bin("lst").list_set_order(ListOrderType.ORDERED).execute()
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["lst"] == [1, 2, 3]
+
+
+# ===================================================================
+# Nested collection-level after on_map_key
+# ===================================================================
+
+class TestNestedMapCollectionOps:
+    """Collection-level ops with accumulated CDT context."""
+
+    def test_nested_map_upsert_items(self, client):
+        session = client.create_session()
+        k = DS.id(47)
+        session.upsert(k).put({"root": {"inner": {"a": 1}}}).execute()
+
+        (
+            session.update(k)
+            .bin("root").on_map_key("inner").map_upsert_items({"b": 2})
+            .execute()
+        )
+
+        result = session.query(k).execute().first_or_raise()
+        assert result.record.bins["root"]["inner"] == {"a": 1, "b": 2}
+
+    def test_nested_map_size_read_path(self, client):
+        session = client.create_session()
+        k = DS.id(48)
+        session.upsert(k).put({"data": {"sub": {"u": 1, "v": 2}}}).execute()
+
+        result = (
+            session.query(k).bin("data").on_map_key("sub").map_size().execute()
+            .first_or_raise()
+        )
+        assert result.record.bins["data"] == 2

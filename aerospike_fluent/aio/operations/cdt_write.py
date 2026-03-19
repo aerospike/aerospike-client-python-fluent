@@ -19,6 +19,7 @@ Extends the read-only builders from ``cdt_read`` with:
 
 - ``remove()`` / ``remove_all_others()`` terminals
 - ``set_to(value)`` / ``add(value)`` write terminals (map key navigation)
+- Collection-level map/list terminals (``map_clear``, ``map_upsert_items``, …)
 - Nested navigation that preserves write capability through the chain
 """
 
@@ -28,9 +29,15 @@ from typing import Any, Callable, Sequence
 
 from aerospike_async import (
     CTX,
+    ListOperation,
+    ListOrderType,
+    ListPolicy,
+    ListSortFlags,
     MapOperation,
+    MapOrder,
     MapPolicy,
     MapReturnType,
+    MapWriteFlags,
 )
 
 from aerospike_fluent.aio.operations.cdt_read import (
@@ -38,9 +45,12 @@ from aerospike_fluent.aio.operations.cdt_read import (
     CdtReadInvertableBuilder,
     T,
     _ReturnTypeCls,
+    _map_item_pairs,
 )
 
 _DEFAULT_MAP_POLICY = MapPolicy(None, None)
+_UNORDERED_LIST_POLICY = ListPolicy(None, None)
+_ORDERED_LIST_POLICY = ListPolicy(ListOrderType.ORDERED, None)
 
 
 class _RemoveMixin:
@@ -138,6 +148,115 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
                 "add() requires on_map_key() navigation"
             )
         op = self._add_factory(value)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    # -- Collection-level map -------------------------------------------------
+
+    def map_clear(self) -> T:
+        """Remove all entries from the map at the current CDT path."""
+        ctx = self._context_list_for_nested_ops()
+        op = MapOperation.clear(self._bin_name).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def map_upsert_items(self, items: Any) -> T:
+        """Put multiple map entries (create or update each key)."""
+        ctx = self._context_list_for_nested_ops()
+        pairs = _map_item_pairs(items)
+        op = MapOperation.put_items(
+            self._bin_name, pairs, _DEFAULT_MAP_POLICY,
+        ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def map_insert_items(self, items: Any) -> T:
+        """Put map entries only for keys that do not yet exist."""
+        ctx = self._context_list_for_nested_ops()
+        pairs = _map_item_pairs(items)
+        policy = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
+        op = MapOperation.put_items(
+            self._bin_name, pairs, policy,
+        ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def map_update_items(self, items: Any) -> T:
+        """Update existing map entries only (no new keys)."""
+        ctx = self._context_list_for_nested_ops()
+        pairs = _map_item_pairs(items)
+        policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
+        op = MapOperation.put_items(
+            self._bin_name, pairs, policy,
+        ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def map_create(self, order: MapOrder) -> T:
+        """Create an empty map with the given key order."""
+        ctx = self._context_list_for_nested_ops()
+        op = MapOperation.create(self._bin_name, order).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def map_set_policy(self, order: MapOrder) -> T:
+        """Set map sort order policy without changing entries."""
+        ctx = self._context_list_for_nested_ops()
+        op = MapOperation.set_map_policy(
+            self._bin_name, MapPolicy(order, None),
+        ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    # -- Collection-level list ------------------------------------------------
+
+    def list_clear(self) -> T:
+        """Remove all elements from the list at the current CDT path."""
+        ctx = self._context_list_for_nested_ops()
+        op = ListOperation.clear(self._bin_name).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def list_sort(self, flags: ListSortFlags = ListSortFlags.DEFAULT) -> T:
+        """Sort the list at the current path."""
+        ctx = self._context_list_for_nested_ops()
+        op = ListOperation.sort(self._bin_name, flags).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def list_append_items(self, items: Sequence[Any]) -> T:
+        """Append values to an unordered list."""
+        ctx = self._context_list_for_nested_ops()
+        op = ListOperation.append_items(
+            self._bin_name, items, _UNORDERED_LIST_POLICY,
+        ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def list_add_items(self, items: Sequence[Any]) -> T:
+        """Insert values into an ordered list (sorted positions)."""
+        ctx = self._context_list_for_nested_ops()
+        op = ListOperation.append_items(
+            self._bin_name, items, _ORDERED_LIST_POLICY,
+        ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def list_create(
+        self, order: ListOrderType, *, pad: bool = False, persist_index: bool = False,
+    ) -> T:
+        """Create an empty list with the given order."""
+        ctx = self._context_list_for_nested_ops()
+        op = ListOperation.create(
+            self._bin_name, order, pad, persist_index,
+        ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def list_set_order(self, order: ListOrderType) -> T:
+        """Set list sort order without changing elements."""
+        ctx = self._context_list_for_nested_ops()
+        op = ListOperation.set_order(self._bin_name, order).set_context(ctx)
         self._parent.add_operation(op)  # type: ignore[union-attr]
         return self._parent
 

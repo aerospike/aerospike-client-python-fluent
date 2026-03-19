@@ -41,9 +41,12 @@ from aerospike_async import (
     ListOrderType,
     ListPolicy,
     ListReturnType,
+    ListSortFlags,
     MapOperation,
+    MapOrder,
     MapPolicy,
     MapReturnType,
+    MapWriteFlags,
     Operation,
     PartitionFilter,
     QueryDuration,
@@ -62,6 +65,7 @@ from aerospike_async.exceptions import (
 from aerospike_fluent.aio.operations.cdt_read import (
     CdtReadBuilder,
     CdtReadInvertableBuilder,
+    _map_item_pairs,
 )
 from aerospike_fluent.aio.operations.cdt_write import (
     CdtWriteBuilder,
@@ -1988,6 +1992,93 @@ class WriteBinBuilder(_WriteVerbs):
             ListOperation.append(self._bin, value, ListPolicy(None, None)),
         )
 
+    # -- Collection-level map -------------------------------------------------
+
+    def map_clear(self) -> WriteSegmentBuilder:
+        """Remove all entries from the map bin."""
+        return self._segment._add_op(MapOperation.clear(self._bin))
+
+    def map_size(self) -> WriteSegmentBuilder:
+        """Return the map element count (read within operate)."""
+        return self._segment._add_op(MapOperation.size(self._bin))
+
+    def map_upsert_items(self, items: Any) -> WriteSegmentBuilder:
+        """Put multiple map entries (create or update each key)."""
+        pairs = _map_item_pairs(items)
+        return self._segment._add_op(
+            MapOperation.put_items(self._bin, pairs, MapPolicy(None, None)),
+        )
+
+    def map_insert_items(self, items: Any) -> WriteSegmentBuilder:
+        """Put map entries only for keys that do not yet exist."""
+        pairs = _map_item_pairs(items)
+        policy = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
+        return self._segment._add_op(
+            MapOperation.put_items(self._bin, pairs, policy),
+        )
+
+    def map_update_items(self, items: Any) -> WriteSegmentBuilder:
+        """Update existing map entries only (no new keys)."""
+        pairs = _map_item_pairs(items)
+        policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
+        return self._segment._add_op(
+            MapOperation.put_items(self._bin, pairs, policy),
+        )
+
+    def map_create(self, order: MapOrder) -> WriteSegmentBuilder:
+        """Create an empty map with the given key order."""
+        return self._segment._add_op(MapOperation.create(self._bin, order))
+
+    def map_set_policy(self, order: MapOrder) -> WriteSegmentBuilder:
+        """Set map sort order policy without changing entries."""
+        return self._segment._add_op(
+            MapOperation.set_map_policy(self._bin, MapPolicy(order, None)),
+        )
+
+    # -- Collection-level list ------------------------------------------------
+
+    def list_clear(self) -> WriteSegmentBuilder:
+        """Remove all elements from the list bin."""
+        return self._segment._add_op(ListOperation.clear(self._bin))
+
+    def list_sort(
+        self, flags: ListSortFlags = ListSortFlags.DEFAULT,
+    ) -> WriteSegmentBuilder:
+        """Sort the list bin."""
+        return self._segment._add_op(ListOperation.sort(self._bin, flags))
+
+    def list_size(self) -> WriteSegmentBuilder:
+        """Return the list element count (read within operate)."""
+        return self._segment._add_op(ListOperation.size(self._bin))
+
+    def list_append_items(self, items: Any) -> WriteSegmentBuilder:
+        """Append values to an unordered list."""
+        return self._segment._add_op(
+            ListOperation.append_items(
+                self._bin, items, ListPolicy(None, None),
+            ),
+        )
+
+    def list_add_items(self, items: Any) -> WriteSegmentBuilder:
+        """Insert values into an ordered list (sorted positions)."""
+        return self._segment._add_op(
+            ListOperation.append_items(
+                self._bin, items, ListPolicy(ListOrderType.ORDERED, None),
+            ),
+        )
+
+    def list_create(
+        self, order: ListOrderType, *, pad: bool = False, persist_index: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Create an empty list with the given order."""
+        return self._segment._add_op(
+            ListOperation.create(self._bin, order, pad, persist_index),
+        )
+
+    def list_set_order(self, order: ListOrderType) -> WriteSegmentBuilder:
+        """Set list sort order without changing elements."""
+        return self._segment._add_op(ListOperation.set_order(self._bin, order))
+
     # -- Expression operations ------------------------------------------------
 
     def select_from(
@@ -2286,9 +2377,10 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
     shared between the async :class:`QueryBuilder` and the sync
     ``SyncQueryBuilder``.  The parent must expose ``add_operation(op)``.
 
-    Provides a simple ``get()`` terminal, CDT map/list navigation, and
-    ``map_size()``/``list_size()`` convenience methods.  Write transitions
-    delegate to the parent builder.
+    Provides a simple ``get()`` terminal, CDT map/list navigation,
+    ``map_size()``/``list_size()`` on the bin, and the same size reads on
+    nested paths via :class:`CdtReadBuilder`.  Write transitions delegate
+    to the parent builder.
     """
 
     __slots__ = ("_parent", "_bin")

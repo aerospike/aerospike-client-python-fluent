@@ -1,5 +1,7 @@
 """
-Pytest configuration to automatically load environment variables from aerospike.env
+Pytest configuration to load environment variables from aerospike.env.
+
+Falls back to aerospike.env.example only when aerospike.env is missing (e.g. CI removes it).
 """
 import os
 import pytest
@@ -8,37 +10,42 @@ from pathlib import Path
 from aerospike_async import ClientPolicy
 
 
-def load_env_file(env_file_path):
-    """Load environment variables from a .env file"""
+def load_env_file(env_file_path, *, override: bool = True) -> None:
+    """Load KEY=value / export KEY=value lines from a file into os.environ."""
     if not os.path.exists(env_file_path):
         return
-    
+
     with open(env_file_path, 'r') as f:
         for line in f:
             line = line.strip()
             # Skip empty lines and comments
             if not line or line.startswith('#'):
                 continue
-            
+
             # Parse export VAR=value format
             if line.startswith('export '):
                 line = line[7:]  # Remove 'export ' prefix
-            
+
             if '=' in line:
                 key, value = line.split('=', 1)
                 key = key.strip()
                 value = value.strip().strip('"\'')
-                os.environ[key] = value
+                if override or key not in os.environ:
+                    os.environ[key] = value
 
 
 def pytest_configure(config):
     """Called after command line options have been parsed and all plugins and initial conftest files been loaded."""
-    # Load environment variables from aerospike.env (in project root)
-    env_file = Path(__file__).parent / "aerospike.env"
-    load_env_file(env_file)
-    
-    # Print loaded environment variables for debugging
-    print(f"Loaded environment variables from {env_file}\n")
+    root = Path(__file__).parent
+    env_local = root / "aerospike.env"
+    env_example = root / "aerospike.env.example"
+    if env_local.exists():
+        load_env_file(env_local, override=True)
+        print(f"Loaded environment variables from {env_local}\n")
+    else:
+        # Defaults only for unset keys so CI and explicit exports keep precedence.
+        load_env_file(env_example, override=False)
+        print(f"Loaded default environment variables from {env_example} (no {env_local.name})\n")
     
     # Ensure python path includes the tests directory for imports
     import sys
