@@ -22,7 +22,7 @@ Download the wheel for your platform and Python version from the
 then install it:
 
 ```bash
-pip install aerospike_async-0.3.0a2-cp313-cp313-macosx_11_0_arm64.whl  # example
+pip install aerospike_async-0.3.0a9-cp313-cp313-macosx_11_0_arm64.whl  # example; pick wheel matching your tag
 ```
 
 ### Option 2: Build from source (requires Rust)
@@ -30,7 +30,7 @@ pip install aerospike_async-0.3.0a2-cp313-cp313-macosx_11_0_arm64.whl  # example
 ```bash
 git clone git@github.com:aerospike/aerospike-client-python-async.git
 cd aerospike-client-python-async
-git checkout v0.3.0-alpha.2
+git checkout v0.3.0-alpha.9
 pip install -r requirements.txt
 make dev
 ```
@@ -45,13 +45,14 @@ pip install -e ".[dev]"
 
 ## Configuration
 
-Edit `aerospike.env` in the repo root for your Aerospike endpoints (committed as a team default; use a local clone-only copy if you must not share edits).
+Copy `aerospike.env.example` to `aerospike.env` in the repo root and adjust hosts or ports. `aerospike.env` is not committed.
 
 ```bash
+cp aerospike.env.example aerospike.env
 source aerospike.env
 ```
 
-`aerospike.env.example` is an optional duplicate baseline. Tests load `aerospike.env` when that file exists; otherwise `conftest.py` loads `aerospike.env.example` for unset variables only (so CI env vars still win).
+Pytest loads `aerospike.env` when present; otherwise `conftest.py` loads `aerospike.env.example` for unset variables only (so CI env vars still win).
 
 ## Running Tests
 
