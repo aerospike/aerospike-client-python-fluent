@@ -29,11 +29,59 @@ SET = "cdt_write"
 DS = DataSet.of(NS, SET)
 
 
+def _flatten_cdt_values(obj):
+    """Flatten nested lists from multi-op CDT read results."""
+    if isinstance(obj, list):
+        acc = []
+        for x in obj:
+            acc.extend(_flatten_cdt_values(x))
+        return acc
+    return [obj]
+
+
+# Expected per-op results for one operate() batch (KEY_ORDERED map / ordered list).
+_MAP_GET_RELATIVE_EXPECTED = [
+    [5, 9], [9], [4, 5, 9], [9], [0, 4, 5, 9], [5], [9], [4], [9], [0],
+    [17], [10, 15, 17], [17], [10],
+]
+
+_LIST_GET_RELATIVE_EXPECTED = [
+    6,
+    [5, 9, 11, 15],
+    [9, 11, 15],
+    [4, 5, 9, 11, 15],
+    [4, 5, 9, 11, 15],
+    [11, 15],
+    [0, 4, 5, 9, 11, 15],
+    [5, 9],
+    [9],
+    [4, 5],
+    [4],
+    [11, 15],
+    [],
+]
+
+def _assert_map_get_relative_batch(raw_bin):
+    assert isinstance(raw_bin, list)
+    assert len(raw_bin) == len(_MAP_GET_RELATIVE_EXPECTED)
+    for got, exp in zip(raw_bin, _MAP_GET_RELATIVE_EXPECTED):
+        assert [int(x) for x in got] == exp
+
+
+def _assert_list_get_relative_batch(raw_bin):
+    assert isinstance(raw_bin, list)
+    assert len(raw_bin) == len(_LIST_GET_RELATIVE_EXPECTED)
+    first, rest = raw_bin[0], raw_bin[1:]
+    assert int(first) == int(_LIST_GET_RELATIVE_EXPECTED[0])
+    for got, exp in zip(rest, _LIST_GET_RELATIVE_EXPECTED[1:]):
+        assert [int(x) for x in got] == exp
+
+
 @pytest_asyncio.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
-        for key_id in range(1, 52):
+        for key_id in range(1, 80):
             await session.delete(DS.id(key_id)).execute()
         yield c
 
@@ -847,3 +895,333 @@ class TestNestedMapCollectionOps:
             await session.query(k).bin("data").on_map_key("sub").map_size().execute()
         ).first_or_raise()
         assert result.record.bins["data"] == 2
+
+
+# ===================================================================
+# Relative range navigation (key/value anchors)
+# ===================================================================
+
+class TestRelativeRangeNavigation:
+    """Map/list CDT ranges relative to an anchor key or value."""
+
+    async def _seed_key_ordered_map(self, session, k):
+        await session.upsert(k).put({"p": 1}).execute()
+        await session.update(k).bin("mapbin").map_create(MapOrder.KEY_ORDERED).execute()
+        await session.update(k).bin("mapbin").map_upsert_items(
+            {0: 17, 4: 2, 5: 15, 9: 10},
+        ).execute()
+
+    async def _seed_ordered_list(self, session, k):
+        await session.upsert(k).put({"lst": []}).execute()
+        await session.update(k).bin("lst").list_set_order(ListOrderType.ORDERED).execute()
+        await session.update(k).bin("lst").list_add_items(
+            [0, 4, 5, 9, 11, 15],
+        ).execute()
+
+    @pytest.mark.asyncio
+    async def test_map_get_by_key_relative_index_range(self, client):
+        session = client.create_session()
+        k = DS.id(52)
+        await self._seed_key_ordered_map(session, k)
+
+        rs = await (
+            session.update(k)
+            .bin("mapbin")
+            .on_map_key_relative_index_range(5, 0, None)
+            .get_keys()
+            .execute()
+        )
+        flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["mapbin"])
+        assert 5 in flat
+        assert 9 in flat
+
+    @pytest.mark.asyncio
+    async def test_map_get_by_value_relative_rank_range(self, client):
+        session = client.create_session()
+        k = DS.id(53)
+        await self._seed_key_ordered_map(session, k)
+
+        rs = await (
+            session.update(k)
+            .bin("mapbin")
+            .on_map_value_relative_rank_range(11, 1, None)
+            .get_values()
+            .execute()
+        )
+        flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["mapbin"])
+        assert [int(x) for x in flat] == [17]
+
+    @pytest.mark.asyncio
+    async def test_map_remove_by_key_relative_index_range(self, client):
+        session = client.create_session()
+        k = DS.id(54)
+        await self._seed_key_ordered_map(session, k)
+
+        await (
+            session.update(k)
+            .bin("mapbin")
+            .on_map_key_relative_index_range(5, 0, None)
+            .remove()
+            .execute()
+        )
+
+        rec = await (await session.query(k).execute()).first_or_raise()
+        assert rec.record.bins["mapbin"] == {0: 17, 4: 2}
+
+    @pytest.mark.asyncio
+    async def test_map_remove_by_value_relative_rank_range(self, client):
+        session = client.create_session()
+        k = DS.id(55)
+        await self._seed_key_ordered_map(session, k)
+
+        await (
+            session.update(k)
+            .bin("mapbin")
+            .on_map_value_relative_rank_range(11, 1, None)
+            .remove()
+            .execute()
+        )
+
+        rec = await (await session.query(k).execute()).first_or_raise()
+        assert rec.record.bins["mapbin"] == {4: 2, 5: 15, 9: 10}
+
+    @pytest.mark.asyncio
+    async def test_list_get_by_value_relative_rank_range(self, client):
+        session = client.create_session()
+        k = DS.id(56)
+        await self._seed_ordered_list(session, k)
+
+        rs = await (
+            session.update(k)
+            .bin("lst")
+            .on_list_value_relative_rank_range(5, 0, None)
+            .get_values()
+            .execute()
+        )
+        flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["lst"])
+        assert [int(x) for x in flat] == [5, 9, 11, 15]
+
+    @pytest.mark.asyncio
+    async def test_list_remove_by_value_relative_rank_range(self, client):
+        session = client.create_session()
+        k = DS.id(57)
+        await self._seed_ordered_list(session, k)
+
+        await (
+            session.update(k)
+            .bin("lst")
+            .on_list_value_relative_rank_range(5, 0, None)
+            .remove()
+            .execute()
+        )
+
+        rec = await (await session.query(k).execute()).first_or_raise()
+        assert rec.record.bins["lst"] == [0, 4]
+
+    @pytest.mark.asyncio
+    async def test_relative_range_unbounded_count_none(self, client):
+        session = client.create_session()
+        k = DS.id(58)
+        await self._seed_key_ordered_map(session, k)
+        await self._seed_ordered_list(session, k)
+
+        rs_map = await (
+            session.update(k)
+            .bin("mapbin")
+            .on_map_key_relative_index_range(5, 0, None)
+            .get_keys()
+            .execute()
+        )
+        assert _flatten_cdt_values(
+            (await rs_map.first_or_raise()).record.bins["mapbin"],
+        )
+
+        rs_list = await (
+            session.update(k)
+            .bin("lst")
+            .on_list_value_relative_rank_range(5, 0, None)
+            .get_values()
+            .execute()
+        )
+        assert _flatten_cdt_values(
+            (await rs_list.first_or_raise()).record.bins["lst"],
+        )
+
+    @pytest.mark.asyncio
+    async def test_relative_range_with_count(self, client):
+        session = client.create_session()
+        k = DS.id(59)
+        await self._seed_ordered_list(session, k)
+
+        rs = await (
+            session.update(k)
+            .bin("lst")
+            .on_list_value_relative_rank_range(5, 0, 2)
+            .get_values()
+            .execute()
+        )
+        flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["lst"])
+        assert 5 in flat
+        assert 9 in flat
+
+    @pytest.mark.asyncio
+    async def test_relative_range_inverted_get_all_other_values(self, client):
+        session = client.create_session()
+        k = DS.id(60)
+        await self._seed_ordered_list(session, k)
+
+        rs = await (
+            session.update(k)
+            .bin("lst")
+            .on_list_value_relative_rank_range(5, 0, 2)
+            .get_all_other_values()
+            .execute()
+        )
+        flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["lst"])
+        assert 0 in flat or 4 in flat or 11 in flat or 15 in flat
+
+    @pytest.mark.asyncio
+    async def test_query_read_path_key_relative_index_range(self, client):
+        session = client.create_session()
+        k = DS.id(61)
+        await self._seed_key_ordered_map(session, k)
+
+        rs = await (
+            session.query(k)
+            .bin("mapbin")
+            .on_map_key_relative_index_range(5, 0, None)
+            .get_keys()
+            .execute()
+        )
+        flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["mapbin"])
+        assert 5 in flat
+        assert 9 in flat
+
+
+# ===================================================================
+# Relative-range multi-op batches: exact per-op result ordering
+# ===================================================================
+
+class TestRelativeRangeBatchOrdering:
+    """Batched CDT reads: per-op return lists in operate order.
+
+    Multi-op **remove** batches do not surface the same per-op list in the
+    PAC record (map bin may be absent; list may expose only the first op).
+    Remove coverage uses a trailing ``.get()`` and asserts final bin state.
+    """
+
+    @pytest.mark.asyncio
+    async def test_operate_map_get_relative_batch(self, client):
+        session = client.create_session()
+        k = DS.id(70)
+        await session.delete(k).execute()
+        await session.upsert(k).put({"p": 1}).execute()
+        await session.update(k).bin("mapbin").map_create(MapOrder.KEY_ORDERED).execute()
+        await session.update(k).bin("mapbin").map_upsert_items(
+            {0: 17, 4: 2, 5: 15, 9: 10},
+        ).execute()
+
+        b = session.update(k)
+        b = b.bin("mapbin").on_map_key_relative_index_range(5, 0, None).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(5, 1, None).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(5, -1, None).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(3, 2, None).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(3, -2, None).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(5, 0, 1).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(5, 1, 2).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(5, -1, 1).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(3, 2, 1).get_keys()
+        b = b.bin("mapbin").on_map_key_relative_index_range(3, -2, 2).get_keys()
+        b = b.bin("mapbin").on_map_value_relative_rank_range(11, 1, None).get_values()
+        b = b.bin("mapbin").on_map_value_relative_rank_range(11, -1, None).get_values()
+        b = b.bin("mapbin").on_map_value_relative_rank_range(11, 1, 1).get_values()
+        b = b.bin("mapbin").on_map_value_relative_rank_range(11, -1, 1).get_values()
+        rs = await b.execute()
+        raw = (await rs.first_or_raise()).record.bins["mapbin"]
+        _assert_map_get_relative_batch(raw)
+
+    @pytest.mark.asyncio
+    async def test_operate_list_get_relative_batch(self, client):
+        session = client.create_session()
+        k = DS.id(71)
+        await session.delete(k).execute()
+        await session.upsert(k).put({"x": 1}).execute()
+        b = session.update(k)
+        b = b.bin("lst").list_add_items([0, 4, 5, 9, 11, 15])
+        b = b.bin("lst").on_list_value_relative_rank_range(5, 0, None).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(5, 1, None).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(5, -1, None).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(3, 0, None).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(3, 3, None).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(3, -3, None).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(5, 0, 2).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(5, 1, 1).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(5, -1, 2).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(3, 0, 1).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(3, 3, 7).get_values()
+        b = b.bin("lst").on_list_value_relative_rank_range(3, -3, 2).get_values()
+        rs = await b.execute()
+        raw = (await rs.first_or_raise()).record.bins["lst"]
+        _assert_list_get_relative_batch(raw)
+
+    @pytest.mark.asyncio
+    async def test_operate_map_remove_relative_final_state(self, client):
+        session = client.create_session()
+        k = DS.id(72)
+        await session.delete(k).execute()
+        await session.upsert(k).put({"p": 1}).execute()
+        await session.update(k).bin("mapbin").map_create(MapOrder.KEY_ORDERED).execute()
+        await session.update(k).bin("mapbin").map_upsert_items(
+            {0: 17, 4: 2, 5: 15, 9: 10},
+        ).execute()
+
+        rs = await (
+            session.update(k)
+            .bin("mapbin").on_map_key_relative_index_range(5, 0, None).remove()
+            .bin("mapbin").on_map_key_relative_index_range(5, 1, None).remove()
+            .bin("mapbin").on_map_key_relative_index_range(5, -1, 1).remove()
+            .bin("mapbin").get()
+            .execute()
+        )
+        m = (await rs.first_or_raise()).record.bins["mapbin"]
+        assert m == {0: 17}
+
+        await session.delete(k).execute()
+        await session.upsert(k).put({"p": 1}).execute()
+        await session.update(k).bin("mapbin").map_create(MapOrder.KEY_ORDERED).execute()
+        await session.update(k).bin("mapbin").map_upsert_items(
+            {0: 17, 4: 2, 5: 15, 9: 10},
+        ).execute()
+
+        rs2 = await (
+            session.update(k)
+            .bin("mapbin").on_map_value_relative_rank_range(11, 1, None).remove()
+            .bin("mapbin").on_map_value_relative_rank_range(11, -1, 1).remove()
+            .bin("mapbin").get()
+            .execute()
+        )
+        m2 = (await rs2.first_or_raise()).record.bins["mapbin"]
+        assert m2 == {4: 2, 5: 15}
+
+    @pytest.mark.asyncio
+    async def test_operate_list_remove_relative_final_state(self, client):
+        session = client.create_session()
+        k = DS.id(73)
+        await session.delete(k).execute()
+        await session.upsert(k).put({"x": 1}).execute()
+        await session.update(k).bin("lst").list_add_items(
+            [0, 4, 5, 9, 11, 15],
+        ).execute()
+        rs = await (
+            session.update(k)
+            .bin("lst").on_list_value_relative_rank_range(5, 0, None).remove()
+            .bin("lst").on_list_value_relative_rank_range(5, 1, None).remove()
+            .bin("lst").on_list_value_relative_rank_range(5, -1, None).remove()
+            .bin("lst").on_list_value_relative_rank_range(3, -3, 1).remove()
+            .bin("lst").on_list_value_relative_rank_range(3, -3, 2).remove()
+            .bin("lst").on_list_value_relative_rank_range(3, -3, 3).remove()
+            .bin("lst").get()
+            .execute()
+        )
+        lst = (await rs.first_or_raise()).record.bins["lst"]
+        assert lst == []

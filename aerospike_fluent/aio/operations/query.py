@@ -2244,6 +2244,38 @@ class WriteBinBuilder(_WriteVerbs):
             MapReturnType, is_map=True,
         )
 
+    def on_map_key_relative_index_range(
+        self, key: Any, index: int, count: Optional[int] = None,
+    ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
+        """Navigate to map entries by index range relative to an anchor key."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._segment,
+            lambda rt: MapOperation.get_by_key_relative_index_range(
+                b, key, index, count, rt,
+            ),
+            lambda rt: MapOperation.remove_by_key_relative_index_range(
+                b, key, index, count, rt,
+            ),
+            MapReturnType, is_map=True,
+        )
+
+    def on_map_value_relative_rank_range(
+        self, value: Any, rank: int, count: Optional[int] = None,
+    ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
+        """Navigate to map entries by value rank range relative to an anchor value."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._segment,
+            lambda rt: MapOperation.get_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ),
+            lambda rt: MapOperation.remove_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ),
+            MapReturnType, is_map=True,
+        )
+
     def on_map_key_list(self, keys: List[Any]) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
         """Navigate to map elements matching a list of keys."""
         b = self._bin
@@ -2333,6 +2365,22 @@ class WriteBinBuilder(_WriteVerbs):
             self._segment,
             lambda rt: ListOperation.get_by_value_range(b, start, end, rt),
             lambda rt: ListOperation.remove_by_value_range(b, start, end, rt),
+            ListReturnType, is_map=False,
+        )
+
+    def on_list_value_relative_rank_range(
+        self, value: Any, rank: int, count: Optional[int] = None,
+    ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
+        """Navigate to list elements by value rank range relative to an anchor value."""
+        b = self._bin
+        return CdtWriteInvertableBuilder(
+            self._segment,
+            lambda rt: ListOperation.get_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ),
+            lambda rt: ListOperation.remove_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ),
             ListReturnType, is_map=False,
         )
 
@@ -2534,6 +2582,34 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             is_map=True,
         )
 
+    def on_map_key_relative_index_range(
+        self, key: Any, index: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[_T]:
+        """Navigate to map entries by index range relative to an anchor key."""
+        b = self._bin
+        return CdtReadInvertableBuilder(
+            self._parent,
+            lambda rt: MapOperation.get_by_key_relative_index_range(
+                b, key, index, count, rt,
+            ),
+            MapReturnType,
+            is_map=True,
+        )
+
+    def on_map_value_relative_rank_range(
+        self, value: Any, rank: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[_T]:
+        """Navigate to map entries by value rank range relative to an anchor value."""
+        b = self._bin
+        return CdtReadInvertableBuilder(
+            self._parent,
+            lambda rt: MapOperation.get_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ),
+            MapReturnType,
+            is_map=True,
+        )
+
     # -- Map navigation (list selectors -> CdtReadInvertableBuilder) ----------
 
     def on_map_key_list(self, keys: List[Any]) -> CdtReadInvertableBuilder[_T]:
@@ -2624,6 +2700,20 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         return CdtReadInvertableBuilder(
             self._parent,
             lambda rt: ListOperation.get_by_value_range(b, start, end, rt),
+            ListReturnType,
+            is_map=False,
+        )
+
+    def on_list_value_relative_rank_range(
+        self, value: Any, rank: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[_T]:
+        """Navigate to list elements by value rank range relative to an anchor value."""
+        b = self._bin
+        return CdtReadInvertableBuilder(
+            self._parent,
+            lambda rt: ListOperation.get_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ),
             ListReturnType,
             is_map=False,
         )

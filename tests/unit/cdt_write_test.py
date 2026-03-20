@@ -304,6 +304,24 @@ class TestWriteBinBuilderCdtNavigation:
         wbb, _ = self._build()
         assert isinstance(wbb.on_list_value_list([1, 2, 3]), CdtWriteInvertableBuilder)
 
+    def test_on_map_key_relative_index_range_returns_invertable_write_builder(self):
+        wbb, _ = self._build()
+        assert isinstance(
+            wbb.on_map_key_relative_index_range(5, 0), CdtWriteInvertableBuilder,
+        )
+
+    def test_on_map_value_relative_rank_range_returns_invertable_write_builder(self):
+        wbb, _ = self._build()
+        assert isinstance(
+            wbb.on_map_value_relative_rank_range(11, 1), CdtWriteInvertableBuilder,
+        )
+
+    def test_on_list_value_relative_rank_range_returns_invertable_write_builder(self):
+        wbb, _ = self._build()
+        assert isinstance(
+            wbb.on_list_value_relative_rank_range(5, 0), CdtWriteInvertableBuilder,
+        )
+
     def test_on_map_key_remove_adds_operation(self):
         wbb, segment = self._build()
         result = wbb.on_map_key("k").remove()
@@ -327,6 +345,56 @@ class TestWriteBinBuilderCdtNavigation:
         result = wbb.on_list_value(42).exists()
         assert result is segment
         assert len(segment._qb._operations) == 1
+
+
+# ===================================================================
+# Relative range operation generation
+# ===================================================================
+
+class TestRelativeRangeOperationGeneration:
+    """PAC operations emitted for relative range get/remove terminals."""
+
+    def _build(self, bin_name: str = "mb"):
+        qb = _make_qb()
+        qb._single_key = _make_key()
+        segment = WriteSegmentBuilder(qb)
+        return WriteBinBuilder(segment, bin_name), segment
+
+    def test_map_key_relative_get_keys_emits_map_operation_unbounded(self):
+        wbb, segment = self._build()
+        wbb.on_map_key_relative_index_range(5, 0, None).get_keys()
+        assert len(segment._qb._operations) == 1
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_map_key_relative_get_keys_emits_map_operation_with_count(self):
+        wbb, segment = self._build()
+        wbb.on_map_key_relative_index_range(5, 0, 2).get_keys()
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_map_value_relative_get_values_emits_map_operation(self):
+        wbb, segment = self._build()
+        wbb.on_map_value_relative_rank_range(11, 1, None).get_values()
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_list_value_relative_get_values_emits_list_operation(self):
+        wbb, segment = self._build("lst")
+        wbb.on_list_value_relative_rank_range(5, 0, None).get_values()
+        assert isinstance(segment._qb._operations[0], ListOperation)
+
+    def test_map_key_relative_remove_emits_map_operation(self):
+        wbb, segment = self._build()
+        wbb.on_map_key_relative_index_range(5, 0, None).remove()
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_map_value_relative_remove_emits_map_operation(self):
+        wbb, segment = self._build()
+        wbb.on_map_value_relative_rank_range(11, -1, 1).remove()
+        assert isinstance(segment._qb._operations[0], MapOperation)
+
+    def test_list_value_relative_remove_emits_list_operation(self):
+        wbb, segment = self._build("lst")
+        wbb.on_list_value_relative_rank_range(5, 0, None).remove()
+        assert isinstance(segment._qb._operations[0], ListOperation)
 
 
 # ===================================================================
@@ -400,6 +468,33 @@ class TestQueryBinBuilderExists:
         result = qbb.on_map_index(0).exists()
         assert result is parent
         assert len(parent.operations) == 1
+
+
+# ===================================================================
+# QueryBinBuilder relative range (read path)
+# ===================================================================
+
+class TestQueryBinRelativeRange:
+    """Relative range selectors return CdtReadInvertableBuilder."""
+
+    def _build(self):
+        parent = _OpCollector()
+        return QueryBinBuilder(parent, "mb"), parent
+
+    def test_on_map_key_relative_index_range_returns_read_invertable(self):
+        qbb, _ = self._build()
+        b = qbb.on_map_key_relative_index_range(5, 0, None)
+        assert isinstance(b, CdtReadInvertableBuilder)
+
+    def test_on_map_value_relative_rank_range_returns_read_invertable(self):
+        qbb, _ = self._build()
+        b = qbb.on_map_value_relative_rank_range(11, 1, None)
+        assert isinstance(b, CdtReadInvertableBuilder)
+
+    def test_on_list_value_relative_rank_range_returns_read_invertable(self):
+        qbb, _ = self._build()
+        b = qbb.on_list_value_relative_rank_range(5, 0, None)
+        assert isinstance(b, CdtReadInvertableBuilder)
 
 
 # ===================================================================
