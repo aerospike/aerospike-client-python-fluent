@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aerospike-fluent-client-python"
 version = "0.1.0"
-description = "Fluent API wrapper for the Aerospike async Python client"
+description = "Fluent API wrapper for the Aerospike Python Async Client"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 dependencies = [
-    "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.9",
+    "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.10",
     "antlr4-python3-runtime>=4.13.0",
 ]
 classifiers = [

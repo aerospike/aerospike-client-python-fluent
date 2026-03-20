@@ -939,8 +939,21 @@ class QueryBuilder(_WriteVerbs):
             if len(self._specs) == 1:
                 return await self._execute_spec(
                     self._specs[0], disp, handler)
-            return await self._execute_batch_mixed(
-                self._specs, disp, handler)
+            batch_policy = None
+            if self._behavior is not None:
+                batch_policy = to_batch_policy(
+                    self._behavior.get_settings(
+                        OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+            all_ops: list = []
+            all_keys: List[Key] = []
+            for spec in self._specs:
+                all_keys.extend(spec.keys)
+                all_ops.extend(self._spec_to_batch_ops(spec))
+            try:
+                batch_records = await self._client.batch(batch_policy, all_ops)
+            except Exception as e:
+                return self._handle_batch_error(all_keys, e, disp, handler)
+            return self._filtered_batch_stream(batch_records, disp, handler)
 
         # Dataset query path (no keys were specified)
         if self._operations:
@@ -1501,7 +1514,7 @@ class QueryBuilder(_WriteVerbs):
             for key in spec.keys:
                 if spec.operations:
                     ops.append(BatchReadOp(
-                        key, operations=spec.operations, policy=brp))
+                        key, operations=list(spec.operations), policy=brp))
                 else:
                     ops.append(BatchReadOp(key, bins=spec.bins, policy=brp))
         elif op_type == "delete":
@@ -1521,7 +1534,7 @@ class QueryBuilder(_WriteVerbs):
             bwp = self._make_batch_write_policy_mixed(spec)
             for key in spec.keys:
                 ops.append(BatchWriteOp(
-                    key, spec.operations, policy=bwp))
+                    key, list(spec.operations), policy=bwp))
         return ops
 
     @staticmethod
@@ -1566,27 +1579,6 @@ class QueryBuilder(_WriteVerbs):
         if spec.durable_delete:
             bwp.durable_delete = True
         return bwp
-
-    async def _execute_batch_mixed(
-        self, specs: List[_OperationSpec],
-        disp: _ErrorDisposition, handler: ErrorHandler | None,
-    ) -> RecordStream:
-        """Send all specs in one round-trip via ``Client.batch()``."""
-        batch_policy = None
-        if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(
-                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
-        all_ops: list = []
-        all_keys: List[Key] = []
-        for spec in specs:
-            all_keys.extend(spec.keys)
-            all_ops.extend(self._spec_to_batch_ops(spec))
-        try:
-            batch_records = await self._client.batch(batch_policy, all_ops)
-        except Exception as e:
-            return self._handle_batch_error(all_keys, e, disp, handler)
-        return self._filtered_batch_stream(batch_records, disp, handler)
 
     async def _execute_dataset_query(self) -> RecordStream:
         if self._policy is not None:

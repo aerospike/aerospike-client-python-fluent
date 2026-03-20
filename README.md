@@ -1,43 +1,59 @@
 # Aerospike Fluent Client for Python
 
-A fluent API wrapper for the Aerospike async Python client, providing a more intuitive and chainable interface for database operations.
+A fluent API wrapper for the Aerospike Python Async Client, providing a more intuitive and chainable interface for database operations.
 
 > **Status:** Pre-alpha -- internal development.
 
 ## Prerequisites
 
-- **Python** 3.10 - 3.14
+- **Python** 3.10 - 3.14 (recommended: [pyenv](https://github.com/pyenv/pyenv) with a dedicated environment for this repo)
 - **Aerospike server** -- required for integration tests
-- **Rust toolchain** (rustc + cargo) -- only needed if building the async client from source
+- **Rust toolchain** (rustc + cargo) -- only needed if building the Aerospike Python Async Client from source
 - **Java 11+** -- only needed if regenerating the ANTLR DSL parser
 
-## Install the Python Async Client
+## Install the Aerospike Python Async Client
 
-The fluent client depends on the [Aerospike async Python client](https://github.com/aerospike/aerospike-client-python-async).
+The fluent client depends on the [Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async).
+The version is pinned in `pyproject.toml` (git tag). `pip install -e ".[dev]"` installs PAC from Git (requires Rust to build unless you pre-install a wheel).
 
-### Option 1: Pre-built wheel (recommended -- no Rust needed)
+### Option 1: Pre-built wheel (no Rust)
 
 Download the wheel for your platform and Python version from the
 [GitHub Releases page](https://github.com/aerospike/aerospike-client-python-async/releases),
-then install it:
+then install it with the **same pyenv-backed Python** you use for the fluent client **before** installing this package:
 
 ```bash
-pip install aerospike_async-0.3.0a9-cp313-cp313-macosx_11_0_arm64.whl  # example; pick wheel matching your tag
+# e.g. pyenv activate fluent_client_3_14_2_crsr   # your env name
+pip install aerospike_async-0.3.0a10-cp313-cp313-macosx_11_0_arm64.whl  # example; match your Python and platform
+pip install -e ".[dev]" --no-deps   # if PAC is already satisfied
 ```
 
-### Option 2: Build from source (requires Rust)
+### Option 2: Build PAC from source (requires Rust)
 
 ```bash
 git clone git@github.com:aerospike/aerospike-client-python-async.git
 cd aerospike-client-python-async
-git checkout v0.3.0-alpha.9
+git checkout v0.3.0-alpha.10
 pip install -r requirements.txt
 make dev
 ```
 
-See the [async client README](https://github.com/aerospike/aerospike-client-python-async/blob/rust-async/README.md) for detailed Rust setup instructions.
+See the [Aerospike Python Async Client README](https://github.com/aerospike/aerospike-client-python-async/blob/rust-async/README.md) for detailed Rust setup instructions.
+
+### Local PAC checkout (temporary)
+
+To test against an **unreleased** sibling PAC tree, install it explicitly, then install the fluent client without re-resolving PAC from git:
+
+```bash
+pip install -e /path/to/aerospike-client-python-async
+pip install -e ".[dev]" --no-deps
+```
+
+Or adjust and use `requirements-local.txt` (gitignored path example).
 
 ## Install the Fluent Client
+
+Use the interpreter from your pyenv environment (see `.cursor/rules/guiding-principles.mdc` for the usual env name), then:
 
 ```bash
 pip install -e ".[dev]"

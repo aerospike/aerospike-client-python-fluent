@@ -81,7 +81,7 @@ def _assert_list_get_relative_batch(raw_bin):
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
-        for key_id in range(1, 80):
+        for key_id in range(1, 100):
             await session.delete(DS.id(key_id)).execute()
         yield c
 
@@ -1225,3 +1225,120 @@ class TestRelativeRangeBatchOrdering:
         )
         lst = (await rs.first_or_raise()).record.bins["lst"]
         assert lst == []
+
+
+# ===================================================================
+# Batch CDT operations (multi-key)
+# ===================================================================
+
+class TestBatchCdtWrite:
+    """Multi-key batch writes combined with CDT operations."""
+
+    @pytest.mark.asyncio
+    async def test_batch_uniform_map_key_set_to(self, client):
+        session = client.create_session()
+        k1, k2, k3 = DS.id(80), DS.id(81), DS.id(82)
+        for k in (k1, k2, k3):
+            await session.upsert(k).put({"info": {"a": 0, "b": 0}}).execute()
+
+        await (
+            session.update(k1, k2, k3)
+                .bin("info").on_map_key("a").set_to(99)
+                .execute()
+        )
+
+        for k in (k1, k2, k3):
+            rec = await (await session.query(k).execute()).first_or_raise()
+            assert rec.record.bins["info"]["a"] == 99
+            assert rec.record.bins["info"]["b"] == 0
+
+    @pytest.mark.asyncio
+    async def test_batch_per_key_cdt_ops(self, client):
+        session = client.create_session()
+        k1, k2 = DS.id(83), DS.id(84)
+        await session.upsert(k1).put({"m": {"x": 1}}).execute()
+        await session.upsert(k2).put({"m": {"y": 2}}).execute()
+
+        await (
+            session
+                .update(k1).bin("m").on_map_key("x").set_to(10)
+                .update(k2).bin("m").on_map_key("y").set_to(20)
+                .execute()
+        )
+
+        r1 = await (await session.query(k1).execute()).first_or_raise()
+        assert r1.record.bins["m"]["x"] == 10
+        r2 = await (await session.query(k2).execute()).first_or_raise()
+        assert r2.record.bins["m"]["y"] == 20
+
+    @pytest.mark.asyncio
+    async def test_batch_mixed_cdt_and_scalar(self, client):
+        session = client.create_session()
+        k1, k2 = DS.id(85), DS.id(86)
+        await session.upsert(k1).put({"name": "old", "m": {"k": 0}}).execute()
+        await session.upsert(k2).put({"name": "old"}).execute()
+
+        await (
+            session
+                .update(k1).bin("name").set_to("new").bin("m").on_map_key("k").set_to(5)
+                .update(k2).bin("name").set_to("new")
+                .execute()
+        )
+
+        r1 = await (await session.query(k1).execute()).first_or_raise()
+        assert r1.record.bins["name"] == "new"
+        assert r1.record.bins["m"]["k"] == 5
+        r2 = await (await session.query(k2).execute()).first_or_raise()
+        assert r2.record.bins["name"] == "new"
+
+    @pytest.mark.asyncio
+    async def test_batch_cdt_collection_clear(self, client):
+        session = client.create_session()
+        k1, k2 = DS.id(87), DS.id(88)
+        await session.upsert(k1).put({"m": {"a": 1, "b": 2}}).execute()
+        await session.upsert(k2).put({"m": {"c": 3, "d": 4}}).execute()
+
+        await (
+            session.update(k1, k2)
+                .bin("m").map_clear()
+                .execute()
+        )
+
+        for k in (k1, k2):
+            rec = await (await session.query(k).execute()).first_or_raise()
+            assert rec.record.bins["m"] == {}
+
+    @pytest.mark.asyncio
+    async def test_batch_cdt_remove(self, client):
+        session = client.create_session()
+        k1, k2 = DS.id(89), DS.id(90)
+        await session.upsert(k1).put({"m": {"keep": 1, "drop": 2}}).execute()
+        await session.upsert(k2).put({"m": {"keep": 3, "drop": 4}}).execute()
+
+        await (
+            session.update(k1, k2)
+                .bin("m").on_map_key("drop").remove()
+                .execute()
+        )
+
+        for k in (k1, k2):
+            rec = await (await session.query(k).execute()).first_or_raise()
+            assert "drop" not in rec.record.bins["m"]
+            assert "keep" in rec.record.bins["m"]
+
+    @pytest.mark.asyncio
+    async def test_batch_cdt_list_add_items(self, client):
+        session = client.create_session()
+        k1, k2 = DS.id(91), DS.id(92)
+        await session.upsert(k1).put({"tags": []}).execute()
+        await session.upsert(k2).put({"tags": []}).execute()
+
+        await (
+            session.update(k1, k2)
+                .bin("tags").list_append_items(["a", "b"])
+                .execute()
+        )
+
+        for k in (k1, k2):
+            rec = await (await session.query(k).execute()).first_or_raise()
+            assert rec.record.bins["tags"] == ["a", "b"]

@@ -1,7 +1,9 @@
 """
 Pytest configuration to load environment variables from aerospike.env.
 
-Falls back to aerospike.env.example only when aerospike.env is missing (e.g. CI removes it).
+If aerospike.env exists, only that file is read (override=True); aerospike.env.example
+is not merged. If aerospike.env is missing, aerospike.env.example supplies defaults
+for variables not already in os.environ (override=False).
 """
 import os
 import pytest

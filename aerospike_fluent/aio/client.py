@@ -39,7 +39,7 @@ if typing.TYPE_CHECKING:
 
 class FluentClient:
     """
-    Fluent API wrapper for the Aerospike async Python client.
+    Fluent API wrapper for the Aerospike Python Async Client.
 
     Provides a more intuitive and chainable interface for database operations.
 
