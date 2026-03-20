@@ -1,24 +1,7 @@
 # Runtime dependencies for aerospike-fluent-client-python
 #
-# IMPORTANT: The aerospike-client-python-async dependency must be installed separately.
-#
-# Installation options:
-#
-# Option 1: Install a pre-built wheel from GitHub Releases (no Rust needed)
-#   Download the wheel for your platform from:
-#   https://github.com/aerospike/aerospike-client-python-async/releases
-#   pip install aerospike_async-<version>-<platform>.whl
-#   pip install -e .
-#
-# Option 2: Install from local source (development — requires Rust)
-#   cd /path/to/aerospike-client-python-async
-#   pip install -e .
-#   cd /path/to/aerospike-fluent-client-python
-#   pip install -e .
-#
-# Option 3: Install from git (requires Rust)
-#   pip install git+https://github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.2
-#   pip install -e .
+# PAC is declared in pyproject.toml (git URL). For a local PAC tree, see README
+# "Local PAC checkout" or requirements-local.txt.
 
 # ANTLR runtime for string-based DSL parsing
 antlr4-python3-runtime>=4.13.0

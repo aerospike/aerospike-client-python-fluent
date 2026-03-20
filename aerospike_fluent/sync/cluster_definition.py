@@ -350,7 +350,7 @@ class ClusterDefinition:
             policy.ip_map = self._ip_map
 
         if self._tls_builder and self._tls_builder.is_tls_enabled():
-            # TODO: Set TLS policy when Python async client fully supports it
+            # TODO: Set TLS policy when Python Async Client fully supports it
             pass
 
         if self._system_settings is not None:

@@ -366,7 +366,7 @@ class ClusterDefinition:
 
         # TLS configuration
         if self._tls_builder and self._tls_builder.is_tls_enabled():
-            # TODO: Set TLS policy when Python async client fully supports it
+            # TODO: Set TLS policy when Python Async Client fully supports it
             pass
 
         # System settings (connection pool, tend interval, etc.)

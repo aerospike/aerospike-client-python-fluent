@@ -159,7 +159,7 @@ class TlsBuilder:
             TLS policy structure may vary by client implementation.
             This is a placeholder that returns a dict for now.
         """
-        # Note: Python async client TLS support may be limited
+        # Note: Python Async Client TLS support may be limited
         # This returns a dict that can be used to configure TLS when support is added
         policy: dict[str, Any] = {}
         
