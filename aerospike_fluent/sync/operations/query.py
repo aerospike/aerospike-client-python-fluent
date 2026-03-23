@@ -17,11 +17,12 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, overload, Union
+from typing import Any, List, Optional, Sequence, Union, overload
 
 from aerospike_async import (
     BasePolicy,
     CTX,
+    ExecuteTask,
     Filter,
     FilterExpression,
     Key,
@@ -154,6 +155,13 @@ class SyncQueryBuilder(_SyncWriteVerbs):
         """Append a read operation produced by a bin or CDT builder."""
         self._qb.add_operation(op)
 
+    def with_write_operations(
+        self, operations: Sequence[Any],
+    ) -> SyncQueryBuilder:
+        """Attach scalar write operations for a background dataset task."""
+        self._qb.with_write_operations(operations)
+        return self
+
     def with_no_bins(self) -> SyncQueryBuilder:
         """Specify that no bins should be read (header-only query)."""
         self._qb.with_no_bins()
@@ -175,18 +183,14 @@ class SyncQueryBuilder(_SyncWriteVerbs):
     def where(self, expression: str) -> SyncQueryBuilder: ...
 
     @overload
-    def where(self, expression: str, *params: Any) -> SyncQueryBuilder: ...
-
-    @overload
     def where(self, expression: FilterExpression) -> SyncQueryBuilder: ...
 
     def where(
         self,
         expression: Union[str, FilterExpression],
-        *params: Any,
     ) -> SyncQueryBuilder:
         """Set the query filter from a DSL string or FilterExpression."""
-        self._qb.where(expression, *params)
+        self._qb.where(expression)
         return self
 
     # -- Policy / options -----------------------------------------------------
@@ -272,18 +276,14 @@ class SyncQueryBuilder(_SyncWriteVerbs):
     def default_where(self, expression: str) -> SyncQueryBuilder: ...
 
     @overload
-    def default_where(self, expression: str, *params: Any) -> SyncQueryBuilder: ...
-
-    @overload
     def default_where(self, expression: FilterExpression) -> SyncQueryBuilder: ...
 
     def default_where(
         self,
         expression: Union[str, FilterExpression],
-        *params: Any,
     ) -> SyncQueryBuilder:
         """Set a default filter expression for all specs that lack their own."""
-        self._qb.default_where(expression, *params)
+        self._qb.default_where(expression)
         return self
 
     def default_expire_record_after_seconds(self, seconds: int) -> SyncQueryBuilder:
@@ -326,6 +326,30 @@ class SyncQueryBuilder(_SyncWriteVerbs):
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
     # -- Execute --------------------------------------------------------------
+
+    def execute_background_task(self) -> ExecuteTask:
+        """Run a background write for this dataset query (see ``QueryBuilder``)."""
+        qb = self._qb
+
+        async def _run():
+            return await qb.execute_background_task()
+
+        return self._loop_manager.run_async(_run())
+
+    def execute_udf_background_task(
+        self,
+        package_name: str,
+        function_name: str,
+        args: Optional[Sequence[Any]] = None,
+    ) -> ExecuteTask:
+        """Run a background UDF for this dataset query (see ``QueryBuilder``)."""
+        qb = self._qb
+
+        async def _run():
+            return await qb.execute_udf_background_task(
+                package_name, function_name, args)
+
+        return self._loop_manager.run_async(_run())
 
     def execute(
         self, on_error: OnError | None = None,
@@ -499,10 +523,9 @@ class SyncWriteSegmentBuilder(_SyncWriteVerbs):
     def where(
         self,
         expression: Union[str, FilterExpression],
-        *params: Any,
     ) -> SyncWriteSegmentBuilder:
         """Set a filter expression on the current write segment."""
-        self._wsb.where(expression, *params)
+        self._wsb.where(expression)
         return self
 
     def expire_record_after_seconds(self, seconds: int) -> SyncWriteSegmentBuilder:

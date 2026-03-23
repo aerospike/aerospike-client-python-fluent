@@ -15,7 +15,7 @@
 
 """Unit tests for QueryBuilder and SyncQueryBuilder where() overloads.
 
-Tests the three forms: where(str), where(str, *params), and where(FilterExpression).
+Tests the two forms: where(str) and where(FilterExpression).
 """
 
 from aerospike_fluent import Exp, parse_dsl
@@ -39,19 +39,12 @@ class TestQueryBuilderWhere:
         assert result is builder
         assert builder._filter_expression == expected
 
-    def test_where_dsl_string_with_params_sets_filter_expression(self):
-        """where(str, *params) formats DSL then parses."""
+    def test_where_dsl_fstring_sets_filter_expression(self):
+        """where(str) with f-string interpolation."""
         builder = _query_builder()
+        age = 21
         expected = parse_dsl("$.age > 21")
-        result = builder.where("$.age > %s", 21)
-        assert result is builder
-        assert builder._filter_expression == expected
-
-    def test_where_dsl_string_with_multiple_params(self):
-        """where(str, *params) with multiple format placeholders."""
-        builder = _query_builder()
-        expected = parse_dsl("$.age > 30 and $.name == 'Alice'")
-        result = builder.where("$.age > %s and $.name == '%s'", 30, "Alice")
+        result = builder.where(f"$.age > {age}")
         assert result is builder
         assert builder._filter_expression == expected
 
@@ -89,14 +82,6 @@ class TestSyncQueryBuilderWhere:
         builder = self._sync_builder()
         expected = parse_dsl("$.age > 20")
         result = builder.where("$.age > 20")
-        assert result is builder
-        assert builder._qb._filter_expression == expected
-
-    def test_where_dsl_string_with_params_sets_filter_expression(self):
-        """where(str, *params) formats DSL then parses."""
-        builder = self._sync_builder()
-        expected = parse_dsl("$.age > 21")
-        result = builder.where("$.age > %s", 21)
         assert result is builder
         assert builder._qb._filter_expression == expected
 
