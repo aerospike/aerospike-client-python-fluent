@@ -29,6 +29,7 @@ from aerospike_fluent.policy.behavior import Behavior
 from aerospike_fluent.sync.client import _EventLoopManager
 
 if typing.TYPE_CHECKING:
+    from aerospike_fluent.sync.background import SyncBackgroundTaskSession
     from aerospike_fluent.sync.operations.query import SyncQueryBuilder, SyncWriteSegmentBuilder
     from aerospike_fluent.sync.operations.index import SyncIndexBuilder
     from aerospike_fluent.sync.info import SyncInfoCommands
@@ -118,6 +119,13 @@ class SyncSession:
             loop_manager=self._loop_manager,
             query_builder=async_builder,
         )
+
+    def background_task(self) -> "SyncBackgroundTaskSession":
+        """Synchronous entry point for server-side background dataset operations."""
+        from aerospike_fluent.sync.background import SyncBackgroundTaskSession
+
+        inner = self._async_session.background_task()
+        return SyncBackgroundTaskSession(inner, self._loop_manager)
 
     def index(
         self,

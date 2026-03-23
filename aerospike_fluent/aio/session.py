@@ -27,6 +27,7 @@ from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
+    from aerospike_fluent.aio.background import BackgroundTaskSession
     from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
     from aerospike_fluent.aio.operations.query import QueryBuilder, WriteSegmentBuilder
     from aerospike_fluent.aio.operations.index import IndexBuilder
@@ -112,6 +113,20 @@ class Session:
             raise RuntimeError("Client is not connected")
 
         return BatchOperationBuilder(self._client._client, self._behavior)
+
+    def background_task(self) -> "BackgroundTaskSession":
+        """Return a fluent builder for server-side background work on a dataset.
+
+        Choose ``update``, ``delete``, ``touch``, or ``execute_udf`` on the
+        returned session, then chain filters and bin or UDF arguments and
+        ``await ...execute()`` to obtain a PAC ``ExecuteTask``.
+        """
+        from aerospike_fluent.aio.background import BackgroundTaskSession
+
+        if self._client._client is None:
+            raise RuntimeError("Client is not connected")
+
+        return BackgroundTaskSession(self)
 
     # -- Internal helpers -----------------------------------------------------
 

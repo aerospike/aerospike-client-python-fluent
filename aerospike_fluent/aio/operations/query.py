@@ -18,7 +18,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Generic, List, Optional, TypeVar, overload, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+    overload,
+)
 
 from aerospike_async import (
     BasePolicy,
@@ -30,6 +40,7 @@ from aerospike_async import (
     BatchWritePolicy,
     CTX,
     Client,
+    ExecuteTask,
     Expiration,
     ExpOperation,
     ExpReadFlags,
@@ -101,6 +112,10 @@ from aerospike_fluent.policy.policy_mapper import (
     to_write_policy,
 )
 
+from aerospike_fluent.background_shared import (
+    make_background_write_policy,
+    reject_unsupported_background_write_ops,
+)
 from aerospike_fluent.dsl.parser import parse_dsl
 from aerospike_fluent.error_strategy import (
     ErrorHandler,
@@ -338,6 +353,27 @@ class QueryBuilder(_WriteVerbs):
         """Append a read operation produced by a bin or CDT builder."""
         self._operations.append(op)
 
+    def with_write_operations(
+        self, operations: Sequence[Any],
+    ) -> QueryBuilder:
+        """Attach scalar write operations for a background dataset task.
+
+        Prefer :meth:`aerospike_fluent.aio.session.Session.background_task` for
+        fluent bin writes. Use with :meth:`execute_background_task` on a dataset
+        query (no keys).
+        Only ``Operation`` and ``ExpOperation.write``-style writes are valid;
+        list, map, bit, and HLL operations are rejected before calling the client.
+
+        Args:
+            operations: Sequence of write operations (e.g. ``Operation.put``,
+                ``Operation.touch``).
+
+        Returns:
+            self for method chaining.
+        """
+        self._operations.extend(operations)
+        return self
+
     def with_no_bins(self) -> QueryBuilder:
         """
         Specify that no bins should be read (header-only query).
@@ -407,50 +443,31 @@ class QueryBuilder(_WriteVerbs):
     def where(self, expression: str) -> QueryBuilder: ...
 
     @overload
-    def where(self, expression: str, *params: Any) -> QueryBuilder: ...
-
-    @overload
     def where(self, expression: FilterExpression) -> QueryBuilder: ...
 
     def where(
         self,
         expression: Union[str, FilterExpression],
-        *params: Any,
     ) -> QueryBuilder:
-        """
-        Set the query filter from a DSL string (optionally with format params) or a FilterExpression.
+        """Set the query filter from a DSL string or a FilterExpression.
 
         Args:
-            expression: Either a DSL string (e.g., "$.country == 'US' and $.order_total > 500"),
-                a DSL string with format placeholders (e.g., "$.age > %s", "$.name == '%s'"),
-                or a FilterExpression (e.g., Exp.gt(Exp.int_bin("a"), Exp.int_val(100))).
-            *params: Optional values substituted into the DSL string via % formatting.
-                Only used when expression is a str; ignored
-                when expression is a FilterExpression. For string literals in DSL, include quotes
-                in the template (e.g., "$.name == '%s'" with param "Tim").
+            expression: Either a DSL string (e.g., ``"$.country == 'US' and $.order_total > 500"``)
+                or a FilterExpression (e.g., ``Exp.gt(Exp.int_bin("a"), Exp.int_val(100))``).
+                Use f-strings to interpolate values into DSL strings.
 
         Returns:
             self for method chaining.
 
         Example:
             ```python
-            # Using text DSL
             query = session.query(dataset).where("$.country == 'US' and $.order_total > 500")
-
-            # Using DSL with params
-            query = session.query(dataset).where("$.age > %s", 21)
-            query = session.query(dataset).where("$.age > %s and $.name == '%s'", 30, "John")
-
-            # Using FilterExpression (Exp)
+            query = session.query(dataset).where(f"$.age > {min_age}")
             query = session.query(dataset).where(Exp.gt(Exp.int_bin("a"), Exp.int_val(100)))
             ```
         """
         if isinstance(expression, str):
-            if params:
-                dsl = expression % params
-                self._filter_expression = parse_dsl(dsl)
-            else:
-                self._filter_expression = parse_dsl(expression)
+            self._filter_expression = parse_dsl(expression)
         else:
             self._filter_expression = expression
         return self
@@ -767,28 +784,23 @@ class QueryBuilder(_WriteVerbs):
     def default_where(self, expression: str) -> QueryBuilder: ...
 
     @overload
-    def default_where(self, expression: str, *params: Any) -> QueryBuilder: ...
-
-    @overload
     def default_where(self, expression: FilterExpression) -> QueryBuilder: ...
 
     def default_where(
         self,
         expression: Union[str, FilterExpression],
-        *params: Any,
     ) -> QueryBuilder:
         """Set a default filter expression for all specs that lack their own.
 
         Args:
-            expression: DSL string or pre-built FilterExpression.
-            *params: Optional format parameters for DSL strings.
+            expression: DSL string (use f-strings for dynamic values)
+                or pre-built FilterExpression.
 
         Returns:
             self for method chaining.
         """
         if isinstance(expression, str):
-            dsl = expression % params if params else expression
-            self._default_filter_expression = parse_dsl(dsl)
+            self._default_filter_expression = parse_dsl(expression)
         else:
             self._default_filter_expression = expression
         return self
@@ -963,6 +975,82 @@ class QueryBuilder(_WriteVerbs):
                 result_code=ResultCode.OP_NOT_APPLICABLE,
             )
         return await self._execute_dataset_query()
+
+    @staticmethod
+    def _reject_unsupported_background_write_ops(
+        operations: Sequence[Any],
+    ) -> None:
+        reject_unsupported_background_write_ops(operations)
+
+    def _make_background_write_policy(self) -> WritePolicy:
+        return make_background_write_policy(
+            self._behavior,
+            self._filter_expression,
+            None,
+            None,
+        )
+
+    async def execute_background_task(self) -> ExecuteTask:
+        """Run a background write against all records matching this dataset query.
+
+        Returns a server task handle; poll with ``wait_till_complete`` or
+        ``query_status``. Requires :meth:`with_write_operations`; only scalar
+        ``Operation`` / expression writes are allowed.
+
+        Raises:
+            ValueError: If the builder targets keys or has no write operations.
+            AerospikeError: If unsupported operation types are present.
+        """
+        self._finalize_current_spec()
+        if self._specs:
+            raise ValueError(
+                "Background task execution applies only to dataset queries.",
+            )
+        if not self._operations:
+            raise ValueError(
+                "At least one write operation is required; use "
+                "with_write_operations(...).",
+            )
+        self._reject_unsupported_background_write_ops(self._operations)
+        wp = self._make_background_write_policy()
+        statement = self._build_statement()
+        try:
+            return await self._client.query_operate(
+                wp, statement, list(self._operations))
+        except Exception as e:
+            raise convert_pac_exception(e) from e
+
+    async def execute_udf_background_task(
+        self,
+        package_name: str,
+        function_name: str,
+        args: Optional[Sequence[Any]] = None,
+    ) -> ExecuteTask:
+        """Apply a registered UDF to matching records as a background task.
+
+        Do not use :meth:`with_write_operations` on the same builder.
+
+        Raises:
+            ValueError: If the builder targets keys or has write operations set.
+        """
+        self._finalize_current_spec()
+        if self._specs:
+            raise ValueError(
+                "Background task execution applies only to dataset queries.",
+            )
+        if self._operations:
+            raise ValueError(
+                "Do not combine with_write_operations with "
+                "execute_udf_background_task.",
+            )
+        wp = self._make_background_write_policy()
+        statement = self._build_statement()
+        py_args: Optional[List[Any]] = list(args) if args is not None else None
+        try:
+            return await self._client.query_execute_udf(
+                wp, statement, package_name, function_name, py_args)
+        except Exception as e:
+            raise convert_pac_exception(e) from e
 
     # -- Private helpers -------------------------------------------------------
 
@@ -1784,28 +1872,22 @@ class WriteSegmentBuilder(_WriteVerbs):
     def where(self, expression: str) -> WriteSegmentBuilder: ...
 
     @overload
-    def where(self, expression: str, *params: Any) -> WriteSegmentBuilder: ...
-
-    @overload
     def where(self, expression: FilterExpression) -> WriteSegmentBuilder: ...
 
     def where(
         self,
         expression: Union[str, FilterExpression],
-        *params: Any,
     ) -> WriteSegmentBuilder:
         """Set a filter expression on the current write segment.
 
         Args:
             expression: DSL string or pre-built FilterExpression.
-            *params: Optional format parameters for DSL strings.
 
         Returns:
             self for method chaining.
         """
         if isinstance(expression, str):
-            dsl = expression % params if params else expression
-            self._qb._filter_expression = parse_dsl(dsl)
+            self._qb._filter_expression = parse_dsl(expression)
         else:
             self._qb._filter_expression = expression
         return self
