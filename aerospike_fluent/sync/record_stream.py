@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from aerospike_fluent.record_result import RecordResult
 
@@ -60,6 +60,10 @@ class SyncRecordStream:
     def first_or_raise(self) -> RecordResult:
         """Return the first result (raising if not OK or empty)."""
         return self._loop_manager.run_async(self._stream.first_or_raise())
+
+    def first_udf_result(self) -> Any | None:
+        """Return the first non-``None`` ``udf_result`` from the stream."""
+        return self._loop_manager.run_async(self._stream.first_udf_result())
 
     def collect(self) -> list[RecordResult]:
         """Materialise the entire stream into a list."""

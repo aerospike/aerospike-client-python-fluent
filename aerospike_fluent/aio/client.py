@@ -21,9 +21,13 @@ import typing
 from typing import List, Optional, Union, overload
 
 from aerospike_async import (
+    AdminPolicy,
     Client as AsyncClient,
     ClientPolicy,
     Key,
+    RegisterTask,
+    UDFLang,
+    UdfRemoveTask,
     new_client,
 )
 
@@ -461,4 +465,37 @@ class FluentClient:
             behavior = Behavior.DEFAULT
 
         return Session(client=self, behavior=behavior)
+
+    async def register_udf(
+        self,
+        body: bytes,
+        server_path: str,
+        language: UDFLang = UDFLang.LUA,
+        *,
+        policy: Optional[AdminPolicy] = None,
+    ) -> RegisterTask:
+        """Register a UDF module from bytes (passthrough to the async client)."""
+        return await self._async_client.register_udf(
+            policy, body, server_path, language)
+
+    async def register_udf_from_file(
+        self,
+        client_path: str,
+        server_path: str,
+        language: UDFLang = UDFLang.LUA,
+        *,
+        policy: Optional[AdminPolicy] = None,
+    ) -> RegisterTask:
+        """Register a UDF module from a local file path."""
+        return await self._async_client.register_udf_from_file(
+            policy, client_path, server_path, language)
+
+    async def remove_udf(
+        self,
+        server_path: str,
+        *,
+        policy: Optional[AdminPolicy] = None,
+    ) -> UdfRemoveTask:
+        """Remove a UDF module from the cluster by server path."""
+        return await self._async_client.remove_udf(policy, server_path)
 

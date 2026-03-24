@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from aerospike_async import Key, Record
 from aerospike_async.exceptions import ResultCode
@@ -41,6 +41,8 @@ class RecordResult:
         exception: The original exception, if any. Present when a client-side
             error (timeout, connection failure) was embedded in the stream
             rather than raised.
+        udf_result: Return value from a foreground ``execute_udf`` call when
+            the PAC API returns a value (otherwise ``None``).
     """
 
     key: Key
@@ -49,6 +51,7 @@ class RecordResult:
     in_doubt: bool = False
     index: int = -1
     exception: AerospikeError | None = None
+    udf_result: Any | None = None
 
     @property
     def is_ok(self) -> bool:

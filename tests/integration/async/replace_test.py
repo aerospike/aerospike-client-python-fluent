@@ -64,9 +64,9 @@ class TestReplaceOperations:
         with pytest.raises(AerospikeError) as exc_info:
             stream = await (
                 session.upsert(key)
-                .replace_only()
-                .put({"bin": "value"})
-                .execute()
+                    .replace_only()
+                    .put({"bin": "value"})
+                    .execute()
             )
             await stream.first_or_raise()
 
@@ -81,9 +81,9 @@ class TestReplaceOperations:
 
         await (
             session.upsert(key)
-            .replace_only()
-            .put({"bin3": "value3"})
-            .execute()
+                .replace_only()
+                .put({"bin3": "value3"})
+                .execute()
         )
 
         record = await (await session.query(key).execute()).first_or_raise()
@@ -150,8 +150,8 @@ class TestReplaceOperations:
         with pytest.raises(AerospikeError):
             stream = await (
                 session.replace_if_exists(key)
-                .put({"name": "Should Fail"})
-                .execute()
+                    .put({"name": "Should Fail"})
+                    .execute()
             )
             await stream.first_or_raise()
 

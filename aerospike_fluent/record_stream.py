@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, AsyncIterator, Sequence
+from typing import TYPE_CHECKING, Any, AsyncIterator, Sequence
 
 from aerospike_async import Key, Record
 from aerospike_async.exceptions import ResultCode
@@ -47,6 +47,15 @@ class RecordStream:
         async def _iter() -> AsyncIterator[RecordResult]:
             for r in results:
                 yield r
+        return cls(_iter())
+
+    @classmethod
+    def chain(cls, streams: Sequence[RecordStream]) -> RecordStream:
+        """Yield all results from each stream in order."""
+        async def _iter() -> AsyncIterator[RecordResult]:
+            for st in streams:
+                async for r in st:
+                    yield r
         return cls(_iter())
 
     @classmethod
@@ -136,6 +145,13 @@ class RecordStream:
         if result is None:
             raise StopAsyncIteration("RecordStream is empty")
         return result.or_raise()
+
+    async def first_udf_result(self) -> Any | None:
+        """Return ``udf_result`` from the first :class:`RecordResult` that has one."""
+        async for r in self:
+            if r.udf_result is not None:
+                return r.udf_result
+        return None
 
     async def collect(self) -> list[RecordResult]:
         """Materialise the entire stream into a list."""

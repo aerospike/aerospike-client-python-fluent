@@ -1735,9 +1735,9 @@ class TestAdvancedExpFilters:
         with pytest.raises(AerospikeError) as exc_info:
             rs = await (
                 session.query(key)
-                .where(dsl)
-                .fail_on_filtered_out()
-                .execute()
+                    .where(dsl)
+                    .fail_on_filtered_out()
+                    .execute()
             )
             await rs.first_or_raise()
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
@@ -1746,10 +1746,10 @@ class TestAdvancedExpFilters:
         """Query with DSL filter that SHOULD match, validate returned bin."""
         rs = await (
             session.query(key)
-            .bins([bin_name])
-            .where(dsl)
-            .fail_on_filtered_out()
-            .execute()
+                .bins([bin_name])
+                .where(dsl)
+                .fail_on_filtered_out()
+                .execute()
         )
         rr = await rs.first_or_raise()
         assert rr.record.bins[bin_name] == expected_value

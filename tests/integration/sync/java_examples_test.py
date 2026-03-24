@@ -300,8 +300,8 @@ def test_java_example_query_with_where(session, customer_dataset):
     """
     stream = (
         session.query(customer_dataset)
-        .where('$.name == "Tim" and $.age > 18')
-        .execute()
+            .where('$.name == "Tim" and $.age > 18')
+            .execute()
     )
     count = 0
     for result in stream:
@@ -491,8 +491,8 @@ def test_java_example_filter_control_with_chunk_size(session, customer_dataset):
     # Test that chunk_size can be called
     stream = (
         session.query(customer_dataset)
-        .chunk_size(100)
-        .execute()
+            .chunk_size(100)
+            .execute()
     )
 
     # Verify it executes and can be iterated
@@ -508,8 +508,8 @@ def test_java_example_filter_control_on_partitions(session, customer_dataset):
     # Test that on_partitions can be called with partition IDs
     stream = (
         session.query(customer_dataset)
-        .on_partitions(1, 2, 3)
-        .execute()
+            .on_partitions(1, 2, 3)
+            .execute()
     )
 
     # Verify it executes and can be iterated
@@ -525,8 +525,8 @@ def test_java_example_filter_control_on_partition(session, customer_dataset):
     # Test that on_partition can be called with a single partition ID
     stream = (
         session.query(customer_dataset)
-        .on_partition(5)
-        .execute()
+            .on_partition(5)
+            .execute()
     )
     # Just verify it doesn't raise an error
     for _ in stream:
@@ -539,8 +539,8 @@ def test_java_example_filter_control_on_partition_range(session, customer_datase
     # Test that on_partition_range can be called with a partition range
     stream = (
         session.query(customer_dataset)
-        .on_partition_range(0, 2048)
-        .execute()
+            .on_partition_range(0, 2048)
+            .execute()
     )
     # Just verify it doesn't raise an error
     for _ in stream:
@@ -554,10 +554,10 @@ def test_java_example_filter_control_full(session, customer_dataset):
     """
     stream = (
         session.query(customer_dataset)
-        .chunk_size(100)
-        .on_partitions(1, 2, 3)
-        .where("$.age > 20")
-        .execute()
+            .chunk_size(100)
+            .on_partitions(1, 2, 3)
+            .where("$.age > 20")
+            .execute()
     )
 
     count = 0
