@@ -42,7 +42,7 @@ class ErrorStrategy(Enum):
 
         stream = await (
             session.query(k1, k2)
-            .execute(on_error=ErrorStrategy.IN_STREAM)
+                .execute(on_error=ErrorStrategy.IN_STREAM)
         )
     """
 

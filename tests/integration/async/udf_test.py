@@ -1,0 +1,464 @@
+# Copyright 2025-2026 Aerospike, Inc.
+#
+# Portions may be licensed to Aerospike, Inc. under one or more contributor
+# license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+"""Integration tests for foreground UDF fluent API (async)."""
+
+from __future__ import annotations
+
+import os
+
+import pytest
+import pytest_asyncio
+from aerospike_async import UDFLang
+from aerospike_async.exceptions import ResultCode
+from aerospike_fluent import DataSet, FluentClient
+from aerospike_fluent.exceptions import AerospikeError
+
+NS = "test"
+SET = "test"
+DS = DataSet.of(NS, SET)
+LUA_FILE = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "udf", "record_example.lua"),
+)
+SERVER_PATH = "record_example.lua"
+MODULE = "record_example"
+
+
+@pytest_asyncio.fixture
+async def client_with_udf(aerospike_host, client_policy):
+    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+        try:
+            rm = await client.remove_udf(SERVER_PATH)
+            await rm.wait_till_complete(sleep_time=0.1, max_attempts=20)
+        except Exception:
+            pass
+        reg = await client.register_udf_from_file(
+            LUA_FILE, SERVER_PATH, UDFLang.LUA)
+        assert await reg.wait_till_complete(sleep_time=0.2, max_attempts=50)
+        yield client
+        try:
+            rm = await client.remove_udf(SERVER_PATH)
+            await rm.wait_till_complete(sleep_time=0.1, max_attempts=20)
+        except Exception:
+            pass
+
+
+@pytest.mark.asyncio
+async def test_write_using_udf(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_write_1")
+    await session.delete(k).execute()
+    stream = await (
+        session.execute_udf(k)
+            .function(MODULE, "writeBin")
+            .passing("udfbin1", "string value")
+            .execute()
+    )
+    rr = await stream.first_or_raise()
+    assert rr.is_ok
+    rec = await (
+        await session.query(k).bins(["udfbin1"]).execute()
+    ).first_or_raise()
+    assert rec.record is not None
+    assert rec.record.bins.get("udfbin1") == "string value"
+
+
+@pytest.mark.asyncio
+async def test_first_udf_result_read_bin(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_read_1")
+    await session.upsert(k).put({"udfbin2": "stored"}).execute()
+    stream = await (
+        session.execute_udf(k)
+            .function(MODULE, "readBin")
+            .passing("udfbin2")
+            .execute()
+    )
+    val = await stream.first_udf_result()
+    assert val == "stored"
+
+
+@pytest.mark.asyncio
+async def test_write_read_blob_via_udf(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_blob_rtt")
+    await session.delete(k).execute()
+    payload = b"\x00\x01\xfe\x2a"
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "writeBin")
+            .passing("bbin", payload)
+            .execute()
+    )
+    stream = await (
+        session.execute_udf(k)
+            .function(MODULE, "readBin")
+            .passing("bbin")
+            .execute()
+    )
+    val = await stream.first_udf_result()
+    assert bytes(val) == payload
+
+
+@pytest.mark.asyncio
+async def test_nested_list_map_round_trip_via_udf_read_bin(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_list_map_rtt")
+    await session.delete(k).execute()
+    expected = [
+        {"id": 1, "tags": ["a", "b"]},
+        {"meta": {"x": 2, "nested": [3, 4]}},
+    ]
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "writeBin")
+            .passing("complex", expected)
+            .execute()
+    )
+    stream = await (
+        session.execute_udf(k)
+            .function(MODULE, "readBin")
+            .passing("complex")
+            .execute()
+    )
+    val = await stream.first_udf_result()
+    assert val == expected
+
+
+@pytest.mark.asyncio
+async def test_batch_udf(client_with_udf):
+    session = client_with_udf.create_session()
+    k1 = DS.id("batch_udf_1")
+    k2 = DS.id("batch_udf_2")
+    await session.delete(k1, k2).execute()
+    stream = await (
+        session.execute_udf(k1, k2)
+            .function(MODULE, "writeBin")
+            .passing("B5", "value5")
+            .execute()
+    )
+    results = await stream.collect()
+    assert len(results) == 2
+    assert all(r.is_ok for r in results)
+    for k in (k1, k2):
+        rr = await (
+            await session.query(k).bins(["B5"]).execute()
+        ).first_or_raise()
+        assert rr.record is not None
+        assert rr.record.bins.get("B5") == "value5"
+
+
+@pytest.mark.asyncio
+async def test_batch_udf_validation_error_in_stream(client_with_udf):
+    session = client_with_udf.create_session()
+    k1 = DS.id("batch_udf_err_1")
+    k2 = DS.id("batch_udf_err_2")
+    await session.delete(k1, k2).execute()
+    stream = await (
+        session.execute_udf(k1, k2)
+            .function(MODULE, "writeWithValidation")
+            .passing("B5", 999)
+            .execute()
+    )
+    results = await stream.collect()
+    assert len(results) == 2
+    keys = [r.key for r in results]
+    assert k1 in keys and k2 in keys
+    for r in results:
+        assert r.result_code == ResultCode.UDF_BAD_RESPONSE
+        assert r.record is not None
+
+
+@pytest.mark.asyncio
+async def test_batch_udf_respond_all_keys_includes_filtered_out(client_with_udf):
+    session = client_with_udf.create_session()
+    k1 = DS.id("batch_udf_rak_1")
+    k2 = DS.id("batch_udf_rak_2")
+    await session.delete(k1, k2).execute()
+    await session.upsert(k1).put({"v": 5}).execute()
+    await session.upsert(k2).put({"v": 20}).execute()
+
+    # Without respond_all_keys: filtered-out key is omitted
+    stream = await (
+        session.execute_udf(k1, k2)
+            .function(MODULE, "writeBin")
+            .passing("tag", "hit")
+            .where("$.v < 10")
+            .execute()
+    )
+    results = await stream.collect()
+    assert len(results) == 1
+    assert results[0].key == k1
+    assert results[0].is_ok
+
+    # With respond_all_keys: filtered-out key appears in stream
+    stream = await (
+        session.execute_udf(k1, k2)
+            .function(MODULE, "writeBin")
+            .passing("tag", "hit2")
+            .where("$.v < 10")
+            .respond_all_keys()
+            .execute()
+    )
+    results = await stream.collect()
+    assert len(results) == 2
+    r1 = next(r for r in results if r.key == k1)
+    r2 = next(r for r in results if r.key == k2)
+    assert r1.is_ok
+    assert r2.result_code == ResultCode.FILTERED_OUT
+
+
+@pytest.mark.asyncio
+async def test_get_generation_udf_result(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_gen_read")
+    await session.upsert(k).put({"gprobe": 1}).execute()
+    stream = await (
+        session.execute_udf(k)
+            .function(MODULE, "getGeneration")
+            .execute()
+    )
+    gen = await stream.first_udf_result()
+    assert isinstance(gen, int)
+    assert gen >= 1
+
+
+@pytest.mark.asyncio
+async def test_write_if_generation_not_changed(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_gen_guard")
+    await session.delete(k).execute()
+    await session.upsert(k).put({"gcol": "a"}).execute()
+    stream = await (
+        session.execute_udf(k)
+            .function(MODULE, "getGeneration")
+            .execute()
+    )
+    gen = await stream.first_udf_result()
+    assert isinstance(gen, int)
+    stream = await (
+        session.execute_udf(k)
+            .function(MODULE, "writeIfGenerationNotChanged")
+            .passing("gcol", "b", gen)
+            .execute()
+    )
+    assert await stream.first_udf_result() is None
+    rr = await (
+        await session.query(k).bins(["gcol"]).execute()
+    ).first_or_raise()
+    assert rr.record is not None
+    assert rr.record.bins.get("gcol") == "b"
+    stale_gen = gen
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "writeIfGenerationNotChanged")
+            .passing("gcol", "should_not_apply", stale_gen)
+            .execute()
+    )
+    rr2 = await (
+        await session.query(k).bins(["gcol"]).execute()
+    ).first_or_raise()
+    assert rr2.record is not None
+    assert rr2.record.bins.get("gcol") == "b"
+
+
+@pytest.mark.asyncio
+async def test_write_unique_idempotent(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_write_unique")
+    await session.delete(k).execute()
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "writeUnique")
+            .passing("ub", "first")
+            .execute()
+    )
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "writeUnique")
+            .passing("ub", "second")
+            .execute()
+    )
+    rr = await (
+        await session.query(k).bins(["ub"]).execute()
+    ).first_or_raise()
+    assert rr.record is not None
+    assert rr.record.bins.get("ub") == "first"
+
+
+@pytest.mark.asyncio
+async def test_append_list_bin_via_udf(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_list_append")
+    await session.delete(k).execute()
+    await session.insert(k).put({"lb": []}).execute()
+    for v in (10, 20, 30):
+        await (
+            session.execute_udf(k)
+                .function(MODULE, "appendListBin")
+                .passing("lb", v)
+                .execute()
+        )
+    rr = await (
+        await session.query(k).bins(["lb"]).execute()
+    ).first_or_raise()
+    assert rr.record is not None
+    lst = rr.record.bins.get("lb")
+    assert lst is not None
+    assert list(lst) == [10, 20, 30]
+
+
+@pytest.mark.asyncio
+async def test_process_record_even_adds_to_bin(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_proc_even")
+    await session.delete(k).execute()
+    await session.insert(k).put({"n1": 4, "n2": 1}).execute()
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "processRecord")
+            .passing("n1", "n2", 3)
+            .execute()
+    )
+    rr = await (
+        await session.query(k).bins(["n1", "n2"]).execute()
+    ).first_or_raise()
+    assert rr.record is not None
+    assert rr.record.bins.get("n1") == 7
+    assert rr.record.bins.get("n2") == 1
+
+
+@pytest.mark.asyncio
+async def test_process_record_multiple_of_five_clears_second_bin(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_proc_five")
+    await session.delete(k).execute()
+    await session.insert(k).put({"n1": 10, "n2": 99}).execute()
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "processRecord")
+            .passing("n1", "n2", 1)
+            .execute()
+    )
+    rr = await (
+        await session.query(k).bins(["n1", "n2"]).execute()
+    ).first_or_raise()
+    assert rr.record is not None
+    assert rr.record.bins.get("n1") == 10
+    assert rr.record.bins.get("n2") is None
+
+
+@pytest.mark.asyncio
+async def test_process_record_multiple_of_nine_removes_record(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_proc_nine")
+    await session.delete(k).execute()
+    await session.insert(k).put({"n1": 9, "n2": 1}).execute()
+    await (
+        session.execute_udf(k)
+            .function(MODULE, "processRecord")
+            .passing("n1", "n2", 1)
+            .execute()
+    )
+    rs = await session.query(k).execute()
+    first = await rs.first()
+    assert first is None or not first.is_ok
+    if first is not None:
+        assert first.record is None
+
+
+@pytest.mark.asyncio
+async def test_chained_udf(client_with_udf):
+    session = client_with_udf.create_session()
+    k1 = DS.id("chain_udf_1")
+    k2 = DS.id("chain_udf_2")
+    await session.delete(k1, k2).execute()
+    stream = await (
+        session
+            .execute_udf(k1)
+                .function(MODULE, "writeBin")
+                .passing("B5", "value1")
+            .execute_udf(k2)
+                .function(MODULE, "writeWithValidation")
+                .passing("B5", 5)
+        .execute()
+    )
+    rows = await stream.collect()
+    assert len(rows) == 2
+    for k in (k1, k2):
+        rr = await (
+            await session.query(k).bins(["B5"]).execute()
+        ).first_or_raise()
+        assert rr.record is not None
+        assert "B5" in rr.record.bins
+
+
+@pytest.mark.asyncio
+async def test_chained_udf_three_specs_mixed_ok_and_udf_bad_response(
+    client_with_udf,
+):
+    """Chained UDF specs: first two succeed, third returns UDF_BAD_RESPONSE."""
+    session = client_with_udf.create_session()
+    k1 = DS.id("chain_udf_complex_1")
+    k2 = DS.id("chain_udf_complex_2")
+    k3 = DS.id("chain_udf_complex_3")
+    await session.delete(k1, k2, k3).execute()
+    stream = await (
+        session
+            .execute_udf(k1)
+                .function(MODULE, "writeBin")
+                .passing("cx", "ok1")
+            .execute_udf(k2)
+                .function(MODULE, "writeWithValidation")
+                .passing("cx", 7)
+            .execute_udf(k3)
+                .function(MODULE, "writeWithValidation")
+                .passing("cx", 999)
+        .execute()
+    )
+    rows = await stream.collect()
+    assert len(rows) == 3
+    assert rows[0].is_ok
+    assert rows[0].key == k1
+    assert rows[1].is_ok
+    assert rows[1].key == k2
+    assert not rows[2].is_ok
+    assert rows[2].key == k3
+    assert rows[2].result_code == ResultCode.UDF_BAD_RESPONSE
+    assert rows[2].record is None
+    r1 = await (
+        await session.query(k1).bins(["cx"]).execute()
+    ).first_or_raise()
+    assert r1.record is not None
+    assert r1.record.bins.get("cx") == "ok1"
+    r2 = await (
+        await session.query(k2).bins(["cx"]).execute()
+    ).first_or_raise()
+    assert r2.record is not None
+    assert r2.record.bins.get("cx") == 7
+
+
+@pytest.mark.asyncio
+async def test_single_key_validation_raises(client_with_udf):
+    session = client_with_udf.create_session()
+    k = DS.id("udf_val_fail")
+    await session.delete(k).execute()
+    with pytest.raises(AerospikeError):
+        await (
+            session.execute_udf(k)
+                .function(MODULE, "writeWithValidation")
+                .passing("bx", 99)
+                .execute()
+        )

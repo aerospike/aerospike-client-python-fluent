@@ -22,6 +22,7 @@ from aerospike_async.exceptions import (
     InvalidNodeError as PacInvalidNodeError,
     ServerError as PacServerError,
     TimeoutError as PacTimeoutError,
+    UDFBadResponse as PacUDFBadResponse,
 )
 from aerospike_async.exceptions import ResultCode
 
@@ -205,6 +206,12 @@ class TestConvertPacException:
         pac = PacInvalidNodeError("node gone")
         pfc = convert_pac_exception(pac)
         assert type(pfc) is InvalidNodeError
+
+    def test_pac_udf_bad_response(self):
+        pac = PacUDFBadResponse("1000:Invalid value")
+        pfc = convert_pac_exception(pac)
+        assert type(pfc) is AerospikeError
+        assert pfc.result_code == ResultCode.UDF_BAD_RESPONSE
 
     def test_pac_generic_aerospike_error(self):
         pac = PacAerospikeError("something broke")

@@ -31,6 +31,7 @@ from aerospike_fluent.sync.client import _EventLoopManager
 if typing.TYPE_CHECKING:
     from aerospike_fluent.sync.background import SyncBackgroundTaskSession
     from aerospike_fluent.sync.operations.query import SyncQueryBuilder, SyncWriteSegmentBuilder
+    from aerospike_fluent.sync.operations.udf import SyncUdfFunctionBuilder
     from aerospike_fluent.sync.operations.index import SyncIndexBuilder
     from aerospike_fluent.sync.info import SyncInfoCommands
 
@@ -126,6 +127,14 @@ class SyncSession:
 
         inner = self._async_session.background_task()
         return SyncBackgroundTaskSession(inner, self._loop_manager)
+
+    def execute_udf(self, *keys: Key) -> "SyncUdfFunctionBuilder":
+        """Run a registered UDF on one or more keys (synchronous)."""
+        from aerospike_fluent.sync.operations.udf import SyncUdfFunctionBuilder
+
+        inner = self._async_session.execute_udf(*keys)
+        return SyncUdfFunctionBuilder(
+            inner, self._loop_manager, self._async_session.client)
 
     def index(
         self,

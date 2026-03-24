@@ -32,6 +32,7 @@ from aerospike_async.exceptions import (
     InvalidNodeError as PacInvalidNodeError,
     ServerError as PacServerError,
     TimeoutError as PacTimeoutError,
+    UDFBadResponse as PacUDFBadResponse,
 )
 from aerospike_async.exceptions import ResultCode
 
@@ -212,6 +213,13 @@ def convert_pac_exception(exc: Exception) -> AerospikeError:
 
     if isinstance(exc, PacInvalidNodeError):
         return InvalidNodeError(str(exc))
+
+    if isinstance(exc, PacUDFBadResponse):
+        return result_code_to_exception(
+            ResultCode.UDF_BAD_RESPONSE,
+            str(exc),
+            getattr(exc, "in_doubt", False),
+        )
 
     if isinstance(exc, PacAerospikeError):
         return AerospikeError(str(exc))

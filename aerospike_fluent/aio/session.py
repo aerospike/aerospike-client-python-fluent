@@ -30,6 +30,7 @@ if typing.TYPE_CHECKING:
     from aerospike_fluent.aio.background import BackgroundTaskSession
     from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
     from aerospike_fluent.aio.operations.query import QueryBuilder, WriteSegmentBuilder
+    from aerospike_fluent.aio.operations.udf import UdfFunctionBuilder
     from aerospike_fluent.aio.operations.index import IndexBuilder
     from aerospike_fluent.aio.transactional_session import TransactionalSession
     from aerospike_fluent.aio.info import InfoCommands
@@ -127,6 +128,31 @@ class Session:
             raise RuntimeError("Client is not connected")
 
         return BackgroundTaskSession(self)
+
+    def execute_udf(self, *keys: Key) -> "UdfFunctionBuilder":
+        """Run a registered UDF on one or more keys (foreground).
+
+        Chain ``function`` (module name without ``.lua``, then Lua function
+        name), optional ``passing(...)``, then ``await ...execute()`` to obtain
+        a ``RecordStream``.
+        """
+        from aerospike_fluent.aio.operations.query import QueryBuilder
+        from aerospike_fluent.aio.operations.udf import UdfFunctionBuilder
+
+        if not keys:
+            raise ValueError("At least one key is required")
+        if self._client._client is None:
+            raise RuntimeError("Client is not connected")
+
+        first = keys[0]
+        qb = QueryBuilder(
+            self._client._client,
+            first.namespace,
+            first.set_name,
+            self._behavior,
+        )
+        qb._set_current_keys_from_varargs(keys)
+        return UdfFunctionBuilder(qb)
 
     # -- Internal helpers -----------------------------------------------------
 

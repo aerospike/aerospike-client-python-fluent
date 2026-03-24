@@ -820,8 +820,8 @@ class TestNestedMapCollectionOps:
 
         (
             session.update(k)
-            .bin("root").on_map_key("inner").map_upsert_items({"b": 2})
-            .execute()
+                .bin("root").on_map_key("inner").map_upsert_items({"b": 2})
+                .execute()
         )
 
         result = session.query(k).execute().first_or_raise()
@@ -867,10 +867,10 @@ class TestRelativeRangeNavigation:
 
         rs = (
             session.update(k)
-            .bin("mapbin")
-            .on_map_key_relative_index_range(5, 0, None)
-            .get_keys()
-            .execute()
+                .bin("mapbin")
+                .on_map_key_relative_index_range(5, 0, None)
+                .get_keys()
+                .execute()
         )
         flat = _flatten_cdt_values(rs.first_or_raise().record.bins["mapbin"])
         assert 5 in flat
@@ -883,10 +883,10 @@ class TestRelativeRangeNavigation:
 
         rs = (
             session.update(k)
-            .bin("mapbin")
-            .on_map_value_relative_rank_range(11, 1, None)
-            .get_values()
-            .execute()
+                .bin("mapbin")
+                .on_map_value_relative_rank_range(11, 1, None)
+                .get_values()
+                .execute()
         )
         flat = _flatten_cdt_values(rs.first_or_raise().record.bins["mapbin"])
         assert [int(x) for x in flat] == [17]
@@ -898,10 +898,10 @@ class TestRelativeRangeNavigation:
 
         (
             session.update(k)
-            .bin("mapbin")
-            .on_map_key_relative_index_range(5, 0, None)
-            .remove()
-            .execute()
+                .bin("mapbin")
+                .on_map_key_relative_index_range(5, 0, None)
+                .remove()
+                .execute()
         )
 
         rec = session.query(k).execute().first_or_raise()
@@ -914,10 +914,10 @@ class TestRelativeRangeNavigation:
 
         (
             session.update(k)
-            .bin("mapbin")
-            .on_map_value_relative_rank_range(11, 1, None)
-            .remove()
-            .execute()
+                .bin("mapbin")
+                .on_map_value_relative_rank_range(11, 1, None)
+                .remove()
+                .execute()
         )
 
         rec = session.query(k).execute().first_or_raise()
@@ -930,10 +930,10 @@ class TestRelativeRangeNavigation:
 
         rs = (
             session.update(k)
-            .bin("lst")
-            .on_list_value_relative_rank_range(5, 0, None)
-            .get_values()
-            .execute()
+                .bin("lst")
+                .on_list_value_relative_rank_range(5, 0, None)
+                .get_values()
+                .execute()
         )
         flat = _flatten_cdt_values(rs.first_or_raise().record.bins["lst"])
         assert [int(x) for x in flat] == [5, 9, 11, 15]
@@ -945,10 +945,10 @@ class TestRelativeRangeNavigation:
 
         (
             session.update(k)
-            .bin("lst")
-            .on_list_value_relative_rank_range(5, 0, None)
-            .remove()
-            .execute()
+                .bin("lst")
+                .on_list_value_relative_rank_range(5, 0, None)
+                .remove()
+                .execute()
         )
 
         rec = session.query(k).execute().first_or_raise()
@@ -962,19 +962,19 @@ class TestRelativeRangeNavigation:
 
         rs_map = (
             session.update(k)
-            .bin("mapbin")
-            .on_map_key_relative_index_range(5, 0, None)
-            .get_keys()
-            .execute()
+                .bin("mapbin")
+                .on_map_key_relative_index_range(5, 0, None)
+                .get_keys()
+                .execute()
         )
         assert _flatten_cdt_values(rs_map.first_or_raise().record.bins["mapbin"])
 
         rs_list = (
             session.update(k)
-            .bin("lst")
-            .on_list_value_relative_rank_range(5, 0, None)
-            .get_values()
-            .execute()
+                .bin("lst")
+                .on_list_value_relative_rank_range(5, 0, None)
+                .get_values()
+                .execute()
         )
         assert _flatten_cdt_values(rs_list.first_or_raise().record.bins["lst"])
 
@@ -985,10 +985,10 @@ class TestRelativeRangeNavigation:
 
         rs = (
             session.update(k)
-            .bin("lst")
-            .on_list_value_relative_rank_range(5, 0, 2)
-            .get_values()
-            .execute()
+                .bin("lst")
+                .on_list_value_relative_rank_range(5, 0, 2)
+                .get_values()
+                .execute()
         )
         flat = _flatten_cdt_values(rs.first_or_raise().record.bins["lst"])
         assert 5 in flat
@@ -1001,10 +1001,10 @@ class TestRelativeRangeNavigation:
 
         rs = (
             session.update(k)
-            .bin("lst")
-            .on_list_value_relative_rank_range(5, 0, 2)
-            .get_all_other_values()
-            .execute()
+                .bin("lst")
+                .on_list_value_relative_rank_range(5, 0, 2)
+                .get_all_other_values()
+                .execute()
         )
         flat = _flatten_cdt_values(rs.first_or_raise().record.bins["lst"])
         assert 0 in flat or 4 in flat or 11 in flat or 15 in flat
@@ -1016,10 +1016,10 @@ class TestRelativeRangeNavigation:
 
         rs = (
             session.query(k)
-            .bin("mapbin")
-            .on_map_key_relative_index_range(5, 0, None)
-            .get_keys()
-            .execute()
+                .bin("mapbin")
+                .on_map_key_relative_index_range(5, 0, None)
+                .get_keys()
+                .execute()
         )
         flat = _flatten_cdt_values(rs.first_or_raise().record.bins["mapbin"])
         assert 5 in flat
@@ -1102,11 +1102,11 @@ class TestRelativeRangeBatchOrdering:
 
         rs = (
             session.update(k)
-            .bin("mapbin").on_map_key_relative_index_range(5, 0, None).remove()
-            .bin("mapbin").on_map_key_relative_index_range(5, 1, None).remove()
-            .bin("mapbin").on_map_key_relative_index_range(5, -1, 1).remove()
-            .bin("mapbin").get()
-            .execute()
+                .bin("mapbin").on_map_key_relative_index_range(5, 0, None).remove()
+                .bin("mapbin").on_map_key_relative_index_range(5, 1, None).remove()
+                .bin("mapbin").on_map_key_relative_index_range(5, -1, 1).remove()
+                .bin("mapbin").get()
+                .execute()
         )
         m = rs.first_or_raise().record.bins["mapbin"]
         assert m == {0: 17}
@@ -1120,10 +1120,10 @@ class TestRelativeRangeBatchOrdering:
 
         rs2 = (
             session.update(k)
-            .bin("mapbin").on_map_value_relative_rank_range(11, 1, None).remove()
-            .bin("mapbin").on_map_value_relative_rank_range(11, -1, 1).remove()
-            .bin("mapbin").get()
-            .execute()
+                .bin("mapbin").on_map_value_relative_rank_range(11, 1, None).remove()
+                .bin("mapbin").on_map_value_relative_rank_range(11, -1, 1).remove()
+                .bin("mapbin").get()
+                .execute()
         )
         m2 = rs2.first_or_raise().record.bins["mapbin"]
         assert m2 == {4: 2, 5: 15}
@@ -1136,14 +1136,14 @@ class TestRelativeRangeBatchOrdering:
         session.update(k).bin("lst").list_add_items([0, 4, 5, 9, 11, 15]).execute()
         rs = (
             session.update(k)
-            .bin("lst").on_list_value_relative_rank_range(5, 0, None).remove()
-            .bin("lst").on_list_value_relative_rank_range(5, 1, None).remove()
-            .bin("lst").on_list_value_relative_rank_range(5, -1, None).remove()
-            .bin("lst").on_list_value_relative_rank_range(3, -3, 1).remove()
-            .bin("lst").on_list_value_relative_rank_range(3, -3, 2).remove()
-            .bin("lst").on_list_value_relative_rank_range(3, -3, 3).remove()
-            .bin("lst").get()
-            .execute()
+                .bin("lst").on_list_value_relative_rank_range(5, 0, None).remove()
+                .bin("lst").on_list_value_relative_rank_range(5, 1, None).remove()
+                .bin("lst").on_list_value_relative_rank_range(5, -1, None).remove()
+                .bin("lst").on_list_value_relative_rank_range(3, -3, 1).remove()
+                .bin("lst").on_list_value_relative_rank_range(3, -3, 2).remove()
+                .bin("lst").on_list_value_relative_rank_range(3, -3, 3).remove()
+                .bin("lst").get()
+                .execute()
         )
         lst = rs.first_or_raise().record.bins["lst"]
         assert lst == []

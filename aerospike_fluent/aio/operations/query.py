@@ -36,6 +36,7 @@ from aerospike_async import (
     BatchDeletePolicy,
     BatchReadOp,
     BatchReadPolicy,
+    BatchUDFPolicy,
     BatchWriteOp,
     BatchWritePolicy,
     CTX,
@@ -251,6 +252,9 @@ class _OperationSpec:
     generation: Optional[int] = None
     ttl_seconds: Optional[int] = None
     durable_delete: Optional[bool] = None
+    udf_package: Optional[str] = None
+    udf_function: Optional[str] = None
+    udf_args: Optional[List[Any]] = None
 
 
 _T = TypeVar("_T")
@@ -304,6 +308,9 @@ class QueryBuilder(_WriteVerbs):
         self._durable_delete: Optional[bool] = None
         self._default_filter_expression: Optional[FilterExpression] = None
         self._default_ttl_seconds: Optional[int] = None
+        self._udf_package: Optional[str] = None
+        self._udf_function: Optional[str] = None
+        self._udf_args: Optional[List[Any]] = None
 
     def bins(self, bin_names: List[str]) -> QueryBuilder:
         """
@@ -951,6 +958,13 @@ class QueryBuilder(_WriteVerbs):
             if len(self._specs) == 1:
                 return await self._execute_spec(
                     self._specs[0], disp, handler)
+            if self._specs_require_sequential_run():
+                sub_disp = _resolve_disposition(on_error, is_single_key=False)
+                streams: List[RecordStream] = []
+                for spec in self._specs:
+                    streams.append(
+                        await self._execute_spec(spec, sub_disp, handler))
+                return RecordStream.chain(streams)
             batch_policy = None
             if self._behavior is not None:
                 batch_policy = to_batch_policy(
@@ -1095,6 +1109,9 @@ class QueryBuilder(_WriteVerbs):
             generation=self._generation,
             ttl_seconds=ttl,
             durable_delete=self._durable_delete,
+            udf_package=None,
+            udf_function=None,
+            udf_args=None,
         ))
 
         self._single_key = None
@@ -1107,6 +1124,62 @@ class QueryBuilder(_WriteVerbs):
         self._generation = None
         self._ttl_seconds = None
         self._durable_delete = None
+
+    def _set_current_keys_from_varargs(self, keys: tuple[Key, ...]) -> None:
+        if len(keys) == 1:
+            self._single_key = keys[0]
+            self._keys = None
+        else:
+            self._keys = list(keys)
+            self._single_key = None
+
+    def _clear_pending_udf_state(self) -> None:
+        self._udf_package = None
+        self._udf_function = None
+        self._udf_args = None
+
+    def _finalize_udf_spec(self) -> None:
+        if self._udf_function is None:
+            return
+        if self._udf_package is None:
+            raise ValueError("UDF package name is required")
+        if self._single_key is not None:
+            keys: List[Key] = [self._single_key]
+        elif self._keys is not None:
+            keys = list(self._keys)
+        else:
+            return
+        filt = self._filter_expression or self._default_filter_expression
+        udf_args: Optional[List[Any]] = (
+            list(self._udf_args) if self._udf_args is not None else None
+        )
+        self._specs.append(_OperationSpec(
+            keys=keys,
+            operations=[],
+            bins=None,
+            filter_expression=filt,
+            op_type="udf",
+            generation=None,
+            ttl_seconds=None,
+            durable_delete=None,
+            udf_package=self._udf_package,
+            udf_function=self._udf_function,
+            udf_args=udf_args,
+        ))
+        self._single_key = None
+        self._keys = None
+        self._operations = []
+        self._bins = None
+        self._with_no_bins = False
+        self._filter_expression = None
+        self._op_type = None
+        self._generation = None
+        self._ttl_seconds = None
+        self._durable_delete = None
+        self._clear_pending_udf_state()
+
+    def _specs_require_sequential_run(self) -> bool:
+        return any(spec.op_type == "udf" for spec in self._specs)
 
     async def _execute_spec(
         self,
@@ -1131,6 +1204,11 @@ class QueryBuilder(_WriteVerbs):
                     spec, disp, handler)
             return await self._execute_batch_read(spec, disp, handler)
 
+        if op_type == "udf":
+            if len(keys) == 1:
+                return await self._execute_single_key_udf(spec, disp, handler)
+            return await self._execute_batch_udf(spec, disp, handler)
+
         if op_type == "delete":
             if len(keys) == 1:
                 return await self._execute_single_key_delete(spec, disp, handler)
@@ -1149,6 +1227,79 @@ class QueryBuilder(_WriteVerbs):
         if len(keys) == 1:
             return await self._execute_single_key_write(spec, disp, handler)
         return await self._execute_batch_write(spec, disp, handler)
+
+    def _make_udf_write_policy(self, spec: _OperationSpec) -> WritePolicy:
+        if self._behavior is not None:
+            wp = to_write_policy(
+                self._behavior.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+        else:
+            wp = WritePolicy()
+        if spec.filter_expression is not None:
+            wp.filter_expression = spec.filter_expression
+        return wp
+
+    async def _execute_single_key_udf(
+        self,
+        spec: _OperationSpec,
+        disp: _ErrorDisposition,
+        handler: ErrorHandler | None,
+    ) -> RecordStream:
+        key = spec.keys[0]
+        pkg = spec.udf_package
+        fn = spec.udf_function
+        if pkg is None or fn is None:
+            raise ValueError("UDF spec missing package or function name")
+        wp = self._make_udf_write_policy(spec)
+        try:
+            val = await self._client.execute_udf(
+                wp, key, pkg, fn, spec.udf_args)
+        except Exception as e:
+            return self._handle_error(key, e, disp, handler, op_type="udf")
+        return RecordStream.from_list([
+            RecordResult(
+                key=key,
+                record=None,
+                result_code=ResultCode.OK,
+                index=0,
+                udf_result=val,
+            ),
+        ])
+
+    async def _execute_batch_udf(
+        self,
+        spec: _OperationSpec,
+        disp: _ErrorDisposition,
+        handler: ErrorHandler | None,
+    ) -> RecordStream:
+        pkg = spec.udf_package
+        fn = spec.udf_function
+        if pkg is None or fn is None:
+            raise ValueError("UDF spec missing package or function name")
+        batch_policy = None
+        if self._behavior is not None:
+            batch_policy = to_batch_policy(
+                self._behavior.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        udf_policy: Optional[BatchUDFPolicy] = None
+        fe = spec.filter_expression
+        if fe is not None:
+            up = BatchUDFPolicy()
+            up.filter_expression = fe
+            udf_policy = up
+        try:
+            batch_records = await self._client.batch_apply(
+                batch_policy,
+                udf_policy,
+                spec.keys,
+                pkg,
+                fn,
+                spec.udf_args,
+            )
+        except Exception as e:
+            return self._handle_batch_error(spec.keys, e, disp, handler)
+        return self._filtered_batch_stream(
+            batch_records, disp, handler, op_type="udf")
 
     @staticmethod
     def _should_include_result(

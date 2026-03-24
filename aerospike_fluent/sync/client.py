@@ -25,7 +25,14 @@ import sys
 import threading
 from typing import List, Optional, Union, overload
 
-from aerospike_async import ClientPolicy, Key
+from aerospike_async import (
+    AdminPolicy,
+    ClientPolicy,
+    Key,
+    RegisterTask,
+    UDFLang,
+    UdfRemoveTask,
+)
 from aerospike_async.exceptions import ConnectionError as AerospikeConnectionError
 
 from aerospike_fluent.aio.client import FluentClient
@@ -748,6 +755,54 @@ class SyncFluentClient:
             )
 
         self._loop_manager.run_async(_truncate())
+
+    def register_udf(
+        self,
+        body: bytes,
+        server_path: str,
+        language: UDFLang = UDFLang.LUA,
+        *,
+        policy: Optional[AdminPolicy] = None,
+    ) -> RegisterTask:
+        """Register a UDF module from bytes (synchronous)."""
+        async_client = self._ensure_connected()
+
+        async def _reg():
+            return await async_client.register_udf(
+                body, server_path, language, policy=policy)
+
+        return self._loop_manager.run_async(_reg())
+
+    def register_udf_from_file(
+        self,
+        client_path: str,
+        server_path: str,
+        language: UDFLang = UDFLang.LUA,
+        *,
+        policy: Optional[AdminPolicy] = None,
+    ) -> RegisterTask:
+        """Register a UDF module from a local file (synchronous)."""
+        async_client = self._ensure_connected()
+
+        async def _reg():
+            return await async_client.register_udf_from_file(
+                client_path, server_path, language, policy=policy)
+
+        return self._loop_manager.run_async(_reg())
+
+    def remove_udf(
+        self,
+        server_path: str,
+        *,
+        policy: Optional[AdminPolicy] = None,
+    ) -> UdfRemoveTask:
+        """Remove a UDF module from the cluster (synchronous)."""
+        async_client = self._ensure_connected()
+
+        async def _rm():
+            return await async_client.remove_udf(server_path, policy=policy)
+
+        return self._loop_manager.run_async(_rm())
 
     def create_session(self, behavior: Optional[Behavior] = None) -> "SyncSession":
         """
