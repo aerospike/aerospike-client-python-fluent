@@ -32,19 +32,21 @@ if typing.TYPE_CHECKING:
 
 
 class Cluster:
-    """
-    Represents a connection to an Aerospike cluster.
-    
-    This class manages the lifecycle of a connection to an Aerospike cluster,
-    including the underlying client. It implements async context manager protocol
-    to ensure proper resource cleanup.
-    
-    Example usage:
+    """Live connection to a cluster, obtained from :meth:`ClusterDefinition.connect`.
+
+    Owns a connected :class:`~aerospike_fluent.aio.client.FluentClient` and exposes
+    :meth:`create_session` / :meth:`create_transactional_session`. Prefer
+    ``async with await ClusterDefinition(...).connect() as cluster`` so
+    :meth:`close` runs on exit.
+
+    Example:
         ```python
         async with await ClusterDefinition("localhost", 3100).connect() as cluster:
             session = cluster.create_session(Behavior.DEFAULT)
-            # Use the session for database operations...
         ```
+
+    See Also:
+        :class:`~aerospike_fluent.aio.cluster_definition.ClusterDefinition`
     """
     
     def __init__(self, fluent_client: FluentClient) -> None:
@@ -104,18 +106,20 @@ class Cluster:
         return self._fluent_client
     
     def create_session(self, behavior: Optional[Behavior] = None) -> Session:
-        """
-        Creates a new session with the specified behavior.
-        
+        """Open a :class:`~aerospike_fluent.aio.session.Session` with optional behavior.
+
         A session represents a logical connection to the cluster with specific
         behavior settings that control how operations are performed (timeouts,
         retry policies, consistency levels, etc.).
-        
+
         Args:
-            behavior: The behavior configuration for the session. If None, uses Behavior.DEFAULT.
-        
+            behavior: Defaults to :attr:`~aerospike_fluent.policy.behavior.Behavior.DEFAULT`.
+
         Returns:
-            A new Session instance
+            Session bound to this cluster's fluent client.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.client.FluentClient.create_session`
         """
         if behavior is None:
             behavior = Behavior.DEFAULT
@@ -125,43 +129,30 @@ class Cluster:
         self,
         behavior: Optional[Behavior] = None,
     ) -> TransactionalSession:
-        """
-        Creates a new transactional session with the specified behavior.
-        
+        """Return a transactional session facade (behavior reserved for API parity).
+
         Args:
-            behavior: The behavior configuration for the session. If None, uses Behavior.DEFAULT.
-                     Note: Currently TransactionalSession doesn't use behavior, but parameter
-                     is included for API consistency.
-        
+            behavior: Accepted for symmetry with :meth:`create_session`; the
+                underlying client may not apply it yet.
+
         Returns:
-            A new TransactionalSession instance
+            :class:`~aerospike_fluent.aio.transactional_session.TransactionalSession`.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.client.FluentClient.transaction_session`
         """
         # Note: FluentClient.transaction_session() doesn't take behavior parameter yet
         # but we include it in the signature for API consistency
         return self._fluent_client.transaction_session()
     
     def is_connected(self) -> bool:
-        """
-        Checks if the cluster connection is currently active.
-        
-        Returns:
-            True if the connection is active, False otherwise
-        """
+        """Mirror :attr:`~aerospike_fluent.aio.client.FluentClient.is_connected`."""
         return self._fluent_client.is_connected
     
     async def close(self) -> None:
-        """
-        Closes the cluster connection and releases all associated resources.
-        
-        This method closes the underlying client connection. It should be called
-        when the cluster is no longer needed to ensure proper resource cleanup.
-        
-        This method is automatically called when using async context manager:
-            ```python
-            async with await ClusterDefinition("localhost", 3100).connect() as cluster:
-                # Use the cluster...
-            # cluster.close() is automatically called here
-            ```
+        """Close the fluent client and release cluster resources.
+
+        Invoked automatically when used as an async context manager.
         """
         await self._fluent_client.close()
 

@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Aerospike Fluent Client - A fluent API wrapper for the Aerospike Python Async Client."""
+"""Aerospike Fluent Client — fluent API built on the ``aerospike_async`` package."""
 
 from aerospike_async import AuthMode
 

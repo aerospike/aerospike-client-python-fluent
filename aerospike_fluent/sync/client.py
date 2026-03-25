@@ -13,7 +13,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""SyncFluentClient - Synchronous wrapper for the Aerospike Fluent API."""
+"""Synchronous façade over :class:`~aerospike_fluent.aio.client.FluentClient`.
+
+Each public call runs the corresponding async API on a private event loop for
+the current thread. Prefer :class:`~aerospike_fluent.aio.client.FluentClient` in
+async code for lower overhead and clearer concurrency.
+"""
 
 from __future__ import annotations
 
@@ -450,27 +455,31 @@ class _EventLoopManager:
 
 
 class SyncFluentClient:
-    """
-    Synchronous wrapper for the FluentClient that hides async/await.
+    """Connect to Aerospike and run the fluent API without ``async``/``await``.
 
-    This client provides the same fluent API as FluentClient but with
-    synchronous methods, making it easier to use in non-async code.
+    Method shapes match :class:`~aerospike_fluent.aio.client.FluentClient`; return
+    types are synchronous counterparts (for example
+    :class:`~aerospike_fluent.sync.operations.query.SyncQueryBuilder`,
+    :class:`~aerospike_fluent.sync.session.SyncSession`).
 
     Example:
         ```python
         with SyncFluentClient("localhost:3000") as client:
-            for record in client.query(
+            for row in client.query(
                 namespace="test",
                 set_name="users"
             ).execute():
-                print(record.bins)
+                if row.record:
+                    print(row.record.bins)
         ```
 
-    Note:
-        - This client wraps the async FluentClient internally
-        - It uses asyncio event loops to execute async operations synchronously
-        - If used from within an async context, you may need to install nest_asyncio
-        - For better performance in async code, use FluentClient directly
+    Raises:
+        RuntimeError: If constructed or used while an asyncio event loop is
+            already running in the thread (use :class:`~aerospike_fluent.aio.client.FluentClient` instead).
+
+    See Also:
+        :class:`~aerospike_fluent.aio.client.FluentClient`: Native async client.
+        :meth:`create_session`: Session-scoped :class:`~aerospike_fluent.policy.behavior.Behavior`.
     """
 
     def __init__(
@@ -632,41 +641,91 @@ class SyncFluentClient:
         dataset: Optional[DataSet] = None,
         key: Optional[Key] = None,
         keys_list: Optional[List[Key]] = None,
+        behavior: Optional[Behavior] = None,
     ):
         """
         Create a query builder (synchronous).
 
-        Supports the same calling styles as FluentClient.query().
-        Returns a wrapper that executes queries synchronously.
+        Supports the same calling styles as :meth:`FluentClient.query
+        <aerospike_fluent.aio.client.FluentClient.query>`, including multi-key
+        varargs. Returns a wrapper that executes queries synchronously.
+
+        Args:
+            arg1: Optional first positional (DataSet, key, list of keys, or
+                namespace string when paired with ``arg2`` as set name).
+            arg2: When ``arg1`` is a namespace, the set name; otherwise may be
+                a second key when passing multiple keys positionally.
+            *keys: Additional keys when the first positional argument is a key.
+            namespace: Keyword namespace (with ``set_name``).
+            set_name: Keyword set name (with ``namespace``).
+            dataset: Keyword :class:`~aerospike_fluent.dataset.DataSet`.
+            key: Keyword single key.
+            keys_list: Keyword list of keys for batch read.
+            behavior: Optional :class:`~aerospike_fluent.policy.behavior.Behavior`
+                for this builder (same semantics as ``FluentClient.query``).
+
+        Returns:
+            A :class:`~aerospike_fluent.sync.operations.query.SyncQueryBuilder`.
         """
         from aerospike_fluent.sync.operations.query import SyncQueryBuilder
 
-        # Delegate to async client - it now handles positional args
         async_client = self._ensure_connected()
-        if arg1 is not None or arg2 is not None:
-            # Has positional arguments - pass them positionally
-            if arg2 is not None:
-                # Two positional args (namespace, set_name)
-                builder = async_client.query(arg1, arg2)
-            else:
-                # Single positional arg (DataSet, Key, or List[Key])
-                builder = async_client.query(arg1)
-        else:
-            # Only keyword arguments
-            builder = async_client.query(
+        b = behavior
+
+        def _wrap(builder):
+            return SyncQueryBuilder(
+                async_client=async_client,
+                namespace=builder._namespace,
+                set_name=builder._set_name,
+                loop_manager=self._loop_manager,
+                query_builder=builder,
+            )
+
+        if arg1 is not None:
+            if isinstance(arg1, DataSet):
+                return _wrap(async_client.query(dataset=arg1, behavior=b))
+            if isinstance(arg1, Key):
+                all_keys = [arg1]
+                if isinstance(arg2, Key):
+                    all_keys.append(arg2)
+                    all_keys.extend(keys)
+                elif keys:
+                    all_keys.extend(keys)
+                else:
+                    return _wrap(async_client.query(key=arg1, behavior=b))
+                return _wrap(async_client.query(keys=all_keys, behavior=b))
+            if isinstance(arg1, list):
+                if len(arg1) == 0:
+                    raise ValueError("keys list cannot be empty")
+                if not isinstance(arg1[0], Key):
+                    raise TypeError(
+                        f"Expected List[Key], but first element is {type(arg1[0])}"
+                    )
+                return _wrap(async_client.query(keys=arg1, behavior=b))
+            if isinstance(arg1, str) and arg2 is not None:
+                return _wrap(
+                    async_client.query(namespace=arg1, set_name=arg2, behavior=b)
+                )
+
+        if keys:
+            keys_coll = list(keys)
+            if arg1 is not None and isinstance(arg1, Key):
+                keys_coll.insert(0, arg1)
+            if arg2 is not None and isinstance(arg2, Key):
+                keys_coll.insert(
+                    1 if arg1 is not None and isinstance(arg1, Key) else 0, arg2
+                )
+            return _wrap(async_client.query(keys=keys_coll, behavior=b))
+
+        return _wrap(
+            async_client.query(
                 namespace=namespace,
                 set_name=set_name,
                 dataset=dataset,
                 key=key,
                 keys=keys_list,
+                behavior=b,
             )
-
-        return SyncQueryBuilder(
-            async_client=async_client,
-            namespace=builder._namespace,
-            set_name=builder._set_name,
-            loop_manager=self._loop_manager,
-            query_builder=builder,  # Pass the builder to preserve single_key/keys
         )
 
     @overload
@@ -695,10 +754,17 @@ class SyncFluentClient:
         dataset: Optional[DataSet] = None,
     ):
         """
-        Create an index builder (synchronous).
+        Create a secondary-index builder (synchronous).
 
-        Supports the same calling styles as FluentClient.index().
-        Returns a wrapper that executes index operations synchronously.
+        Same arguments as :meth:`~aerospike_fluent.aio.client.FluentClient.index`.
+        ``create()`` / ``drop()`` run on the client's event loop.
+
+        Returns:
+            :class:`~aerospike_fluent.sync.operations.index.SyncIndexBuilder`.
+
+        See Also:
+            :class:`~aerospike_fluent.aio.operations.index.IndexBuilder`: Async
+            implementation.
         """
         from aerospike_fluent.sync.operations.index import SyncIndexBuilder
 
@@ -817,21 +883,23 @@ class SyncFluentClient:
                      If None, uses Behavior.DEFAULT.
 
         Returns:
-            A new SyncSession instance.
+            A :class:`~aerospike_fluent.sync.session.SyncSession` sharing this
+            client's event-loop manager and applying ``behavior`` to operations.
 
         Example:
             ```python
-            # Create a session with default behavior
             session = client.create_session()
-
-            # Create a session with custom behavior
             from datetime import timedelta
-            fast_behavior = Behavior.DEFAULT.derive_with_changes(
+            fast = Behavior.DEFAULT.derive_with_changes(
                 name="fast",
-                total_timeout=timedelta(seconds=5)
+                total_timeout=timedelta(seconds=5),
             )
-            session = client.create_session(fast_behavior)
+            session = client.create_session(fast)
             ```
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.client.FluentClient.create_session`:
+                Async equivalent.
         """
         from aerospike_fluent.sync.session import SyncSession
 

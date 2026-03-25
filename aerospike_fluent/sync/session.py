@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""SyncSession - Synchronous wrapper for Session."""
+"""Synchronous :class:`~aerospike_fluent.aio.session.Session` wrapper."""
 
 from __future__ import annotations
 
@@ -37,20 +37,27 @@ if typing.TYPE_CHECKING:
 
 
 class SyncSession:
-    """
-    Synchronous wrapper for Session.
+    """Run session-scoped reads and writes without ``async``/``await``.
 
-    Provides the same API as the async Session but executes operations
-    synchronously by running them on an event loop.
+    Constructed by :meth:`SyncFluentClient.create_session
+    <aerospike_fluent.sync.client.SyncFluentClient.create_session>`, not by
+    calling ``SyncSession(...)`` directly. Each method delegates to
+    :class:`~aerospike_fluent.aio.session.Session` on a shared per-thread loop;
+    return types are sync wrappers where the async API would return a coroutine
+    or async stream.
+
+    See Also:
+        :class:`~aerospike_fluent.aio.session.Session`: Async API and behavior
+            semantics.
     """
 
     def __init__(self, async_session: AsyncSession, loop_manager: _EventLoopManager) -> None:
-        """
-        Initialize a SyncSession.
+        """Wrap ``async_session``; use :meth:`SyncFluentClient.create_session` instead.
 
         Args:
-            async_session: The async Session to wrap.
-            loop_manager: The event loop manager for executing async operations.
+            async_session: Connected async session (same behavior binding).
+            loop_manager: Loop manager shared with the parent
+                :class:`~aerospike_fluent.sync.client.SyncFluentClient`.
         """
         self._async_session = async_session
         self._loop_manager = loop_manager
@@ -98,7 +105,27 @@ class SyncSession:
         key: Optional[Key] = None,
         keys_list: Optional[List[Key]] = None,
     ) -> "SyncQueryBuilder":
-        """Create a query builder (synchronous)."""
+        """Start a read or secondary-index query (synchronous session).
+
+        Same shapes as :meth:`aerospike_fluent.aio.session.Session.query`, with
+        this session's behavior applied on the underlying async builder.
+
+        Args:
+            arg1: Positional dataset, key, list of keys, or namespace string
+                (when paired with ``arg2`` as set name).
+            arg2: When ``arg1`` is a namespace, the set name; otherwise may be
+                a second key when passing multiple keys positionally.
+            *keys: Additional keys when the first positional argument is a key.
+            namespace: Keyword namespace (with ``set_name``) when not using a
+                dataset.
+            set_name: Keyword set name (with ``namespace``).
+            dataset: Keyword :class:`~aerospike_fluent.dataset.DataSet`.
+            key: Keyword single key.
+            keys_list: Keyword list of keys for batch read.
+
+        Returns:
+            A :class:`~aerospike_fluent.sync.operations.query.SyncQueryBuilder`.
+        """
         from aerospike_fluent.sync.operations.query import SyncQueryBuilder
 
         # Delegate to async session.query() - pass positional args as positional, keyword args as keyword
@@ -112,6 +139,7 @@ class SyncSession:
                 set_name=set_name,
                 dataset=dataset,
                 key=key,
+                keys_list=keys_list,
             )
         return SyncQueryBuilder(
             async_client=self._async_session._client,
@@ -122,14 +150,28 @@ class SyncSession:
         )
 
     def background_task(self) -> "SyncBackgroundTaskSession":
-        """Synchronous entry point for server-side background dataset operations."""
+        """Start a background dataset task chain (synchronous).
+
+        Returns:
+            :class:`~aerospike_fluent.sync.background.SyncBackgroundTaskSession`.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.session.Session.background_task`.
+        """
         from aerospike_fluent.sync.background import SyncBackgroundTaskSession
 
         inner = self._async_session.background_task()
         return SyncBackgroundTaskSession(inner, self._loop_manager)
 
     def execute_udf(self, *keys: Key) -> "SyncUdfFunctionBuilder":
-        """Run a registered UDF on one or more keys (synchronous)."""
+        """Begin a foreground UDF invocation on the given keys (synchronous).
+
+        Returns:
+            :class:`~aerospike_fluent.sync.operations.udf.SyncUdfFunctionBuilder`.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.session.Session.execute_udf`.
+        """
         from aerospike_fluent.sync.operations.udf import SyncUdfFunctionBuilder
 
         inner = self._async_session.execute_udf(*keys)
@@ -143,7 +185,18 @@ class SyncSession:
         *,
         dataset: Optional[DataSet] = None,
     ) -> "SyncIndexBuilder":
-        """Create an index builder (synchronous)."""
+        """Create a secondary-index builder for this namespace/set (synchronous).
+
+        Raises:
+            ValueError: If ``namespace`` and ``set_name`` are missing and no
+                ``dataset`` is provided.
+
+        Returns:
+            :class:`~aerospike_fluent.sync.operations.index.SyncIndexBuilder`.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.session.Session.index`.
+        """
         from aerospike_fluent.sync.operations.index import SyncIndexBuilder
 
         # Resolve namespace and set_name from dataset if provided

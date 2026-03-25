@@ -39,7 +39,7 @@ from aerospike_fluent.aio.operations.query import (
     _build_exp_write_flags,
 )
 from aerospike_fluent.dsl.parser import parse_dsl
-from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.exceptions import _convert_pac_exception
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
 from aerospike_fluent.policy.policy_mapper import to_batch_policy
 from aerospike_fluent.record_stream import RecordStream
@@ -449,6 +449,17 @@ class BatchOperationBuilder:
     async def execute(self) -> RecordStream:
         """Execute all batch operations.
 
+        Example::
+            stream = await (
+                session.batch()
+                .insert(key1)
+                .bin("name").set_to("Ada")
+                .upsert(key2)
+                .bin("n").set_to(1)
+                .execute()
+            )
+            rows = await stream.collect()
+
         Returns:
             A :class:`RecordStream` of per-key :class:`RecordResult` items.
 
@@ -507,6 +518,6 @@ class BatchOperationBuilder:
                 )
                 raw_results.extend(operate_results)
         except Exception as e:
-            raise convert_pac_exception(e) from e
+            raise _convert_pac_exception(e) from e
 
         return RecordStream.from_batch_records(raw_results)

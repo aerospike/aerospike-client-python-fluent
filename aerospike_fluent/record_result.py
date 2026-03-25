@@ -30,19 +30,36 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class RecordResult:
-    """Result of a single record operation within a batch or query.
+    """One row from a batch, query stream, or single-key fluent call.
+
+    Inspect :attr:`is_ok` and :attr:`result_code` for outcome; use
+    :meth:`or_raise` or :meth:`record_or_raise` when failures should throw.
+    Foreground UDF success values appear in :attr:`udf_result` when returned
+    by the server.
 
     Attributes:
-        key: The record key (always present).
-        record: The record data, or ``None`` on failure / not found.
-        result_code: Server result code (``ResultCode.OK`` on success).
-        in_doubt: ``True`` when a write may have completed despite the error.
-        index: Position in the batch (``-1`` for non-batch results).
-        exception: The original exception, if any. Present when a client-side
-            error (timeout, connection failure) was embedded in the stream
-            rather than raised.
-        udf_result: Return value from a foreground ``execute_udf`` call when
-            the PAC API returns a value (otherwise ``None``).
+        key: Target :class:`~aerospike_async.Key` for this row.
+        record: :class:`~aerospike_async.Record` payload, or ``None`` if not
+            returned (errors, not found, or UDF error rows).
+        result_code: Server :class:`~aerospike_async.exceptions.ResultCode`.
+        in_doubt: ``True`` when a write may have completed despite an error.
+        index: Batch position, or ``0`` / ``-1`` depending on origin.
+        exception: Embedded :class:`~aerospike_fluent.exceptions.AerospikeError`
+            when the client placed an error in-stream instead of raising.
+        udf_result: Lua return value for successful foreground UDF calls.
+
+    Example:
+        Inspect a row from a stream::
+
+            row = await stream.first()
+            if row and row.is_ok:
+                bins = row.record.bins if row.record else {}
+            elif row:
+                row.or_raise()
+
+    See Also:
+        :class:`~aerospike_fluent.record_stream.RecordStream`: Async iteration
+        of results.
     """
 
     key: Key
@@ -55,29 +72,75 @@ class RecordResult:
 
     @property
     def is_ok(self) -> bool:
-        """``True`` when the operation succeeded."""
+        """Whether :attr:`result_code` is ``ResultCode.OK``.
+
+        Returns:
+            ``True`` on success; ``False`` for any other result code.
+
+        Example:
+            row = await stream.first()
+            if row is not None and row.is_ok and row.record:
+                bins = row.record.bins
+        """
         return self.result_code == ResultCode.OK
 
     def or_raise(self) -> RecordResult:
-        """Return *self* if the result is OK, otherwise raise a typed exception."""
+        """Return ``self`` if successful, else raise from :attr:`exception` or result code.
+
+        Returns:
+            This instance when :attr:`is_ok` is true.
+
+        Raises:
+            AerospikeError: If :attr:`exception` is set (embedded client error).
+            AerospikeError: Otherwise, from :attr:`result_code` via
+                :func:`~aerospike_fluent.exceptions._result_code_to_exception`
+                (usually a specific subclass; unmapped codes use the base type).
+
+        Example:
+            row = await stream.first()
+            if row is not None:
+                row.or_raise()
+        """
         if not self.is_ok:
             if self.exception is not None:
                 raise self.exception
-            from aerospike_fluent.exceptions import result_code_to_exception
-            raise result_code_to_exception(
+            from aerospike_fluent.exceptions import _result_code_to_exception
+            raise _result_code_to_exception(
                 self.result_code, str(self.result_code), self.in_doubt
             )
         return self
 
     def record_or_raise(self) -> Record:
-        """Return the record if OK and non-``None``, otherwise raise."""
+        """Return :attr:`record`, raising if the result is not OK.
+
+        Returns:
+            The non-``None`` :class:`~aerospike_async.Record`.
+
+        Raises:
+            Same as :meth:`or_raise`, plus ``ValueError`` if the result is OK
+            but :attr:`record` is ``None`` (unexpected empty payload).
+
+        Example:
+            rec = (await stream.first_or_raise()).record_or_raise()
+        """
         self.or_raise()
         if self.record is None:
             raise ValueError("Record is None despite ResultCode.OK")
         return self.record
 
     def as_bool(self) -> bool:
-        """Existence check: ``True`` if OK, ``False`` if key not found, else raise."""
+        """Interpret the row as an existence check (for example after :meth:`Session.exists`).
+
+        Returns:
+            ``True`` if the key exists (OK result).
+            ``False`` if the result is key-not-found.
+
+        Raises:
+            AerospikeError: For any other non-OK code (via :meth:`or_raise`).
+
+        Example:
+            found = (await exists_stream.first_or_raise()).as_bool()
+        """
         if self.is_ok:
             return True
         if self.result_code == ResultCode.KEY_NOT_FOUND_ERROR:
@@ -89,7 +152,16 @@ class RecordResult:
 def batch_records_to_results(
     batch_records: list[BatchRecord] | tuple[BatchRecord, ...],
 ) -> list[RecordResult]:
-    """Convert a sequence of PAC ``BatchRecord`` to ``RecordResult`` list."""
+    """Convert ``BatchRecord`` entries to :class:`RecordResult` (library internal).
+
+    Args:
+        batch_records: Sequence of :class:`~aerospike_async.BatchRecord` from
+            the async client.
+
+    Returns:
+        Parallel list with :attr:`~RecordResult.index` set to each row's
+        position in ``batch_records``.
+    """
     return [
         RecordResult(
             key=br.key,

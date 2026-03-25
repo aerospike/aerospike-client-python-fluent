@@ -37,76 +37,91 @@ if typing.TYPE_CHECKING:
 
 
 class Session:
-    """
-    Main interface for performing database operations.
+    """Perform reads and writes against Aerospike with a fixed :class:`~aerospike_fluent.policy.behavior.Behavior`.
 
-    A Session is created from a FluentClient (Cluster) and is configured
-    with a Behavior that defines the policies (timeouts, retries) for all
-    operations performed within that session.
+    A session binds a connected :class:`FluentClient` to policy defaults (timeouts,
+    retries, replica preferences) for every operation started from it. Create
+    sessions with :meth:`FluentClient.create_session`; do not construct
+    ``Session`` directly.
 
-    Sessions are lightweight and can be created multiple times from the
-    same client, each with different behaviors for different use cases.
-
-    Example::
-
+    Example:
         async with FluentClient("localhost:3000") as client:
             session = client.create_session(Behavior.DEFAULT)
+            users = DataSet.of("test", "users")
+            stream = await session.query(users.id(1)).execute()
+            first = await stream.first_or_raise()
+            await session.upsert(users.id(2)).put({"name": "Tim"}).execute()
 
-            rs = await session.query(users.id(1)).execute()
-            await session.upsert(users.id(2)).bin("name").set_to("Tim").execute()
+    See Also:
+        :meth:`FluentClient.create_session`: How to obtain a session.
+        :meth:`query`: Point reads, batch reads, and secondary-index queries.
+        :meth:`upsert`: Create-or-update writes.
     """
 
     def __init__(self, client: FluentClient, behavior: Behavior) -> None:
-        """
-        Initialize a Session.
+        """Attach a client and behavior; prefer :meth:`FluentClient.create_session`.
 
         Args:
-            client: The FluentClient (Cluster) to use for operations.
-            behavior: The Behavior configuration for this session.
+            client: Connected (or not yet connected) :class:`FluentClient`.
+            behavior: Policy bundle for operations from this session.
 
         Note:
-            Sessions should be created via FluentClient.create_session(),
-            not directly.
+            Application code should not call ``Session(...)`` directly.
+
+        See Also:
+            :meth:`FluentClient.create_session`.
         """
         self._client = client
         self._behavior = behavior
 
     @property
     def behavior(self) -> Behavior:
-        """Get the behavior configuration for this session."""
+        """Policy bundle applied to operations created from this session.
+
+        Returns:
+            The :class:`~aerospike_fluent.policy.behavior.Behavior` passed to
+            :meth:`FluentClient.create_session`.
+        """
         return self._behavior
 
     @property
     def client(self) -> FluentClient:
-        """Get the underlying FluentClient."""
+        """Fluent client that owns the connection used by this session.
+
+        Returns:
+            The parent :class:`FluentClient`.
+        """
         return self._client
 
     # Delegate all FluentClient operations to maintain same API
 
     def batch(self) -> "BatchOperationBuilder":
-        """
-        Create a batch operation builder for chaining operations across multiple keys.
-        
-        This enables fluent chaining of insert, update, upsert, replace, and delete
-        operations on different keys, which are executed as a single batch.
-        
+        """Start a multi-key batch of mixed write operations executed in one server round trip.
+
+        Chain ``insert``, ``update``, ``upsert``, ``replace``, ``delete``, and related
+        bin builders, then ``await ...execute()`` to obtain per-key outcomes.
+
         Returns:
-            A BatchOperationBuilder for chaining operations.
-        
+            A :class:`~aerospike_fluent.aio.operations.batch.BatchOperationBuilder`
+            for chaining operations.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
         Example:
-            ```python
-            # Chain multiple operations across different keys
-            results = await session.batch() \\
-                .insert(key1).bin("name").set_to("Alice").bin("age").set_to(25) \\
-                .update(key2).bin("counter").add(1) \\
-                .upsert(key3).put({"status": "active"}) \\
-                .delete(key4) \\
+            results = await (
+                session.batch()
+                .insert(key1).put({"name": "Alice", "age": 25})
+                .update(key2).bin("counter").add(1)
+                .upsert(key3).put({"status": "active"})
+                .delete(key4)
                 .execute()
-            
-            # Check results
-            for result in results:
-                print(f"Key: {result.key}, Result: {result.result_code}")
-            ```
+            )
+            for row in results:
+                print(row.key, row.result_code)
+
+        See Also:
+            :meth:`upsert`: Single-record writes without batching.
         """
         from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
 
@@ -116,11 +131,30 @@ class Session:
         return BatchOperationBuilder(self._client._client, self._behavior)
 
     def background_task(self) -> "BackgroundTaskSession":
-        """Return a fluent builder for server-side background work on a dataset.
+        """Configure a server-side background job (query + scan scope) on a dataset.
 
-        Choose ``update``, ``delete``, ``touch``, or ``execute_udf`` on the
-        returned session, then chain filters and bin or UDF arguments and
-        ``await ...execute()`` to obtain a PAC ``ExecuteTask``.
+        Call ``update``, ``delete``, ``touch``, or ``execute_udf`` on the returned
+        object, add optional filters (for example ``where`` on supported builders),
+        then ``await ...execute()`` to start work and receive an async task handle.
+
+        Returns:
+            A :class:`~aerospike_fluent.aio.background.BackgroundTaskSession`
+            for chaining the operation type and execution.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            task = await (
+                session.background_task()
+                .delete(DataSet.of("test", "scratch"))
+                .where("$.flag == 1")
+                .execute()
+            )
+            await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
+
+        See Also:
+            :meth:`execute_udf`: Foreground UDF on explicit keys.
         """
         from aerospike_fluent.aio.background import BackgroundTaskSession
 
@@ -130,11 +164,39 @@ class Session:
         return BackgroundTaskSession(self)
 
     def execute_udf(self, *keys: Key) -> "UdfFunctionBuilder":
-        """Run a registered UDF on one or more keys (foreground).
+        """Run a registered server-side UDF on one or more keys (foreground).
 
-        Chain ``function`` (module name without ``.lua``, then Lua function
-        name), optional ``passing(...)``, then ``await ...execute()`` to obtain
-        a ``RecordStream``.
+        Chain ``function(package, name)`` (package is the registered module name
+        without ``.lua``), optional ``passing(*args)`` for Lua parameters, optional
+        ``where`` for a filter expression, then ``await ...execute()`` to obtain a
+        :class:`~aerospike_fluent.record_stream.RecordStream`. Multiple keys use a
+        batch UDF; results preserve per-key order where applicable.
+
+        Args:
+            *keys: One or more :class:`~aerospike_async.Key` targets in the same
+                namespace and set.
+
+        Returns:
+            :class:`~aerospike_fluent.aio.operations.udf.UdfFunctionBuilder` —
+            call ``function`` next.
+
+        Raises:
+            ValueError: If no keys are given.
+            RuntimeError: If the client is not connected.
+
+        Example:
+            users = DataSet.of("test", "users")
+            stream = await (
+                session.execute_udf(users.id("a"))
+                .function("my_module", "my_fn")
+                .passing("binName", 42)
+                .execute()
+            )
+            value = await stream.first_udf_result()
+
+        See Also:
+            :meth:`query`: Read bins without UDF.
+            :meth:`background_task`: Dataset-scoped background UDF.
         """
         from aerospike_fluent.aio.operations.query import QueryBuilder
         from aerospike_fluent.aio.operations.udf import UdfFunctionBuilder
@@ -282,19 +344,49 @@ class Session:
         key: Optional[Key] = None,
         keys_list: Optional[List[Key]] = None,
     ) -> QueryBuilder:
-        """
-        Create a query builder.
+        """Start a read or secondary-index query for keys or a whole set.
 
-        Supports multiple calling styles:
+        This session's :attr:`behavior` is applied to the underlying
+        :class:`~aerospike_fluent.aio.operations.query.QueryBuilder`. Supported
+        shapes include a :class:`~aerospike_fluent.dataset.DataSet` (set-wide
+        query), a single :class:`~aerospike_async.Key`, multiple keys (list or
+        varargs), or explicit ``namespace`` / ``set_name`` for index scans.
 
-        1. Positional DataSet: `query(users)`
-        2. Positional Key: `query(users.id(1))`
-        3. Positional List[Key]: `query(users.ids(1,2,3))`
-        4. Varargs Keys: `query(key1, key2, key3)`
-        5. Explicit namespace/set: `query("test", "users")`
-        6. Keyword arguments (legacy): `query(dataset=users)`, `query(key=key)`, etc.
+        Args:
+            arg1: Positional dataset, key, list of keys, or namespace string
+                (when paired with ``arg2`` as set name).
+            arg2: When ``arg1`` is a namespace, the set name; otherwise may be
+                a second key when passing multiple keys positionally.
+            *keys: Additional keys when the first positional argument is a key.
+            namespace: Keyword namespace (with ``set_name``) when not using a
+                dataset.
+            set_name: Keyword set name (with ``namespace``).
+            dataset: Keyword :class:`~aerospike_fluent.dataset.DataSet`.
+            key: Keyword single key.
+            keys_list: Keyword list of keys when not using ``arg1`` or varargs;
+                forwarded to the client as ``keys``.
 
-        See FluentClient.query() for full documentation.
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.QueryBuilder` to
+            chain ``where``, ``bins``, ``execute``, etc.
+
+        Raises:
+            TypeError: If positional types do not match the supported overloads.
+            ValueError: If a key list is empty or arguments are inconsistent.
+
+        Example:
+            users = DataSet.of("test", "users")
+            rs = await session.query(users.id(1)).bins(["name"]).execute()
+            row = await rs.first_or_raise()
+
+        Example:
+            users = DataSet.of("test", "users")
+            rs = await session.query(users.ids(1, 2, 3)).bins(["name"]).execute()
+            rows = await rs.collect()
+
+        See Also:
+            :meth:`FluentClient.query`: Same shapes without session behavior.
+            :meth:`upsert`: Writes for the same keys.
         """
         b = self._behavior
         # Handle positional arguments (fluent API)
@@ -333,6 +425,7 @@ class Session:
             set_name=set_name,
             dataset=dataset,
             key=key,
+            keys=keys_list,
             behavior=b,
         )
 
@@ -362,9 +455,29 @@ class Session:
         dataset: Optional[DataSet] = None,
     ) -> IndexBuilder:
         """
-        Create an index builder.
+        Create a secondary index builder for a namespace and set.
 
-        See FluentClient.index() for full documentation.
+        Args:
+            namespace: Namespace name when not using ``dataset``.
+            set_name: Set name when not using ``dataset``.
+            dataset: Optional :class:`~aerospike_fluent.dataset.DataSet` that
+                supplies namespace and set.
+
+        Returns:
+            :class:`~aerospike_fluent.aio.operations.index.IndexBuilder` for
+                chaining index definition and creation.
+
+        Raises:
+            ValueError: If ``dataset`` is not given and ``namespace`` or
+                ``set_name`` is missing.
+
+        Example::
+
+            users = DataSet.of("test", "users")
+            await session.index(dataset=users).on_bin("age").named("age_idx").numeric().create()
+
+        See Also:
+            :meth:`FluentClient.index`
         """
         if dataset is not None:
             return self._client.index(dataset=dataset)
@@ -379,9 +492,13 @@ class Session:
 
     def transaction_session(self) -> TransactionalSession:
         """
-        Create a transactional session.
+        Create a transactional session for multi-record atomic operations.
 
-        See FluentClient.transaction_session() for full documentation.
+        Returns:
+            :class:`~aerospike_fluent.aio.transactional_session.TransactionalSession`.
+
+        See Also:
+            :meth:`FluentClient.transaction_session`
         """
         return self._client.transaction_session()
 
@@ -518,14 +635,40 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create an upsert (create or update) write segment.
+        """Start a create-or-replace write for one or more keys.
 
-        Returns a :class:`WriteSegmentBuilder` for chaining bin writes,
-        policies, and ``execute()``.
+        If the record exists, bins are merged according to the chained operations;
+        if it does not exist, it is created. Use :meth:`insert` when the record
+        must not already exist.
 
-        Example::
+        Args:
+            arg1: A single :class:`~aerospike_async.Key`, a list of keys, or omit
+                and pass ``key`` / ``dataset`` + ``key_value`` / ``namespace`` +
+                ``set_name`` + ``key_value``.
+            arg2: Optional second key when passing multiple keys positionally.
+            *keys: Additional keys when the first positional is a key.
+            key: Single key (keyword form).
+            dataset: Dataset used with ``key_value`` to build a key.
+            namespace: Namespace used with ``set_name`` and ``key_value``.
+            set_name: Set name used with ``namespace`` and ``key_value``.
+            key_value: User key value with ``dataset`` or ``namespace``/``set_name``.
 
-            await session.upsert(users.id(1)).bin("name").set_to("Tim").execute()
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`
+            for ``put``, ``bin``, ``where``, ``execute``, etc.
+
+        Raises:
+            ValueError: If no keys are resolved or lists are empty.
+            TypeError: If positional arguments are not keys or lists of keys.
+
+        Example:
+            users = DataSet.of("test", "users")
+            await session.upsert(users.id(1)).put({"name": "Tim", "age": 30}).execute()
+
+        See Also:
+            :meth:`insert`: Fails if the record already exists.
+            :meth:`update`: Fails if the record does not exist.
+            :meth:`replace`: Replace-entire-record semantics when configured.
         """
         return self._build_write_segment(
             "upsert", arg1, arg2, *keys,
@@ -544,7 +687,24 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create an insert (create-only) write segment."""
+        """Start a create-only write; fails on execute if the record already exists.
+
+        Key resolution matches :meth:`upsert`.
+
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`.
+
+        Raises:
+            ValueError: If no keys are resolved.
+            TypeError: If positional arguments are invalid.
+
+        Example:
+            users = DataSet.of("test", "users")
+            await session.insert(users.id(99)).put({"name": "new"}).execute()
+
+        See Also:
+            :meth:`upsert`: Create or update.
+        """
         return self._build_write_segment(
             "insert", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -562,7 +722,21 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create an update (update-only) write segment."""
+        """Start an update-only write; fails on execute if the record is missing.
+
+        Key resolution matches :meth:`upsert`.
+
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`.
+
+        Raises:
+            ValueError: If no keys are resolved.
+            TypeError: If positional arguments are invalid.
+
+        See Also:
+            :meth:`upsert`: Create if missing.
+            :meth:`replace_if_exists`: Replace semantics when the record exists.
+        """
         return self._build_write_segment(
             "update", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -580,7 +754,21 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create a replace write segment."""
+        """Start a full-record replace write (bins replaced per builder rules).
+
+        Key resolution matches :meth:`upsert`. Prefer :meth:`replace_if_exists`
+        when the record must already exist.
+
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`.
+
+        Raises:
+            ValueError: If no keys are resolved.
+            TypeError: If positional arguments are invalid.
+
+        See Also:
+            :meth:`replace_if_exists`: Replace only when the record exists.
+        """
         return self._build_write_segment(
             "replace", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -598,7 +786,21 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create a replace-if-exists write segment."""
+        """Start a replace write that requires an existing record.
+
+        Key resolution matches :meth:`upsert`. On execute, missing keys surface
+        as errors according to error strategy (default may raise).
+
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`.
+
+        Raises:
+            ValueError: If no keys are resolved.
+            TypeError: If positional arguments are invalid.
+
+        See Also:
+            :meth:`replace`: Unconditional replace semantics.
+        """
         return self._build_write_segment(
             "replace_if_exists", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -616,12 +818,25 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create a delete write segment.
+        """Start a delete for one or more keys.
 
-        Example::
+        Key resolution matches :meth:`upsert`. Chain filters or durable-delete
+        options on the builder, then ``await ...execute()``.
 
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`.
+
+        Raises:
+            ValueError: If no keys are resolved.
+            TypeError: If positional arguments are invalid.
+
+        Example:
+            users = DataSet.of("test", "users")
             await session.delete(users.id(1)).execute()
-            await session.delete(users.ids(1, 2, 3)).execute()
+            await session.delete(users.ids(10, 11)).execute()
+
+        See Also:
+            :meth:`background_task`: Delete many records via a server job.
         """
         return self._build_write_segment(
             "delete", arg1, arg2, *keys,
@@ -640,7 +855,21 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create a touch (reset TTL) write segment."""
+        """Start a touch to refresh TTL without changing bins.
+
+        Key resolution matches :meth:`upsert`. Use the builder to set TTL or
+        related policy, then ``await ...execute()``.
+
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`.
+
+        Raises:
+            ValueError: If no keys are resolved.
+            TypeError: If positional arguments are invalid.
+
+        See Also:
+            :meth:`upsert`: Writes that can also set expiration via the builder.
+        """
         return self._build_write_segment(
             "touch", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -658,12 +887,27 @@ class Session:
         set_name: Optional[str] = None,
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
-        """Create an exists-check write segment.
+        """Start an existence check for one or more keys.
 
-        Example::
+        Key resolution matches :meth:`upsert`. After ``execute``, use
+        :meth:`~aerospike_fluent.record_result.RecordResult.as_bool` on each
+        :class:`~aerospike_fluent.record_result.RecordResult` or inspect
+        ``result_code``.
 
+        Returns:
+            A :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`.
+
+        Raises:
+            ValueError: If no keys are resolved.
+            TypeError: If positional arguments are invalid.
+
+        Example:
+            users = DataSet.of("test", "users")
             rs = await session.exists(users.id(1)).execute()
-            found = (await rs.first()).as_bool()
+            exists = (await rs.first()).as_bool()
+
+        See Also:
+            :meth:`query`: Read record data when the key is known to exist.
         """
         return self._build_write_segment(
             "exists", arg1, arg2, *keys,
@@ -673,26 +917,27 @@ class Session:
 
     async def truncate(self, dataset: DataSet, before_nanos: Optional[int] = None) -> None:
         """
-        Truncate (delete all records) from a set.
-
-        This method deletes all records in the specified set.
-        This operation cannot be undone.
+        Truncate (delete all records) from a set; this cannot be undone.
 
         Args:
             dataset: The DataSet to truncate.
             before_nanos: Optional timestamp in nanoseconds. Only records with
-                         last update time (LUT) less than this value will be
-                         truncated. If None, all records in the set are truncated.
+                last update time (LUT) less than this value are truncated.
+                If None, all records in the set are truncated.
 
-        Example:
-            ```python
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example::
+
             users = DataSet.of("test", "users")
             await session.truncate(users)
 
-            # Truncate only records older than a specific time
             cutoff_time = time.time_ns() - (24 * 60 * 60 * 10**9)  # 24 hours ago
             await session.truncate(users, before_nanos=cutoff_time)
-            ```
         """
         # Access the underlying async client and call its truncate method
         if self._client._client is None:

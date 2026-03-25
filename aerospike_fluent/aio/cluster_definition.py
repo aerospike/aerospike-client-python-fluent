@@ -29,7 +29,14 @@ from aerospike_fluent.policy.system_settings import SystemSettings
 
 
 class Host:
-    """Represents an Aerospike server host."""
+    """Seed address for cluster discovery.
+
+    Example::
+
+        host = Host("192.168.1.10", 3000)
+        # or use the convenience parser
+        hosts = Host.parse_hosts("host1:3000,host2:3000", 3000)
+    """
     
     def __init__(
         self,
@@ -51,15 +58,25 @@ class Host:
     
     @staticmethod
     def of(name: str, port: int) -> Host:
-        """Create a Host instance."""
+        """Create a Host instance.
+
+        Args:
+            name: Hostname or IP address.
+            port: Port number.
+
+        Returns:
+            A Host with the given name and port.
+        """
         return Host(name, port)
     
     @staticmethod
     def parse_hosts(host_string: str, default_port: int) -> List[Host]:
-        """
-        Parse a host string into a list of Host objects.
-        
-        Format: "host1:port1,host2:port2" or "host1,host2" (uses default_port)
+        """Parse a host string into a list of Host objects.
+
+        Format: ``host1:port1,host2:port2`` or ``host1,host2`` (uses ``default_port``).
+
+        Raises:
+            ValueError: If a port segment is present but not a valid integer.
         """
         hosts = []
         for host_part in host_string.split(","):
@@ -75,22 +92,25 @@ class Host:
 
 
 class ClusterDefinition:
-    """
-    Builder class for configuring and creating Aerospike cluster connections.
-    
-    This class provides a fluent API for configuring various connection parameters
-    such as authentication, TLS, rack awareness, and cluster validation before
-    establishing a connection to an Aerospike cluster.
-    
-    Example usage:
+    """Configure seeds, auth, TLS, rack awareness, and validation before :meth:`connect`.
+
+    Call :meth:`connect` to obtain a live :class:`~aerospike_fluent.aio.cluster.Cluster`.
+    The sync counterpart lives under ``aerospike_fluent.sync.cluster_definition``.
+
+    Example:
         ```python
-        cluster = await ClusterDefinition("localhost", 3100)\
-            .with_native_credentials("username", "password")\
-            .using_services_alternate()\
-            .preferring_racks(1, 2)\
-            .validate_cluster_name_is("my-cluster")\
+        cluster = await (
+            ClusterDefinition("localhost", 3100)
+            .with_native_credentials("user", "secret")
+            .using_services_alternate()
+            .preferring_racks(1, 2)
+            .validate_cluster_name_is("my-cluster")
             .connect()
+        )
         ```
+
+    See Also:
+        :class:`~aerospike_fluent.aio.cluster.Cluster`
     """
     
     def __init__(
@@ -148,6 +168,10 @@ class ClusterDefinition:
 
         Returns:
             This ClusterDefinition for method chaining
+
+        Example::
+
+            cd = ClusterDefinition("localhost", 3000).with_native_credentials("admin", "pass123")
         """
         if not user_name:
             self._auth_mode = AuthMode.NONE
@@ -227,6 +251,10 @@ class ClusterDefinition:
         
         Returns:
             This ClusterDefinition for method chaining
+
+        Example::
+
+            cd = ClusterDefinition("localhost", 3000).validate_cluster_name_is("my-cluster")
         """
         self._cluster_name = cluster_name
         return self
@@ -241,9 +269,9 @@ class ClusterDefinition:
         
         Args:
             *racks: The rack IDs to prefer, in order of preference
-        
+
         Returns:
-            This ClusterDefinition for method chaining
+            This builder for chaining.
         """
         self._preferred_racks = list(racks) if racks else None
         return self
@@ -255,9 +283,9 @@ class ClusterDefinition:
         When enabled, the client will use alternate service endpoints for
         cluster discovery, which can be useful in certain network configurations
         or when using service mesh solutions.
-        
+
         Returns:
-            This ClusterDefinition for method chaining
+            This builder for chaining.
         """
         self._use_services_alternate = True
         return self
@@ -278,7 +306,7 @@ class ClusterDefinition:
             fail: Whether to raise on connection failure.
 
         Returns:
-            This ClusterDefinition for method chaining
+            This builder for chaining.
         """
         self._fail_if_not_connected = fail
         return self
@@ -299,7 +327,7 @@ class ClusterDefinition:
             ip_map: Mapping of server-reported IPs to actual connection IPs
 
         Returns:
-            This ClusterDefinition for method chaining
+            This builder for chaining.
         """
         self._ip_map = ip_map if ip_map else None
         return self
@@ -312,7 +340,7 @@ class ClusterDefinition:
             settings: The SystemSettings to apply.
 
         Returns:
-            This ClusterDefinition for method chaining.
+            This builder for chaining.
 
         Example::
 
@@ -334,9 +362,9 @@ class ClusterDefinition:
         TLS settings such as TLS name, CA file, protocols, ciphers, and other
         TLS-specific options. Call done() on the TlsBuilder to return
         to this ClusterDefinition for further configuration.
-        
+
         Returns:
-            A TlsBuilder for configuring TLS settings
+            A TlsBuilder for configuring TLS settings.
         """
         self._tls_builder = TlsBuilder(self)
         return self._tls_builder

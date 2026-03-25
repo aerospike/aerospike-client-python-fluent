@@ -27,11 +27,14 @@ from aerospike_fluent.sync.client import _EventLoopManager
 
 
 class SyncIndexBuilder:
-    """
-    Synchronous wrapper for IndexBuilder.
+    """Synchronous façade over :class:`~aerospike_fluent.aio.operations.index.IndexBuilder`.
 
-    Provides the same fluent interface as IndexBuilder but with
-    synchronous methods that hide async/await.
+    Chain :meth:`on_bin`, :meth:`named`, :meth:`numeric` / :meth:`string`, optional
+    :meth:`collection`, then :meth:`create` or :meth:`drop`; each mutating step
+    is stored locally and replayed onto a fresh async builder when executing.
+
+    See Also:
+        :class:`~aerospike_fluent.aio.operations.index.IndexBuilder`
     """
 
     def __init__(
@@ -41,15 +44,7 @@ class SyncIndexBuilder:
         set_name: str,
         loop_manager: _EventLoopManager,
     ) -> None:
-        """
-        Initialize a SyncIndexBuilder.
-
-        Args:
-            async_client: The async FluentClient instance.
-            namespace: The namespace name.
-            set_name: The set name.
-            loop_manager: The event loop manager for running async operations.
-        """
+        """Pair with ``namespace``/``set`` and the parent's loop manager."""
         self._async_client = async_client
         self._namespace = namespace
         self._set_name = set_name
@@ -80,39 +75,54 @@ class SyncIndexBuilder:
         return builder
 
     def on_bin(self, bin_name: str) -> SyncIndexBuilder:
-        """Specify the bin to index."""
+        """Set which bin this secondary index covers."""
         self._bin_name = bin_name
         return self
 
     def named(self, index_name: str) -> SyncIndexBuilder:
-        """Specify the index name."""
+        """Set the secondary index name the cluster uses (required for create and drop)."""
         self._index_name = index_name
         return self
 
     def numeric(self) -> SyncIndexBuilder:
-        """Set the index type to numeric."""
+        """Set the secondary index type to numeric; use :meth:`string` for string bins."""
         self._index_type = IndexType.NUMERIC
         return self
 
     def string(self) -> SyncIndexBuilder:
-        """Set the index type to string."""
+        """Set the secondary index type to string; use :meth:`numeric` for numeric bins."""
         self._index_type = IndexType.STRING
         return self
 
     def collection(
         self, collection_index_type: CollectionIndexType
     ) -> SyncIndexBuilder:
-        """Set the collection index type."""
+        """Set the collection index variant for map or list bins.
+
+        Args:
+            collection_index_type: Same as
+                :meth:`~aerospike_fluent.aio.operations.index.IndexBuilder.collection`.
+        """
         self._collection_index_type = collection_index_type
         return self
 
     def create(self) -> None:
-        """Create the index synchronously."""
+        """Create the index (blocks until the admin call completes).
+
+        Raises:
+            ValueError: Same validation as async :meth:`~aerospike_fluent.aio.operations.index.IndexBuilder.create`.
+            AerospikeError: On failure from the cluster (typed when mapped).
+        """
         builder = self._get_async_builder()
         self._loop_manager.run_async(builder.create())
 
     def drop(self) -> None:
-        """Drop the index synchronously."""
+        """Drop the index (blocks until the admin call completes).
+
+        Raises:
+            ValueError: If the index name was not set via :meth:`named`.
+            AerospikeError: On failure from the cluster.
+        """
         builder = self._get_async_builder()
         self._loop_manager.run_async(builder.drop())
 

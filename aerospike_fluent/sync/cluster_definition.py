@@ -75,24 +75,24 @@ class Host:
 
 
 class ClusterDefinition:
-    """
-    Builder class for configuring and creating Aerospike cluster connections (sync version).
-    
-    This class provides a fluent API for configuring various connection parameters
-    such as authentication, TLS, rack awareness, and cluster validation before
-    establishing a connection to an Aerospike cluster.
-    
-    Example usage:
+    """Sync builder for seeds, auth, TLS, and validation; :meth:`connect` returns :class:`Cluster`.
+
+    Mirrors :class:`~aerospike_fluent.aio.cluster_definition.ClusterDefinition`
+    with blocking :meth:`connect` and context-manager support on
+    :class:`~aerospike_fluent.sync.cluster.Cluster`.
+
+    Example:
         ```python
-        with ClusterDefinition("localhost", 3100)\
-            .with_native_credentials("username", "password")\
-            .using_services_alternate()\
-            .preferring_racks(1, 2)\
-            .validate_cluster_name_is("my-cluster")\
-            .connect() as cluster:
+        with (
+            ClusterDefinition("localhost", 3100)
+            .with_native_credentials("username", "password")
+            .connect()
+        ) as cluster:
             session = cluster.create_session(Behavior.DEFAULT)
-            # Use the session...
         ```
+
+    See Also:
+        :class:`~aerospike_fluent.aio.cluster_definition.ClusterDefinition`
     """
     
     def __init__(

@@ -13,15 +13,15 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Aerospike Fluent Client exception hierarchy.
+"""Typed exceptions for the fluent client.
 
-Provides typed exceptions aligned with the Aerospike error model, enabling
-targeted exception handling (e.g. ``except GenerationError`` rather than
-inspecting result codes manually).
+Subclasses of :class:`AerospikeError` mirror common server and client outcomes so
+callers can handle failures selectively (for example ``except GenerationError``)
+instead of comparing result codes everywhere.
 
-PAC (Python Async Client) exceptions are converted to PFC exceptions at
-public API boundaries via :func:`convert_pac_exception`, preserving the
-original cause through standard exception chaining (``raise ... from``).
+At public boundaries, errors from the underlying async client are normalized with
+:func:`_convert_pac_exception`. Callers should chain causes explicitly:
+``raise _convert_pac_exception(exc) from exc``.
 """
 
 from __future__ import annotations
@@ -42,11 +42,31 @@ from aerospike_async.exceptions import ResultCode
 # ---------------------------------------------------------------------------
 
 class AerospikeError(Exception):
-    """Base exception for all Aerospike fluent client errors.
+    """Base class for fluent-client failures.
+
+    Raised directly when no more specific subclass applies, including
+    unmapped server result codes (see :func:`_result_code_to_exception`).
+    Prefer catching concrete subclasses when you need targeted handling, and
+    fall back to this type for all other Aerospike-related errors.
 
     Attributes:
-        result_code: The server ``ResultCode``, or ``None`` for client-side errors.
-        in_doubt: ``True`` when a write may have completed despite the error.
+        result_code: Server :class:`~aerospike_async.exceptions.ResultCode` when
+            the failure came from a result code; ``None`` for purely client-side
+            issues (for example connection setup).
+        in_doubt: ``True`` when a write may have completed on the server despite
+            the error; safe retry usually requires a read-verify strategy.
+
+    Example::
+        try:
+            stream = await session.query(key).bins(["x"]).execute()
+            await stream.first_or_raise()
+        except AerospikeError as err:
+            code = err.result_code
+            ...
+
+    See Also:
+        :func:`_result_code_to_exception`: Maps result codes to this type or a
+            subclass.
     """
 
     def __init__(
@@ -66,19 +86,75 @@ class AerospikeError(Exception):
 # ---------------------------------------------------------------------------
 
 class TimeoutError(AerospikeError):
-    """Client or server timeout."""
+    """Raised when an operation exceeds a client or server timeout.
+
+    Covers socket-level timeouts and server-reported timeout result codes.
+    This type shares a name with Python's built-in :exc:`TimeoutError`; always
+    import it from :mod:`aerospike_fluent` or this module when handling fluent
+    client timeouts.
+
+    Attributes:
+        result_code: Set when the server returned a timeout-related code;
+            otherwise often ``None`` for client-side timeouts.
+
+    See Also:
+        :class:`ConnectionError`: Cluster reachability rather than deadline
+            exceeded.
+
+    Example::
+        try:
+            await stream.first_or_raise()
+        except TimeoutError:
+            ...  # retry or fall back
+    """
 
 
 class ConnectionError(AerospikeError):
-    """Connection to the Aerospike cluster failed."""
+    """Raised when the client cannot establish or keep a cluster connection.
+
+    Typical causes include refused sockets, TLS handshake failure, or loss of
+    connectivity mid-flight. Distinct from :class:`TimeoutError`, which signals
+    a deadline rather than an immediate transport failure.
+
+    Attributes:
+        result_code: Usually ``None`` because the failure occurs before a server
+            result code is available.
+
+    Example::
+        try:
+            async with FluentClient(...) as client:
+                ...
+        except ConnectionError:
+            ...  # cluster unreachable
+    """
 
 
 class InvalidNodeError(AerospikeError):
-    """The target node is invalid or unavailable."""
+    """Raised when the chosen node is unknown, wrong role, or not usable.
+
+    Use for diagnosing cluster topology or client routing issues rather than
+    application-level data errors.
+
+    Attributes:
+        result_code: Usually ``None``.
+    """
 
 
 class InvalidNamespaceError(AerospikeError):
-    """The requested namespace does not exist on the cluster."""
+    """Raised when the namespace is missing or not defined on the cluster.
+
+    Often indicates a configuration mismatch between application and cluster.
+
+    Attributes:
+        result_code: Typically ``ResultCode.INVALID_NAMESPACE`` when mapped from
+            a server response.
+
+    Example::
+        try:
+            await session.query(bad_ds).execute()
+        except InvalidNamespaceError:
+            ...  # namespace not configured on cluster
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -86,15 +162,35 @@ class InvalidNamespaceError(AerospikeError):
 # ---------------------------------------------------------------------------
 
 class SecurityError(AerospikeError):
-    """Base class for security-related errors."""
+    """Base class for authentication, authorization, and security policy errors.
+
+    Several distinct server result codes collapse to this type when they do not
+    warrant a dedicated subclass. Catch :class:`AuthenticationError` or
+    :class:`AuthorizationError` first if you need finer granularity.
+
+    Attributes:
+        result_code: The security-related code returned by the server, when
+            applicable.
+    """
 
 
 class AuthenticationError(SecurityError):
-    """Authentication failed (invalid credentials, expired password, etc.)."""
+    """Raised when credentials are rejected or the session is not authenticated.
+
+    Examples include invalid user, expired password, or not authenticated
+    responses from the server.
+
+    See Also:
+        :class:`AuthorizationError`: Valid identity but disallowed operation.
+    """
 
 
 class AuthorizationError(SecurityError):
-    """Insufficient permissions for the requested operation."""
+    """Raised when the authenticated principal may not perform the operation.
+
+    Distinct from :class:`AuthenticationError`, which indicates identity or
+    credential problems rather than policy denial.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -102,15 +198,46 @@ class AuthorizationError(SecurityError):
 # ---------------------------------------------------------------------------
 
 class GenerationError(AerospikeError):
-    """Record generation (version) check failed."""
+    """Raised when a write fails due to a record generation mismatch.
+
+    The record was modified since it was read, or the expected generation did
+    not match. Retrying blindly usually requires re-reading the record and
+    reapplying the logical update.
+
+    Attributes:
+        result_code: Typically ``ResultCode.GENERATION_ERROR``.
+
+    See Also:
+        :meth:`~aerospike_fluent.aio.session.Session.upsert`: Common write path
+            that can enforce generations on builders.
+
+    Example::
+        try:
+            await (
+                session.upsert(key)
+                    .put({"x": 1})
+                    .ensure_generation_is(3)
+                    .execute()
+            )
+        except GenerationError:
+            ...  # record was modified by another writer
+    """
 
 
 class QuotaError(AerospikeError):
-    """A server quota has been exceeded."""
+    """Raised when a server-side quota or limit is exceeded.
+
+    Handling is usually operational (throttle, increase limits, or partition
+    workload) rather than a single-record retry.
+    """
 
 
 class SerializationError(AerospikeError):
-    """Serialization or deserialization of a value failed."""
+    """Raised when a value cannot be encoded for the wire or decoded from it.
+
+    Check bin types and application serializers when this appears on puts or
+    reads.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -118,20 +245,38 @@ class SerializationError(AerospikeError):
 # ---------------------------------------------------------------------------
 
 class QueryTerminatedError(AerospikeError):
-    """A query was aborted or terminated."""
+    """Raised when a query stops early (aborted, canceled, or server-terminated).
+
+    Partial rows may already have been delivered on streaming paths; this error
+    represents the overall query outcome, not a single-key failure inside a
+    batch.
+
+    Attributes:
+        result_code: May include ``ResultCode.QUERY_ABORTED`` or related codes.
+    """
 
 
 class BackoffError(AerospikeError):
-    """The server requested a backoff / rate-limit."""
+    """Raised when the server signals rate limiting or requires backoff.
+
+    Callers may retry after a delay or reduce request pressure.
+    """
 
 
 class CommitError(AerospikeError):
-    """A multi-record transaction (MRT) commit failed.
+    """Raised when a multi-record transaction commit does not complete successfully.
+
+    Additional fields expose verify or roll-forward details when the underlying
+    client provides them.
 
     Attributes:
-        commit_error_type: The type of commit failure, if available.
-        verify_records: Results from the verify phase, if available.
-        roll_records: Results from the roll-forward/back phase, if available.
+        commit_error_type: Implementation-defined label for the failure phase,
+            if available.
+        verify_records: Verify-phase records or summaries, if available.
+        roll_records: Roll-forward or rollback-phase records, if available.
+        result_code: Server or client result associated with the commit, when set.
+        in_doubt: Inherited; ``True`` when commit outcome may be ambiguous on
+            the server.
     """
 
     def __init__(
@@ -179,7 +324,7 @@ _RC_TO_TYPE: dict[ResultCode, type[AerospikeError]] = {
 }
 
 
-def result_code_to_exception(
+def _result_code_to_exception(
     result_code: ResultCode,
     message: str = "",
     in_doubt: bool = False,
@@ -196,14 +341,15 @@ def result_code_to_exception(
 # Boundary converter: PAC exception -> PFC exception
 # ---------------------------------------------------------------------------
 
-def convert_pac_exception(exc: Exception) -> AerospikeError:
+def _convert_pac_exception(exc: Exception) -> AerospikeError:
     """Convert a PAC exception to the appropriate PFC typed exception.
 
     The original exception is **not** set as ``__cause__`` here; callers
     should use ``raise convert_pac_exception(e) from e``.
+        :func:`_result_code_to_exception`
     """
     if isinstance(exc, PacServerError):
-        return result_code_to_exception(exc.result_code, str(exc), exc.in_doubt)
+        return _result_code_to_exception(exc.result_code, str(exc), exc.in_doubt)
 
     if isinstance(exc, PacTimeoutError):
         return TimeoutError(str(exc))
@@ -215,7 +361,7 @@ def convert_pac_exception(exc: Exception) -> AerospikeError:
         return InvalidNodeError(str(exc))
 
     if isinstance(exc, PacUDFBadResponse):
-        return result_code_to_exception(
+        return _result_code_to_exception(
             ResultCode.UDF_BAD_RESPONSE,
             str(exc),
             getattr(exc, "in_doubt", False),

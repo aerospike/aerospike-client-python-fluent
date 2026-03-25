@@ -13,28 +13,38 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""DSL exceptions."""
+"""Exceptions raised by the expression DSL."""
 
 from __future__ import annotations
 
 
 class DslParseException(Exception):
-    """
-    Represents a general processing exception that can occur during DSL expression parsing.
+    """Raised when a filter expression string cannot be parsed or validated.
 
-    It is typically not expected to be caught by the caller, but rather indicates a potentially
-    unrecoverable issue like invalid input, failing validation or unsupported functionality.
-    """
+    Indicates invalid syntax, unknown operators, type mismatches, or other
+    input that the DSL layer refuses before building a server-side filter.
 
-    pass
+    Example:
+        Handling a user-supplied filter string::
+
+            from aerospike_fluent import parse_dsl, DslParseException
+
+            try:
+                expr = parse_dsl(user_filter)
+            except DslParseException as e:
+                raise ValueError(str(e)) from e
+
+    See Also:
+        :func:`~aerospike_fluent.parse_dsl`: Primary entry point that may raise
+            this exception.
+    """
 
 
 class NoApplicableFilterError(Exception):
-    """No applicable secondary-index filter could be derived from a DSL expression.
+    """Internal signal that no secondary-index filter can represent an expression.
 
-    This is an internal exception used by the DSL filter visitor to signal that
-    the expression cannot be converted into a secondary-index ``Filter``.  It is
-    not part of the public API.
+    Used inside the DSL filter visitor when a valid parse tree still cannot be
+    lowered to a secondary-index filter. Not part of
+    the public stable API; callers working only with :func:`parse_dsl` should
+    expect :class:`DslParseException` instead.
     """
-
-    pass
