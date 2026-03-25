@@ -66,7 +66,11 @@ class _RemoveMixin:
         return self._parent
 
     def remove(self) -> Any:
-        """Remove the selected CDT element(s)."""
+        """Remove the selected CDT element(s).
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit_remove(self._rt.NONE)
 
 
@@ -76,6 +80,16 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
     Inherits all read terminals and navigation from ``CdtReadBuilder``.
     Adds ``remove()``, and on map-key paths ``set_to()`` / ``add()``.
     Navigation returns ``CdtWriteBuilder`` to preserve write capability.
+
+    Example:
+        Set a nested map value and remove another key::
+
+            await (
+                session.upsert(key)
+                    .bin("settings").on_map_key("theme").set_to("dark")
+                    .bin("settings").on_map_key("old_key").remove()
+                    .execute()
+            )
     """
 
     __slots__ = ("_remove_factory", "_set_to_factory", "_add_factory")
@@ -118,7 +132,14 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         )
 
     def on_map_key(self, key: Any) -> CdtWriteBuilder[T]:
-        """Navigate into a map element by key (supports set_to / add)."""
+        """Navigate into a map element by key (supports set_to / add).
+
+        Args:
+            key: Map key to target.
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element.
+        """
         b, new_ctx, ctx_l = self._push_ctx()
         return self._build_navigated(
             op_factory=lambda rt: MapOperation.get_by_key(b, key, rt).set_context(ctx_l),
@@ -132,7 +153,19 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
     # -- Write terminals ------------------------------------------------------
 
     def set_to(self, value: Any) -> T:
-        """Set the value at the current CDT path."""
+        """Set the value at the current CDT path.
+
+        Requires prior ``on_map_key()`` navigation.
+
+        Args:
+            value: New value to store.
+
+        Example::
+            .bin("m").on_map_key("color").set_to("blue")
+
+        Raises:
+            TypeError: If not preceded by ``on_map_key()`` navigation.
+        """
         if self._set_to_factory is None:
             raise TypeError(
                 "set_to() requires on_map_key() navigation"
@@ -142,7 +175,17 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         return self._parent
 
     def add(self, value: Any) -> T:
-        """Increment the value at the current CDT path."""
+        """Increment the value at the current CDT path.
+
+        Args:
+            value: Numeric value to add.
+
+        Returns:
+            The parent builder for chaining.
+
+        Raises:
+            TypeError: If not preceded by ``on_map_key()`` navigation.
+        """
         if self._add_factory is None:
             raise TypeError(
                 "add() requires on_map_key() navigation"
@@ -154,14 +197,25 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
     # -- Collection-level map -------------------------------------------------
 
     def map_clear(self) -> T:
-        """Remove all entries from the map at the current CDT path."""
+        """Remove all entries from the map at the current CDT path.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = MapOperation.clear(self._bin_name).set_context(ctx)
         self._parent.add_operation(op)  # type: ignore[union-attr]
         return self._parent
 
     def map_upsert_items(self, items: Any) -> T:
-        """Put multiple map entries (create or update each key)."""
+        """Put multiple map entries (create or update each key).
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         pairs = _map_item_pairs(items)
         op = MapOperation.put_items(
@@ -171,7 +225,14 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         return self._parent
 
     def map_insert_items(self, items: Any) -> T:
-        """Put map entries only for keys that do not yet exist."""
+        """Put map entries only for keys that do not yet exist.
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         pairs = _map_item_pairs(items)
         policy = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
@@ -182,7 +243,14 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         return self._parent
 
     def map_update_items(self, items: Any) -> T:
-        """Update existing map entries only (no new keys)."""
+        """Update existing map entries only (no new keys).
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         pairs = _map_item_pairs(items)
         policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
@@ -193,14 +261,28 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         return self._parent
 
     def map_create(self, order: MapOrder) -> T:
-        """Create an empty map with the given key order."""
+        """Create an empty map with the given key order.
+
+        Args:
+            order: Key sort order for the map.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = MapOperation.create(self._bin_name, order).set_context(ctx)
         self._parent.add_operation(op)  # type: ignore[union-attr]
         return self._parent
 
     def map_set_policy(self, order: MapOrder) -> T:
-        """Set map sort order policy without changing entries."""
+        """Set map sort order policy without changing entries.
+
+        Args:
+            order: Key sort order to apply.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = MapOperation.set_map_policy(
             self._bin_name, MapPolicy(order, None),
@@ -211,21 +293,42 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
     # -- Collection-level list ------------------------------------------------
 
     def list_clear(self) -> T:
-        """Remove all elements from the list at the current CDT path."""
+        """Remove all elements from the list at the current CDT path.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = ListOperation.clear(self._bin_name).set_context(ctx)
         self._parent.add_operation(op)  # type: ignore[union-attr]
         return self._parent
 
     def list_sort(self, flags: ListSortFlags = ListSortFlags.DEFAULT) -> T:
-        """Sort the list at the current path."""
+        """Sort the list at the current path.
+
+        Args:
+            flags: Sort behaviour flags (default ``DEFAULT``).
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = ListOperation.sort(self._bin_name, flags).set_context(ctx)
         self._parent.add_operation(op)  # type: ignore[union-attr]
         return self._parent
 
     def list_append_items(self, items: Sequence[Any]) -> T:
-        """Append values to an unordered list."""
+        """Append values to an unordered list.
+
+        Args:
+            items: Values to append.
+
+        Returns:
+            The parent builder for chaining.
+
+        Example::
+            .bin("tags").on_map_key("items").list_append_items([10, 20])
+        """
         ctx = self._context_list_for_nested_ops()
         op = ListOperation.append_items(
             self._bin_name, items, _UNORDERED_LIST_POLICY,
@@ -234,7 +337,14 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         return self._parent
 
     def list_add_items(self, items: Sequence[Any]) -> T:
-        """Insert values into an ordered list (sorted positions)."""
+        """Insert values into an ordered list (sorted positions).
+
+        Args:
+            items: Values to insert.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = ListOperation.append_items(
             self._bin_name, items, _ORDERED_LIST_POLICY,
@@ -245,7 +355,16 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
     def list_create(
         self, order: ListOrderType, *, pad: bool = False, persist_index: bool = False,
     ) -> T:
-        """Create an empty list with the given order."""
+        """Create an empty list with the given order.
+
+        Args:
+            order: Element ordering for the list.
+            pad: If ``True``, allow sparse indexes.
+            persist_index: If ``True``, maintain a persistent index.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = ListOperation.create(
             self._bin_name, order, pad, persist_index,
@@ -254,7 +373,14 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         return self._parent
 
     def list_set_order(self, order: ListOrderType) -> T:
-        """Set list sort order without changing elements."""
+        """Set list sort order without changing elements.
+
+        Args:
+            order: Sort order to apply.
+
+        Returns:
+            The parent builder for chaining.
+        """
         ctx = self._context_list_for_nested_ops()
         op = ListOperation.set_order(self._bin_name, order).set_context(ctx)
         self._parent.add_operation(op)  # type: ignore[union-attr]
@@ -267,6 +393,11 @@ class CdtWriteInvertableBuilder(_RemoveMixin, CdtReadInvertableBuilder[T]):
     Inherits all read and inverted-read terminals from
     ``CdtReadInvertableBuilder`` and adds ``remove()`` /
     ``remove_all_others()``.  Does not support further navigation.
+
+    Example:
+        Remove everything except the selected range::
+
+            .bin("m").on_map_value_range(0, 100).remove_all_others()
     """
 
     __slots__ = ("_remove_factory",)
@@ -284,5 +415,9 @@ class CdtWriteInvertableBuilder(_RemoveMixin, CdtReadInvertableBuilder[T]):
         self._remove_factory = remove_factory
 
     def remove_all_others(self) -> T:
-        """Remove all CDT elements *except* the selected ones."""
+        """Remove all CDT elements *except* the selected ones.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit_remove(self._rt.NONE | self._rt.INVERTED)

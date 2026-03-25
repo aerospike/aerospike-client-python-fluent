@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""SyncQueryBuilder - Synchronous delegation wrapper for query operations."""
+"""Synchronous query and write-verb builders delegating to ``aio.operations.query``."""
 
 from __future__ import annotations
 
@@ -59,10 +59,12 @@ from aerospike_fluent.sync.record_stream import SyncRecordStream
 
 
 class _SyncWriteVerbs:
-    """Mixin providing the 8 write-verb transition methods for sync builders.
+    """Mixin mirroring async write-verb entry points on :class:`QueryBuilder`.
 
-    Subclasses implement ``_start_write_verb`` to define how a new write
-    segment is opened.
+    Subclasses implement ``_start_write_verb`` to open a
+    :class:`SyncWriteSegmentBuilder`. Semantics match
+    :class:`~aerospike_fluent.aio.operations.query.QueryBuilder` /
+    :class:`~aerospike_fluent.aio.session.Session`.
     """
 
     def _start_write_verb(
@@ -120,11 +122,16 @@ class _SyncWriteVerbs:
 
 
 class SyncQueryBuilder(_SyncWriteVerbs):
-    """Synchronous wrapper for :class:`QueryBuilder`.
+    """Configure and run reads, queries, and write segments synchronously.
 
-    All builder methods delegate directly to the underlying async
-    ``QueryBuilder``.  ``execute()`` runs the async execute on the
-    event loop and returns a :class:`SyncRecordStream`.
+    Every chain method forwards to :class:`~aerospike_fluent.aio.operations.query.QueryBuilder`.
+    :meth:`execute` blocks on the owning loop manager and returns
+    :class:`~aerospike_fluent.sync.record_stream.SyncRecordStream`. Detailed
+    parameter semantics (filters, policies, CDT, ``on_error``) are documented
+    on the async builder.
+
+    See Also:
+        :class:`~aerospike_fluent.aio.operations.query.QueryBuilder`
     """
 
     def __init__(
@@ -135,6 +142,7 @@ class SyncQueryBuilder(_SyncWriteVerbs):
         loop_manager: _EventLoopManager,
         query_builder: Optional[QueryBuilder] = None,
     ) -> None:
+        """Attach or create an async :class:`QueryBuilder` and the sync loop."""
         self._loop_manager = loop_manager
         self._qb: QueryBuilder = query_builder if query_builder is not None else QueryBuilder(
             client=async_client, namespace=namespace, set_name=set_name,
@@ -282,12 +290,12 @@ class SyncQueryBuilder(_SyncWriteVerbs):
         self,
         expression: Union[str, FilterExpression],
     ) -> SyncQueryBuilder:
-        """Set a default filter expression for all specs that lack their own."""
+        """Set a default filter for all chained operations that lack their own."""
         self._qb.default_where(expression)
         return self
 
     def default_expire_record_after_seconds(self, seconds: int) -> SyncQueryBuilder:
-        """Set a default TTL applied to specs that lack their own."""
+        """Set a default TTL for all chained operations that lack their own."""
         self._qb.default_expire_record_after_seconds(seconds)
         return self
 
@@ -354,10 +362,17 @@ class SyncQueryBuilder(_SyncWriteVerbs):
     def execute(
         self, on_error: OnError | None = None,
     ) -> SyncRecordStream:
-        """Execute the query synchronously.
+        """Run the configured query or write chain and block until the stream is ready.
 
         Args:
-            on_error: Error handling strategy (see ``QueryBuilder.execute``).
+            on_error: Same as :meth:`~aerospike_fluent.aio.operations.query.QueryBuilder.execute`
+                (:class:`~aerospike_fluent.error_strategy.ErrorStrategy` or callback).
+
+        Returns:
+            :class:`~aerospike_fluent.sync.record_stream.SyncRecordStream`.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.operations.query.QueryBuilder.execute`
         """
         qb = self._qb
 
@@ -369,7 +384,14 @@ class SyncQueryBuilder(_SyncWriteVerbs):
 
 
 class SyncWriteSegmentBuilder(_SyncWriteVerbs):
-    """Synchronous wrapper for :class:`WriteSegmentBuilder`."""
+    """Synchronous multi-key write segment (mirrors :class:`WriteSegmentBuilder`).
+
+    Bin scalars, CDT, expressions, and policies delegate to the embedded async
+    segment; :meth:`execute` returns :class:`~aerospike_fluent.sync.record_stream.SyncRecordStream`.
+
+    See Also:
+        :class:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder`
+    """
 
     __slots__ = ("_wsb", "_loop_manager")
 
@@ -406,7 +428,7 @@ class SyncWriteSegmentBuilder(_SyncWriteVerbs):
         return self
 
     def add(self, bin_name: str, value: Any) -> SyncWriteSegmentBuilder:
-        """Add *value* to a bin (numeric increment)."""
+        """Add a numeric *value* to a bin."""
         self._wsb.add(bin_name, value)
         return self
 
@@ -518,7 +540,7 @@ class SyncWriteSegmentBuilder(_SyncWriteVerbs):
         self._wsb._start_write_verb(op_type, arg1, *more_keys)
         return self
 
-    # -- Per-spec settings ----------------------------------------------------
+    # -- Per-operation settings ------------------------------------------------
 
     def where(
         self,
@@ -578,10 +600,16 @@ class SyncWriteSegmentBuilder(_SyncWriteVerbs):
     def execute(
         self, on_error: OnError | None = None,
     ) -> SyncRecordStream:
-        """Execute all accumulated specs synchronously.
+        """Flush accumulated write operations and return a synchronous result stream.
 
         Args:
-            on_error: Error handling strategy (see ``QueryBuilder.execute``).
+            on_error: Same as :meth:`SyncQueryBuilder.execute`.
+
+        Returns:
+            :class:`~aerospike_fluent.sync.record_stream.SyncRecordStream`.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.operations.query.WriteSegmentBuilder.execute`
         """
         wsb = self._wsb
 
@@ -595,7 +623,7 @@ class SyncWriteSegmentBuilder(_SyncWriteVerbs):
 class SyncWriteBinBuilder(_SyncWriteVerbs):
     """Synchronous wrapper for bin-level write operations.
 
-    Thin currying wrapper that captures a bin name and delegates
+    Per-bin write builder that captures a bin name and delegates
     all operations to the parent ``SyncWriteSegmentBuilder``.
     """
 
@@ -610,44 +638,101 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     # -- Scalar writes --------------------------------------------------------
 
     def set_to(self, value: Any) -> SyncWriteSegmentBuilder:
-        """Set the bin to *value*."""
+        """Set the bin to *value*.
+
+        Args:
+            value: New value to store.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.set_to(self._bin, value)
 
     def add(self, value: Any) -> SyncWriteSegmentBuilder:
-        """Add *value* to the bin (numeric increment)."""
+        """Add a numeric *value* to the bin.
+
+        Args:
+            value: Numeric value to add.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.add(self._bin, value)
 
     def increment_by(self, value: Any) -> SyncWriteSegmentBuilder:
-        """Alias for :meth:`add`."""
+        """Alias for :meth:`add`.
+
+        Args:
+            value: Numeric value to add.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self.add(value)
 
     def append(self, value: str) -> SyncWriteSegmentBuilder:
-        """Append a string to the bin."""
+        """Append a string to the bin.
+
+        Args:
+            value: String to append.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.append(self._bin, value)
 
     def prepend(self, value: str) -> SyncWriteSegmentBuilder:
-        """Prepend a string to the bin."""
+        """Prepend a string to the bin.
+
+        Args:
+            value: String to prepend.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.prepend(self._bin, value)
 
     def remove(self) -> SyncWriteSegmentBuilder:
-        """Delete the bin from the record."""
+        """Delete the bin from the record.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.remove_bin(self._bin)
 
     def get(self) -> SyncWriteSegmentBuilder:
-        """Read the bin value back within a write operate."""
+        """Read the bin value back within a write operate.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.get(self._bin)
 
     # -- CDT list structural operations ---------------------------------------
 
     def list_add(self, value: Any) -> SyncWriteSegmentBuilder:
-        """Add *value* to an ordered list (sorted insert)."""
+        """Add *value* to an ordered list (sorted insert).
+
+        Args:
+            value: Value to insert.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(
             ListOperation.append(self._bin, value, ListPolicy(ListOrderType.ORDERED, None)),
         )
         return self._sync_segment
 
     def list_append(self, value: Any) -> SyncWriteSegmentBuilder:
-        """Append *value* to the end of an unordered list."""
+        """Append *value* to the end of an unordered list.
+
+        Args:
+            value: Value to append.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(
             ListOperation.append(self._bin, value, ListPolicy(None, None)),
         )
@@ -656,17 +741,32 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     # -- Collection-level map -------------------------------------------------
 
     def map_clear(self) -> SyncWriteSegmentBuilder:
-        """Remove all entries from the map bin."""
+        """Remove all entries from the map bin.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(MapOperation.clear(self._bin))
         return self._sync_segment
 
     def map_size(self) -> SyncWriteSegmentBuilder:
-        """Return the map element count (read within operate)."""
+        """Return the map element count (read within operate).
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(MapOperation.size(self._bin))
         return self._sync_segment
 
     def map_upsert_items(self, items: Any) -> SyncWriteSegmentBuilder:
-        """Put multiple map entries (create or update each key)."""
+        """Put multiple map entries (create or update each key).
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         pairs = _map_item_pairs(items)
         self._sync_segment.add_operation(
             MapOperation.put_items(self._bin, pairs, MapPolicy(None, None)),
@@ -674,7 +774,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         return self._sync_segment
 
     def map_insert_items(self, items: Any) -> SyncWriteSegmentBuilder:
-        """Put map entries only for keys that do not yet exist."""
+        """Put map entries only for keys that do not yet exist.
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         pairs = _map_item_pairs(items)
         policy = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
         self._sync_segment.add_operation(
@@ -683,7 +790,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         return self._sync_segment
 
     def map_update_items(self, items: Any) -> SyncWriteSegmentBuilder:
-        """Update existing map entries only (no new keys)."""
+        """Update existing map entries only (no new keys).
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         pairs = _map_item_pairs(items)
         policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
         self._sync_segment.add_operation(
@@ -692,12 +806,26 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         return self._sync_segment
 
     def map_create(self, order: MapOrder) -> SyncWriteSegmentBuilder:
-        """Create an empty map with the given key order."""
+        """Create an empty map with the given key order.
+
+        Args:
+            order: Key sort order for the map.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(MapOperation.create(self._bin, order))
         return self._sync_segment
 
     def map_set_policy(self, order: MapOrder) -> SyncWriteSegmentBuilder:
-        """Set map sort order policy without changing entries."""
+        """Set map sort order policy without changing entries.
+
+        Args:
+            order: Key sort order to apply.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(
             MapOperation.set_map_policy(self._bin, MapPolicy(order, None)),
         )
@@ -706,24 +834,46 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     # -- Collection-level list ------------------------------------------------
 
     def list_clear(self) -> SyncWriteSegmentBuilder:
-        """Remove all elements from the list bin."""
+        """Remove all elements from the list bin.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(ListOperation.clear(self._bin))
         return self._sync_segment
 
     def list_sort(
         self, flags: ListSortFlags = ListSortFlags.DEFAULT,
     ) -> SyncWriteSegmentBuilder:
-        """Sort the list bin."""
+        """Sort the list bin.
+
+        Args:
+            flags: Sort behavior flags (default ``DEFAULT``).
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(ListOperation.sort(self._bin, flags))
         return self._sync_segment
 
     def list_size(self) -> SyncWriteSegmentBuilder:
-        """Return the list element count (read within operate)."""
+        """Return the list element count (read within operate).
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(ListOperation.size(self._bin))
         return self._sync_segment
 
     def list_append_items(self, items: Any) -> SyncWriteSegmentBuilder:
-        """Append values to an unordered list."""
+        """Append values to an unordered list.
+
+        Args:
+            items: Values to append.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(
             ListOperation.append_items(
                 self._bin, items, ListPolicy(None, None),
@@ -732,7 +882,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         return self._sync_segment
 
     def list_add_items(self, items: Any) -> SyncWriteSegmentBuilder:
-        """Insert values into an ordered list (sorted positions)."""
+        """Insert values into an ordered list (sorted positions).
+
+        Args:
+            items: Values to insert.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(
             ListOperation.append_items(
                 self._bin, items, ListPolicy(ListOrderType.ORDERED, None),
@@ -743,21 +900,44 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def list_create(
         self, order: ListOrderType, *, pad: bool = False, persist_index: bool = False,
     ) -> SyncWriteSegmentBuilder:
-        """Create an empty list with the given order."""
+        """Create an empty list with the given order.
+
+        Args:
+            order: Element ordering.
+            pad: If ``True``, allow sparse indexes.
+            persist_index: If ``True``, maintain a persistent index.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(
             ListOperation.create(self._bin, order, pad, persist_index),
         )
         return self._sync_segment
 
     def list_set_order(self, order: ListOrderType) -> SyncWriteSegmentBuilder:
-        """Set list sort order without changing elements."""
+        """Set list sort order without changing elements.
+
+        Args:
+            order: Sort order to apply.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         self._sync_segment.add_operation(ListOperation.set_order(self._bin, order))
         return self._sync_segment
 
     # -- Map navigation (singular -> CdtWriteBuilder) -------------------------
 
     def on_map_index(self, index: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to a map element by index."""
+        """Navigate to a map element by index.
+
+        Args:
+            index: Map index to target.
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element.
+        """
         b = self._bin
         return CdtWriteBuilder(
             self._sync_segment,
@@ -768,7 +948,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         )
 
     def on_map_key(self, key: Any) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to a map element by key."""
+        """Navigate to a map element by key.
+
+        Args:
+            key: Map key to target.
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element.
+        """
         b = self._bin
         _mp = MapPolicy(None, None)
         return CdtWriteBuilder(
@@ -782,7 +969,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         )
 
     def on_map_rank(self, rank: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to a map element by rank (0 = lowest value)."""
+        """Navigate to a map element by rank (0 = lowest value).
+
+        Args:
+            rank: Rank position (0 = lowest value).
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element.
+        """
         b = self._bin
         return CdtWriteBuilder(
             self._sync_segment,
@@ -795,7 +989,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     # -- Map navigation (invertable -> CdtWriteInvertableBuilder) -------------
 
     def on_map_value(self, value: Any) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map elements matching a value."""
+        """Navigate to map elements matching a value.
+
+        Args:
+            value: Value to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -807,7 +1008,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_map_index_range(
         self, index: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map elements by index range."""
+        """Navigate to map elements by index range.
+
+        Args:
+            index: Start index.
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         if count is None:
             get_f = lambda rt: MapOperation.get_by_index_range_from(b, index, rt)
@@ -822,7 +1031,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_map_key_range(
         self, start: Any, end: Any,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map elements by key range [start, end)."""
+        """Navigate to map elements by key range [start, end).
+
+        Args:
+            start: Inclusive range start.
+            end: Exclusive range end.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -834,7 +1051,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_map_rank_range(
         self, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map elements by rank range."""
+        """Navigate to map elements by rank range.
+
+        Args:
+            rank: Start rank (0 = lowest value).
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         if count is None:
             get_f = lambda rt: MapOperation.get_by_rank_range_from(b, rank, rt)
@@ -849,7 +1074,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_map_value_range(
         self, start: Any, end: Any,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map elements by value range [start, end)."""
+        """Navigate to map elements by value range [start, end).
+
+        Args:
+            start: Inclusive range start.
+            end: Exclusive range end.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -861,7 +1094,16 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_map_key_relative_index_range(
         self, key: Any, index: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map entries by index range relative to an anchor key."""
+        """Navigate to map entries by index range relative to an anchor key.
+
+        Args:
+            key: Anchor key.
+            index: Relative index offset from the anchor.
+            count: Maximum entries; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -877,7 +1119,16 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_map_value_relative_rank_range(
         self, value: Any, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map entries by value rank range relative to an anchor value."""
+        """Navigate to map entries by value rank range relative to an anchor value.
+
+        Args:
+            value: Anchor value.
+            rank: Relative rank offset from the anchor.
+            count: Maximum entries; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -891,7 +1142,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         )
 
     def on_map_key_list(self, keys: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map elements matching a list of keys."""
+        """Navigate to map elements matching a list of keys.
+
+        Args:
+            keys: Map keys to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -901,7 +1159,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         )
 
     def on_map_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to map elements matching a list of values."""
+        """Navigate to map elements matching a list of values.
+
+        Args:
+            values: Values to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -913,7 +1178,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     # -- List navigation (singular -> CdtWriteBuilder) ------------------------
 
     def on_list_index(self, index: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to a list element by index."""
+        """Navigate to a list element by index.
+
+        Args:
+            index: List index (0-based, negative counts from end).
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element.
+        """
         b = self._bin
         return CdtWriteBuilder(
             self._sync_segment,
@@ -924,7 +1196,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         )
 
     def on_list_rank(self, rank: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to a list element by rank (0 = lowest value)."""
+        """Navigate to a list element by rank (0 = lowest value).
+
+        Args:
+            rank: Rank position (0 = lowest value).
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element.
+        """
         b = self._bin
         return CdtWriteBuilder(
             self._sync_segment,
@@ -937,7 +1216,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     # -- List navigation (invertable -> CdtWriteInvertableBuilder) ------------
 
     def on_list_value(self, value: Any) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to list elements matching a value."""
+        """Navigate to list elements matching a value.
+
+        Args:
+            value: Value to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -949,7 +1235,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_list_index_range(
         self, index: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to list elements by index range."""
+        """Navigate to list elements by index range.
+
+        Args:
+            index: Start index.
+            count: Maximum entries; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -961,7 +1255,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_list_rank_range(
         self, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to list elements by rank range."""
+        """Navigate to list elements by rank range.
+
+        Args:
+            rank: Start rank (0 = lowest value).
+            count: Maximum entries; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -973,7 +1275,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_list_value_range(
         self, start: Any, end: Any,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to list elements by value range [start, end)."""
+        """Navigate to list elements by value range [start, end).
+
+        Args:
+            start: Inclusive range start.
+            end: Exclusive range end.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -985,7 +1295,16 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def on_list_value_relative_rank_range(
         self, value: Any, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to list elements by value rank range relative to an anchor value."""
+        """Navigate to list elements by value rank range relative to an anchor value.
+
+        Args:
+            value: Anchor value.
+            rank: Relative rank offset from the anchor.
+            count: Maximum entries; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -999,7 +1318,14 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         )
 
     def on_list_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
-        """Navigate to list elements matching a list of values."""
+        """Navigate to list elements matching a list of values.
+
+        Args:
+            values: Values to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._sync_segment,
@@ -1016,7 +1342,15 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         *,
         ignore_eval_failure: bool = False,
     ) -> SyncWriteSegmentBuilder:
-        """Read a computed value into this bin using a DSL expression."""
+        """Read a computed value into this bin using a DSL expression.
+
+        Args:
+            expression: DSL string or ``FilterExpression``.
+            ignore_eval_failure: If ``True``, suppress evaluation errors.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.select_from(
             self._bin, expression, ignore_eval_failure=ignore_eval_failure,
         )
@@ -1029,7 +1363,17 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         ignore_eval_failure: bool = False,
         delete_if_null: bool = False,
     ) -> SyncWriteSegmentBuilder:
-        """Write expression result only if bin does not already exist."""
+        """Write expression result only if bin does not already exist.
+
+        Args:
+            expression: DSL string or ``FilterExpression``.
+            ignore_op_failure: If ``True``, suppress operation failures.
+            ignore_eval_failure: If ``True``, suppress evaluation errors.
+            delete_if_null: If ``True``, delete the bin when the expression evaluates to null.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.insert_from(
             self._bin, expression,
             ignore_op_failure=ignore_op_failure,
@@ -1045,7 +1389,17 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         ignore_eval_failure: bool = False,
         delete_if_null: bool = False,
     ) -> SyncWriteSegmentBuilder:
-        """Write expression result only if bin already exists."""
+        """Write expression result only if bin already exists.
+
+        Args:
+            expression: DSL string or ``FilterExpression``.
+            ignore_op_failure: If ``True``, suppress operation failures.
+            ignore_eval_failure: If ``True``, suppress evaluation errors.
+            delete_if_null: If ``True``, delete the bin when the expression evaluates to null.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.update_from(
             self._bin, expression,
             ignore_op_failure=ignore_op_failure,
@@ -1061,7 +1415,17 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         ignore_eval_failure: bool = False,
         delete_if_null: bool = False,
     ) -> SyncWriteSegmentBuilder:
-        """Write expression result, creating or overwriting the bin."""
+        """Write expression result, creating or overwriting the bin.
+
+        Args:
+            expression: DSL string or ``FilterExpression``.
+            ignore_op_failure: If ``True``, suppress operation failures.
+            ignore_eval_failure: If ``True``, suppress evaluation errors.
+            delete_if_null: If ``True``, delete the bin when the expression evaluates to null.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
         return self._sync_segment.upsert_from(
             self._bin, expression,
             ignore_op_failure=ignore_op_failure,
@@ -1072,13 +1436,28 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     # -- Convenience transitions (delegate to segment) ------------------------
 
     def bin(self, bin_name: str) -> SyncWriteBinBuilder:
-        """Start the next bin operation."""
+        """Start the next bin operation.
+
+        Args:
+            bin_name: Name of the next bin.
+
+        Returns:
+            :class:`SyncWriteBinBuilder` for the named bin.
+        """
         return SyncWriteBinBuilder(self._sync_segment, bin_name)
 
     def query(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncQueryBuilder:
-        """Shortcut: finalize write segment and start a read segment."""
+        """Shortcut: finalize write segment and start a read segment.
+
+        Args:
+            arg1: Key or list of keys.
+            more_keys: Additional keys.
+
+        Returns:
+            :class:`SyncQueryBuilder` for read operations.
+        """
         return self._sync_segment.query(arg1, *more_keys)
 
     def _start_write_verb(
@@ -1089,5 +1468,12 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
     def execute(
         self, on_error: OnError | None = None,
     ) -> SyncRecordStream:
-        """Shortcut: execute all accumulated specs."""
+        """Shortcut: execute all accumulated operations.
+
+        Args:
+            on_error: Error handling strategy.
+
+        Returns:
+            :class:`SyncRecordStream` with operation results.
+        """
         return self._sync_segment.execute(on_error)

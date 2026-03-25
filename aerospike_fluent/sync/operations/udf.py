@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-"""Synchronous wrappers for foreground UDF builders."""
+"""Synchronous foreground UDF builders delegating to ``aio.operations.udf``."""
 
 from __future__ import annotations
 
@@ -33,6 +33,15 @@ from aerospike_fluent.sync.record_stream import SyncRecordStream
 
 
 class SyncUdfFunctionBuilder:
+    """First step after ``execute_udf``: select package and function name.
+
+    See Also:
+        :class:`~aerospike_fluent.aio.operations.udf.UdfFunctionBuilder`
+
+    Examples:
+        session.execute_udf(key).function("pkg", "fn")
+    """
+
     __slots__ = ("_inner", "_loop_manager", "_fluent_client")
 
     def __init__(
@@ -46,11 +55,22 @@ class SyncUdfFunctionBuilder:
         self._fluent_client = fluent_client
 
     def function(self, package: str, function_name: str) -> SyncUdfBuilder:
+        """Select the UDF package and Lua function."""
         b = self._inner.function(package, function_name)
         return SyncUdfBuilder(b, self._loop_manager, self._fluent_client)
 
 
 class SyncUdfBuilder:
+    """Chain UDF arguments, optional filter, and execution (sync).
+
+    See Also:
+        :class:`~aerospike_fluent.aio.operations.udf.UdfBuilder`
+
+    Examples:
+        session.execute_udf(key).function("pkg", "fn").passing(1, 2).execute()
+        session.execute_udf(key).function("pkg", "fn").query(key).where("true").execute()
+    """
+
     __slots__ = ("_inner", "_loop_manager", "_fluent_client")
 
     def __init__(
@@ -64,6 +84,7 @@ class SyncUdfBuilder:
         self._fluent_client = fluent_client
 
     def passing(self, *args: Any) -> SyncUdfBuilder:
+        """Forward arguments to the server UDF (chainable)."""
         self._inner.passing(*args)
         return self
 
@@ -77,6 +98,7 @@ class SyncUdfBuilder:
         self,
         expression: Union[str, FilterExpression],
     ) -> SyncUdfBuilder:
+        """Restrict rows with a DSL string or :class:`~aerospike_async.FilterExpression`."""
         self._inner.where(expression)
         return self
 
@@ -90,6 +112,7 @@ class SyncUdfBuilder:
         return self
 
     def execute_udf(self, *keys: Key) -> SyncUdfFunctionBuilder:
+        """Finalize this UDF spec and start another on *keys*."""
         fb = self._inner.execute_udf(*keys)
         return SyncUdfFunctionBuilder(fb, self._loop_manager, self._fluent_client)
 
@@ -110,12 +133,14 @@ class SyncUdfBuilder:
     def upsert(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
+        """Finalize the UDF spec and start an upsert write segment."""
         wsb = self._inner.upsert(arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
     def insert(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
+        """Finalize the UDF spec and start an insert-only write segment."""
         wsb = self._inner.insert(arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
@@ -128,6 +153,7 @@ class SyncUdfBuilder:
     def replace(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
+        """Finalize the UDF spec and start a replace write segment."""
         wsb = self._inner.replace(arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
@@ -140,22 +166,34 @@ class SyncUdfBuilder:
     def delete(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
+        """Finalize the UDF spec and start a delete segment."""
         wsb = self._inner.delete(arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
     def touch(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
+        """Finalize the UDF spec and start a touch segment."""
         wsb = self._inner.touch(arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
     def exists(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> SyncWriteSegmentBuilder:
+        """Finalize the UDF spec and start an exists-check segment."""
         wsb = self._inner.exists(arg1, *more_keys)
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
     def execute(self, on_error: OnError | None = None) -> SyncRecordStream:
+        """Run the UDF and return a :class:`~aerospike_fluent.sync.record_stream.SyncRecordStream`.
+
+        Args:
+            on_error: Same semantics as query/write
+                :meth:`~aerospike_fluent.sync.operations.query.SyncQueryBuilder.execute`.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.operations.udf.UdfBuilder.execute`
+        """
         inner = self._inner
 
         async def _run():

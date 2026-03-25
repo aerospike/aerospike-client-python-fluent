@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""QueryBuilder - Builder for query operations."""
+"""Fluent builders for reads, writes, and chained multi-operation queries."""
 
 from __future__ import annotations
 
@@ -127,8 +127,8 @@ from aerospike_fluent.error_strategy import (
 )
 from aerospike_fluent.exceptions import (
     AerospikeError,
-    convert_pac_exception,
-    result_code_to_exception,
+    _convert_pac_exception,
+    _result_code_to_exception,
 )
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape
 from aerospike_fluent.record_result import RecordResult, batch_records_to_results
@@ -142,13 +142,11 @@ if TYPE_CHECKING:
 
 
 class _WriteVerbs:
-    """Mixin providing the 8 write-verb transition methods.
+    """Mixin exposing write verbs that open a :class:`WriteSegmentBuilder`.
 
-    Subclasses implement ``_start_write_verb`` to define how a new write
-    segment is opened.  The mixin supplies ``upsert``, ``insert``,
-    ``update``, ``replace``, ``replace_if_exists``, ``delete``,
-    ``touch``, and ``exists`` — all thin wrappers around
-    ``_start_write_verb``.
+    Implemented on :class:`QueryBuilder` (chain from a read query) and
+    :class:`WriteBinBuilder` (chain from a bin-scoped write). Each method
+    finalizes the prior segment when applicable and targets new key(s).
     """
 
     def _start_write_verb(
@@ -159,49 +157,109 @@ class _WriteVerbs:
     def upsert(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start an upsert write segment."""
+        """Open a create-or-update segment for the given key(s).
+
+        Example::
+            await session.upsert(key).put({"name": "Bob"}).execute()
+
+        Returns:
+            :class:`WriteSegmentBuilder` for ``put`` / ``bin`` / ``execute``.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.session.Session.upsert`: Session entry point.
+        """
         return self._start_write_verb("upsert", arg1, *more_keys)
 
     def insert(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start an insert (create-only) segment."""
+        """Open a create-only segment (fails if the record exists).
+
+        Example::
+            await session.insert(key).put({"name": "Ada"}).execute()
+
+        Returns:
+            :class:`WriteSegmentBuilder` for further bins and :meth:`execute`.
+        """
         return self._start_write_verb("insert", arg1, *more_keys)
 
     def update(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start an update (update-only) segment."""
+        """Open an update-only segment (fails if the record is missing).
+
+        Example::
+            await session.update(key).bin("count").add(1).execute()
+
+        Returns:
+            :class:`WriteSegmentBuilder` for further bins and :meth:`execute`.
+        """
         return self._start_write_verb("update", arg1, *more_keys)
 
     def replace(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start a replace segment."""
+        """Open a full replace segment (removes bins not written in this segment).
+
+        Example::
+            await session.replace(key).put({"a": 1}).execute()
+
+        Returns:
+            :class:`WriteSegmentBuilder`.
+        """
         return self._start_write_verb("replace", arg1, *more_keys)
 
     def replace_if_exists(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start a replace-if-exists segment."""
+        """Open replace-if-exists semantics (like replace, but only if the record exists).
+
+        Example::
+            await session.replace_if_exists(key).put({"a": 1}).execute()
+
+        Returns:
+            :class:`WriteSegmentBuilder`.
+        """
         return self._start_write_verb("replace_if_exists", arg1, *more_keys)
 
     def delete(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start a delete segment."""
+        """Open a delete segment.
+
+        Example::
+            await session.delete(key).execute()
+
+        Returns:
+            :class:`WriteSegmentBuilder` (often followed immediately by :meth:`execute`).
+        """
         return self._start_write_verb("delete", arg1, *more_keys)
 
     def touch(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start a touch segment (reset TTL)."""
+        """Open a touch segment (TTL refresh).
+
+        Example::
+            await session.touch(key).execute()
+
+        Returns:
+            :class:`WriteSegmentBuilder`.
+        """
         return self._start_write_verb("touch", arg1, *more_keys)
 
     def exists(
         self, arg1: Union[Key, List[Key]], *more_keys: Key,
     ) -> WriteSegmentBuilder:
-        """Start an exists-check segment."""
+        """Open an exists-check segment.
+
+        Example::
+            stream = await session.exists(key).execute()
+            found = (await stream.first_or_raise()).as_bool()
+
+        Returns:
+            :class:`WriteSegmentBuilder`.
+        """
         return self._start_write_verb("exists", arg1, *more_keys)
 
 
@@ -261,11 +319,40 @@ _T = TypeVar("_T")
 
 
 class QueryBuilder(_WriteVerbs):
-    """
-    Builder for query operations.
-    
-    This class provides a fluent interface for building and executing
-    queries with filters, bin selection, and policies.
+    """Chain reads, writes, UDF calls, filters, and policies before ``execute``.
+
+    Start from :meth:`~aerospike_fluent.aio.session.Session.query` or
+    :meth:`~aerospike_fluent.aio.client.FluentClient.query`. Use :meth:`where`
+    or :meth:`filter_expression` for server-side predicates, :meth:`bins` or
+    :meth:`bin` for projections, and transition methods such as :meth:`upsert`
+    for writes. Await :meth:`execute` for a :class:`~aerospike_fluent.record_stream.RecordStream`.
+
+    Example:
+        Set-wide read with filter and projection::
+
+            stream = await (
+                session.query(users)
+                    .where("$.status == 'active'")
+                    .bins(["user_id", "name"])
+                    .execute()
+            )
+            async for row in stream:
+                if row.is_ok and row.record:
+                    print(row.record.bins)
+
+        Point read on a key, then chain an upsert::
+
+            stream = await (
+                session.query(users.id("u1"))
+                    .bins(["name"])
+                    .upsert(users.id("u1"))
+                    .put({"last_seen": 123})
+                    .execute()
+            )
+
+    See Also:
+        :class:`WriteSegmentBuilder`: Bin writes after a write verb.
+        :class:`QueryBinBuilder`: Per-bin read operations.
     """
 
     def __init__(
@@ -313,19 +400,28 @@ class QueryBuilder(_WriteVerbs):
         self._udf_args: Optional[List[Any]] = None
 
     def bins(self, bin_names: List[str]) -> QueryBuilder:
-        """
-        Specify which bins to retrieve.
-        
-        This method cannot be used together with with_no_bins().
-        
+        """Restrict the read to a non-empty set of bin names.
+
+        Mutually exclusive with :meth:`with_no_bins`.
+
         Args:
-            bin_names: List of bin names to retrieve.
-        
+            bin_names: Non-empty list of bin names to return.
+
         Returns:
-            self for method chaining.
-            
+            This builder for method chaining.
+
         Raises:
-            ValueError: If used together with with_no_bins().
+            ValueError: If ``bin_names`` is empty or :meth:`with_no_bins` was
+                already called.
+
+        Example:
+            Restrict a query or key read to specific bins::
+
+                stream = await session.query(users.id(1)).bins(["name", "email"]).execute()
+
+        See Also:
+            :meth:`with_no_bins`: Metadata-only reads without bin payloads.
+            :meth:`bin`: Per-bin operations (CDT, expressions).
         """
         if self._with_no_bins:
             raise ValueError("Cannot specify both 'with_no_bins' and provide a list of bin names")
@@ -456,22 +552,25 @@ class QueryBuilder(_WriteVerbs):
         self,
         expression: Union[str, FilterExpression],
     ) -> QueryBuilder:
-        """Set the query filter from a DSL string or a FilterExpression.
+        """Apply a server-side filter for dataset queries or keyed reads that support it.
+
+        String arguments are parsed with the fluent DSL; prefer f-strings for
+        dynamic literals. Pass a pre-built :class:`~aerospike_async.FilterExpression`
+        when constructing filters programmatically.
 
         Args:
-            expression: Either a DSL string (e.g., ``"$.country == 'US' and $.order_total > 500"``)
-                or a FilterExpression (e.g., ``Exp.gt(Exp.int_bin("a"), Exp.int_val(100))``).
-                Use f-strings to interpolate values into DSL strings.
+            expression: DSL string or ``FilterExpression``.
 
         Returns:
-            self for method chaining.
+            This builder for chaining.
 
         Example:
-            ```python
-            query = session.query(dataset).where("$.country == 'US' and $.order_total > 500")
-            query = session.query(dataset).where(f"$.age > {min_age}")
-            query = session.query(dataset).where(Exp.gt(Exp.int_bin("a"), Exp.int_val(100)))
-            ```
+            qb = session.query(ds).where("$.status == 'active'")
+            qb = session.query(ds).where(f"$.score > {min_score}")
+
+        See Also:
+            :meth:`default_where`: Default filter for chained operations without their own.
+            :meth:`filter_expression`: Attach an expression without DSL parsing.
         """
         if isinstance(expression, str):
             self._filter_expression = parse_dsl(expression)
@@ -506,14 +605,18 @@ class QueryBuilder(_WriteVerbs):
         return self
 
     def partition(self, partition_filter: PartitionFilter) -> QueryBuilder:
-        """
-        Set the partition filter.
-        
+        """Restrict a dataset query using a PAC :class:`~aerospike_async.PartitionFilter`.
+
+        Prefer :meth:`on_partition` or :meth:`on_partition_range` for common cases.
+
         Args:
-            partition_filter: The partition filter to use.
-        
+            partition_filter: Built filter (all partitions, by id, by range, etc.).
+
         Returns:
-            self for method chaining.
+            This builder for chaining.
+
+        See Also:
+            :meth:`on_partition_range`: Inclusive start, exclusive end partition ids.
         """
         self._partition_filter = partition_filter
         return self
@@ -611,26 +714,31 @@ class QueryBuilder(_WriteVerbs):
         return self
 
     def chunk_size(self, chunk_size: int) -> QueryBuilder:
-        """
-        Set the chunk size for server-side streaming.
-        
-        This method controls how many records are fetched per chunk from the server
+        """Tune server-side streaming chunk size (maps to query policy ``max_records`` chunking).
+
+		This method controls how many records are fetched per chunk from the server
         when using server-side streaming. The chunk size affects memory usage and network
-        round trips. This is distinct from client-side pagination.
+        round trips (Larger values reduce round trips; smaller values bound memory per fetch).
+		This is distinct from client-side pagination.
         
+
         Args:
-            chunk_size: The number of records per chunk (must be > 0).
-        
+            chunk_size: Records per chunk; must be positive.
+
         Returns:
-            self for method chaining.
-            
+            This builder for chaining.
+
         Raises:
-            ValueError: If chunk_size is <= 0.
+            ValueError: If ``chunk_size <= 0``.
+
             
         Example:
             ```python
             query = session.query(dataset).chunk_size(100)
+
             ```
+        See Also:
+            :meth:`max_records`: Cap total records returned.
         """
         if chunk_size <= 0:
             raise ValueError(f"Chunk size must be > 0, not {chunk_size}")
@@ -758,29 +866,31 @@ class QueryBuilder(_WriteVerbs):
         return self
     
     def fail_on_filtered_out(self) -> QueryBuilder:
-        """
-        Include filtered-out records in the stream with FILTERED_OUT error code.
-        
-        If the query has a where clause and is provided either a single key or a list of keys,
-        any records which are filtered out will appear in the stream against an exception
-        code of FILTERED_OUT rather than just not appearing in the result stream.
-        
+        """Surface rows that fail a filter as ``FILTERED_OUT`` instead of omitting them.
+
+        Applies to key-based reads where a filter excludes the record. Without this
+        flag, filtered keys may be absent from the stream depending on policy.
+
         Returns:
-            self for method chaining.
+            This builder for chaining.
+
+        See Also:
+            :meth:`respond_all_keys`: Include missing-key rows in batch reads.
         """
         self._fail_on_filtered_out = True
         return self
     
     def respond_all_keys(self) -> QueryBuilder:
-        """
-        Return null for missing keys instead of omitting them.
-        
-        By default, if a key is provided (or is part of a list of keys) but the key does not
-        map to a record, then nothing will be returned in the stream against that key.
-        However, if this flag is specified, null will be in the stream against that key.
-        
+        """Ensure batch/point reads emit one row per requested key, including not-found.
+
+        Missing keys appear as non-OK :class:`~aerospike_fluent.record_result.RecordResult`
+        entries (typically ``KEY_NOT_FOUND``) instead of being skipped.
+
         Returns:
-            self for method chaining.
+            This builder for chaining.
+
+        See Also:
+            :meth:`fail_on_filtered_out`: Filter mismatch vs missing key.
         """
         self._respond_all_keys = True
         return self
@@ -797,14 +907,34 @@ class QueryBuilder(_WriteVerbs):
         self,
         expression: Union[str, FilterExpression],
     ) -> QueryBuilder:
-        """Set a default filter expression for all specs that lack their own.
+        """Set a filter applied to any chained operation that does not call :meth:`where`.
+
+        When a chain contains multiple operations (reads, writes, UDFs), each
+        operation inherits this filter unless it supplies its own :meth:`where`.
+
+        Example::
+
+            stream = await (
+                session.upsert(k1)
+                    .bin("status").set_to("active")
+                    .where(f"$.age >= {min_age}")
+                .delete(k2, k3)
+                .upsert(k4)
+                    .bin("flag").set_to(True)
+                .default_where("$.active == true")
+                .execute()
+            )
+            # upsert(k1) keeps its own where(); the delete and
+            # second upsert inherit default_where.
 
         Args:
-            expression: DSL string (use f-strings for dynamic values)
-                or pre-built FilterExpression.
+            expression: DSL string or ``FilterExpression``.
 
         Returns:
-            self for method chaining.
+            This builder for chaining.
+
+        See Also:
+            :meth:`where`: Per-operation filter on the current operation.
         """
         if isinstance(expression, str):
             self._default_filter_expression = parse_dsl(expression)
@@ -813,7 +943,7 @@ class QueryBuilder(_WriteVerbs):
         return self
 
     def default_expire_record_after_seconds(self, seconds: int) -> QueryBuilder:
-        """Set a default TTL applied to specs that lack their own.
+        """Set a default TTL applied to chained operations that lack their own.
 
         Args:
             seconds: Time-to-live in seconds (must be > 0).
@@ -929,9 +1059,9 @@ class QueryBuilder(_WriteVerbs):
     ) -> RecordStream:
         """Execute the query and return a :class:`RecordStream`.
 
-        Handles single-key, batch-key, and dataset queries.  When query
-        stacking is used (multiple ``.query()`` calls), each accumulated
-        spec is executed and results are combined into a single stream.
+        Handles single-key, batch-key, and dataset queries.  When a chain
+        contains multiple operations, each operation is executed and results
+        are combined into a single stream.
 
         Args:
             on_error: Controls how per-record errors are surfaced.
@@ -944,7 +1074,31 @@ class QueryBuilder(_WriteVerbs):
                   dispatched to the callback and excluded from the stream.
 
         Returns:
-            A :class:`RecordStream` of :class:`RecordResult` items.
+            A :class:`~aerospike_fluent.record_stream.RecordStream` of
+            :class:`~aerospike_fluent.record_result.RecordResult` rows.
+
+        Raises:
+            AerospikeError: If the builder mixes dataset query with per-bin read
+                operations (unsupported combination).
+            AerospikeError: Typed subclasses for timeouts, connection failures, etc.
+                when the client raises instead of embedding errors.
+
+        Example:
+            Single-key read with default error handling::
+
+                stream = await session.query(key).bins(["x"]).execute()
+                row = await stream.first_or_raise()
+
+            Multi-key read, keep errors in the stream::
+
+                stream = await (
+                    session.query(k1, k2, k3)
+                        .execute(on_error=ErrorStrategy.IN_STREAM)
+                )
+                rows = await stream.collect()
+
+        See Also:
+            :class:`~aerospike_fluent.error_strategy.ErrorStrategy`: ``on_error`` options.
         """
         self._finalize_current_spec()
 
@@ -1032,7 +1186,7 @@ class QueryBuilder(_WriteVerbs):
             return await self._client.query_operate(
                 wp, statement, list(self._operations))
         except Exception as e:
-            raise convert_pac_exception(e) from e
+            raise _convert_pac_exception(e) from e
 
     async def execute_udf_background_task(
         self,
@@ -1064,7 +1218,7 @@ class QueryBuilder(_WriteVerbs):
             return await self._client.query_execute_udf(
                 wp, statement, package_name, function_name, py_args)
         except Exception as e:
-            raise convert_pac_exception(e) from e
+            raise _convert_pac_exception(e) from e
 
     # -- Private helpers -------------------------------------------------------
 
@@ -1337,10 +1491,10 @@ class QueryBuilder(_WriteVerbs):
         for r in all_results:
             if not r.is_ok and self._is_actionable(r.result_code, op_type):
                 if disp is _ErrorDisposition.THROW:
-                    raise result_code_to_exception(
+                    raise _result_code_to_exception(
                         r.result_code, str(r.result_code), r.in_doubt)
                 if disp is _ErrorDisposition.HANDLER and handler is not None:
-                    handler(r.key, r.index, result_code_to_exception(
+                    handler(r.key, r.index, _result_code_to_exception(
                         r.result_code, str(r.result_code), r.in_doubt))
                     continue
 
@@ -1384,7 +1538,7 @@ class QueryBuilder(_WriteVerbs):
         Whether these codes are routed through disposition depends on
         the operation context (see ``_is_actionable``).
         """
-        pfc_exc = convert_pac_exception(exc)
+        pfc_exc = _convert_pac_exception(exc)
         rc = pfc_exc.result_code or ResultCode.OK
         in_doubt = pfc_exc.in_doubt
 
@@ -1414,7 +1568,7 @@ class QueryBuilder(_WriteVerbs):
         When the entire batch call fails (e.g. timeout, connection error),
         we create one error result per key.
         """
-        pfc_exc = convert_pac_exception(exc)
+        pfc_exc = _convert_pac_exception(exc)
         rc = pfc_exc.result_code or ResultCode.OK
         in_doubt = pfc_exc.in_doubt
 
@@ -1838,16 +1992,30 @@ class QueryBuilder(_WriteVerbs):
             recordset = await self._client.query(
                 policy, partition_filter, statement)
         except Exception as e:
-            raise convert_pac_exception(e) from e
+            raise _convert_pac_exception(e) from e
         return RecordStream.from_recordset(recordset)
 
 
 class WriteSegmentBuilder(_WriteVerbs):
-    """Builder for a write segment in a chained operation.
+    """Accumulate scalar and CDT writes for the current operation's key(s).
 
-    Accumulates bin-level write operations for the current key(s)
-    and provides transition methods to start new read or write
-    segments.  Delegates execution to the parent ``QueryBuilder``.
+    Obtained from :class:`QueryBuilder` after a write verb or from
+    :class:`WriteBinBuilder` when chaining. Call :meth:`put`, :meth:`bin`,
+    expression helpers, optional :meth:`where` / TTL / generation guards, then
+    :meth:`execute` on this object or transition with :meth:`query` /
+    another write verb on the mixin.
+
+    Example:
+        Upsert two bins, then read the stream of results::
+
+            stream = await (
+                session.upsert(key)
+                    .put({"name": "Ada", "score": 100})
+                    .execute()
+            )
+
+    See Also:
+        :meth:`QueryBuilder.execute`: Runs all chained operations.
     """
 
     __slots__ = ("_qb",)
@@ -1869,13 +2037,19 @@ class WriteSegmentBuilder(_WriteVerbs):
         return WriteBinBuilder(self, bin_name)
 
     def put(self, bins: dict) -> WriteSegmentBuilder:
-        """Set multiple bins at once.
+        """Apply ``Operation.put`` for each bin in the mapping.
 
         Args:
-            bins: Dictionary of bin name to value mappings.
+            bins: Map of bin name to value.
 
         Returns:
-            self for method chaining.
+            This segment for chaining.
+
+        Example::
+            await session.upsert(key).put({"email": "a@b.com", "age": 30}).execute()
+
+        See Also:
+            :meth:`bin`: Per-bin CDT or scalar follow-ups.
         """
         for bin_name, value in bins.items():
             self._qb._operations.append(Operation.put(bin_name, value))
@@ -1900,7 +2074,7 @@ class WriteSegmentBuilder(_WriteVerbs):
         return self._add_op(Operation.put(bin_name, value))
 
     def add(self, bin_name: str, value: Any) -> WriteSegmentBuilder:
-        """Add *value* to a bin (numeric increment)."""
+        """Add a numeric *value* to a bin."""
         return self._add_op(Operation.add(bin_name, value))
 
     def increment_by(self, bin_name: str, value: Any) -> WriteSegmentBuilder:
@@ -2017,7 +2191,7 @@ class WriteSegmentBuilder(_WriteVerbs):
         self._qb._set_current_keys(arg1, *more_keys)
         return self
 
-    # -- Per-spec settings ----------------------------------------------------
+    # -- Per-operation settings ------------------------------------------------
 
     @overload
     def where(self, expression: str) -> WriteSegmentBuilder: ...
@@ -2150,21 +2324,45 @@ class WriteSegmentBuilder(_WriteVerbs):
     async def execute(
         self, on_error: OnError | None = None,
     ) -> RecordStream:
-        """Execute all accumulated specs.
+        """Run the parent :class:`QueryBuilder` stack (same as ``self._qb.execute``).
 
         Args:
-            on_error: Error handling strategy (see ``QueryBuilder.execute``).
+            on_error: Optional :class:`~aerospike_fluent.error_strategy.ErrorStrategy`
+                or error callback; see :meth:`QueryBuilder.execute`.
+
+        Returns:
+            :class:`~aerospike_fluent.record_stream.RecordStream` of results.
+
+        Example::
+            stream = await session.upsert(key).put({"x": 1}).execute()
+            await stream.first_or_raise()
+
+        Raises:
+            Same as :meth:`QueryBuilder.execute`.
         """
         return await self._qb.execute(on_error)
 
 
 class WriteBinBuilder(_WriteVerbs):
-    """Builder for a single bin write operation within a write segment.
+    """Per-bin write builder inside a :class:`WriteSegmentBuilder`.
 
-    Thin currying wrapper that captures a bin name and delegates all
-    operations to the parent ``WriteSegmentBuilder``.  CDT navigation
-    methods remain here since they require a captured bin name and
-    return CDT-specific builders.
+    Start with :meth:`WriteSegmentBuilder.bin`. Scalar methods delegate to the
+    segment; ``map_*`` and ``list_*`` append collection operations; nested CDT
+    builders capture context for maps and lists. Write verbs on this class
+    finalize the segment and start a new one on new keys.
+
+    Example:
+        Set a map key and append to a list within the same write::
+
+            await (
+                session.upsert(key)
+                    .bin("config").on_map_key("level").set_to(5)
+                    .bin("tags").list_append(value="new_tag")
+                    .execute()
+            )
+
+    See Also:
+        :class:`QueryBinBuilder`: Read-side analogue for queries.
     """
 
     __slots__ = ("_segment", "_bin")
@@ -2176,43 +2374,54 @@ class WriteBinBuilder(_WriteVerbs):
     # -- Scalar writes --------------------------------------------------------
 
     def set_to(self, value: Any) -> WriteSegmentBuilder:
-        """Set the bin to *value*."""
+        """Set the bin to *value* (``Operation.put``)."""
         return self._segment.set_to(self._bin, value)
 
     def add(self, value: Any) -> WriteSegmentBuilder:
-        """Add *value* to the bin (numeric increment)."""
+        """Add a numeric *value* to the bin (``Operation.add``)."""
         return self._segment.add(self._bin, value)
 
     def increment_by(self, value: Any) -> WriteSegmentBuilder:
-        """Alias for :meth:`add`."""
+        """Alias of :meth:`add`."""
         return self.add(value)
 
     def append(self, value: str) -> WriteSegmentBuilder:
-        """Append a string to the bin."""
+        """String append (``Operation.append``)."""
         return self._segment.append(self._bin, value)
 
     def prepend(self, value: str) -> WriteSegmentBuilder:
-        """Prepend a string to the bin."""
+        """String prepend (``Operation.prepend``)."""
         return self._segment.prepend(self._bin, value)
 
     def remove(self) -> WriteSegmentBuilder:
-        """Delete the bin from the record."""
+        """Drop the bin (write ``None``)."""
         return self._segment.remove_bin(self._bin)
 
     def get(self) -> WriteSegmentBuilder:
-        """Read the bin value back within a write operate."""
+        """Return the bin value after writes complete (``Operation.get_bin``)."""
         return self._segment.get(self._bin)
 
     # -- CDT list structural operations ---------------------------------------
 
     def list_add(self, value: Any) -> WriteSegmentBuilder:
-        """Add *value* to an ordered list (sorted insert)."""
+        """Add *value* to an ordered list (sorted insert).
+
+        Args:
+            value: Element to insert in sorted order.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(
             ListOperation.append(self._bin, value, ListPolicy(ListOrderType.ORDERED, None)),
         )
 
     def list_append(self, value: Any) -> WriteSegmentBuilder:
-        """Append *value* to the end of an unordered list."""
+        """Append *value* to the end of an unordered list.
+
+        Example::
+            .bin("tags").list_append(value="python")
+        """
         return self._segment._add_op(
             ListOperation.append(self._bin, value, ListPolicy(None, None)),
         )
@@ -2220,15 +2429,27 @@ class WriteBinBuilder(_WriteVerbs):
     # -- Collection-level map -------------------------------------------------
 
     def map_clear(self) -> WriteSegmentBuilder:
-        """Remove all entries from the map bin."""
+        """Remove all entries from the map bin.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(MapOperation.clear(self._bin))
 
     def map_size(self) -> WriteSegmentBuilder:
-        """Return the map element count (read within operate)."""
+        """Return the map element count (read within operate).
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(MapOperation.size(self._bin))
 
     def map_upsert_items(self, items: Any) -> WriteSegmentBuilder:
-        """Put multiple map entries (create or update each key)."""
+        """Put multiple map entries (create or update each key).
+
+        Example::
+            .bin("settings").map_upsert_items({"theme": "dark", "lang": "en"})
+        """
         pairs = _map_item_pairs(items)
         return self._segment._add_op(
             MapOperation.put_items(self._bin, pairs, MapPolicy(None, None)),
@@ -2243,7 +2464,14 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def map_update_items(self, items: Any) -> WriteSegmentBuilder:
-        """Update existing map entries only (no new keys)."""
+        """Update existing map entries only (no new keys).
+
+        Args:
+            items: Key-value pairs to update for existing keys only.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         pairs = _map_item_pairs(items)
         policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
         return self._segment._add_op(
@@ -2251,11 +2479,25 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def map_create(self, order: MapOrder) -> WriteSegmentBuilder:
-        """Create an empty map with the given key order."""
+        """Create an empty map with the given key order.
+
+        Args:
+            order: Map key sort order.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(MapOperation.create(self._bin, order))
 
     def map_set_policy(self, order: MapOrder) -> WriteSegmentBuilder:
-        """Set map sort order policy without changing entries."""
+        """Set map sort order policy without changing entries.
+
+        Args:
+            order: Map key sort order policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(
             MapOperation.set_map_policy(self._bin, MapPolicy(order, None)),
         )
@@ -2263,17 +2505,32 @@ class WriteBinBuilder(_WriteVerbs):
     # -- Collection-level list ------------------------------------------------
 
     def list_clear(self) -> WriteSegmentBuilder:
-        """Remove all elements from the list bin."""
+        """Remove all elements from the list bin.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(ListOperation.clear(self._bin))
 
     def list_sort(
         self, flags: ListSortFlags = ListSortFlags.DEFAULT,
     ) -> WriteSegmentBuilder:
-        """Sort the list bin."""
+        """Sort the list bin.
+
+        Args:
+            flags: Sort behavior flags.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(ListOperation.sort(self._bin, flags))
 
     def list_size(self) -> WriteSegmentBuilder:
-        """Return the list element count (read within operate)."""
+        """Return the list element count (read within operate).
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(ListOperation.size(self._bin))
 
     def list_append_items(self, items: Any) -> WriteSegmentBuilder:
@@ -2285,7 +2542,14 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def list_add_items(self, items: Any) -> WriteSegmentBuilder:
-        """Insert values into an ordered list (sorted positions)."""
+        """Insert values into an ordered list (sorted positions).
+
+        Args:
+            items: Sequence of values to insert in sorted order.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(
             ListOperation.append_items(
                 self._bin, items, ListPolicy(ListOrderType.ORDERED, None),
@@ -2295,13 +2559,29 @@ class WriteBinBuilder(_WriteVerbs):
     def list_create(
         self, order: ListOrderType, *, pad: bool = False, persist_index: bool = False,
     ) -> WriteSegmentBuilder:
-        """Create an empty list with the given order."""
+        """Create an empty list with the given order.
+
+        Args:
+            order: List element order.
+            pad: Whether to pad with None entries.
+            persist_index: Whether to persist element indices.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(
             ListOperation.create(self._bin, order, pad, persist_index),
         )
 
     def list_set_order(self, order: ListOrderType) -> WriteSegmentBuilder:
-        """Set list sort order without changing elements."""
+        """Set list sort order without changing elements.
+
+        Args:
+            order: List element order.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+        """
         return self._segment._add_op(ListOperation.set_order(self._bin, order))
 
     # -- Expression operations ------------------------------------------------
@@ -2368,7 +2648,14 @@ class WriteBinBuilder(_WriteVerbs):
     # -- Map navigation (singular -> CdtWriteBuilder) --------------------------
 
     def on_map_index(self, index: int) -> CdtWriteBuilder[WriteSegmentBuilder]:
-        """Navigate to a map element by index."""
+        """Navigate to a map element by index.
+
+        Args:
+            index: List index (0-based, negative counts from end).
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteBuilder(
             self._segment,
@@ -2379,7 +2666,14 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def on_map_key(self, key: Any) -> CdtWriteBuilder[WriteSegmentBuilder]:
-        """Navigate to a map element by key."""
+        """Navigate to a map element by key.
+
+        Args:
+            key: Map key to target.
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         _mp = MapPolicy(None, None)
         return CdtWriteBuilder(
@@ -2406,7 +2700,14 @@ class WriteBinBuilder(_WriteVerbs):
     # -- Map navigation (invertable -> CdtWriteInvertableBuilder) -------------
 
     def on_map_value(self, value: Any) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map elements matching a value."""
+        """Navigate to map elements matching a value.
+
+        Args:
+            value: Value to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2418,7 +2719,15 @@ class WriteBinBuilder(_WriteVerbs):
     def on_map_index_range(
         self, index: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map elements by index range."""
+        """Navigate to map elements by index range.
+
+        Args:
+            index: List index (0-based, negative counts from end).
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         if count is None:
             get_f = lambda rt: MapOperation.get_by_index_range_from(b, index, rt)
@@ -2433,7 +2742,15 @@ class WriteBinBuilder(_WriteVerbs):
     def on_map_key_range(
         self, start: Any, end: Any,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map elements by key range [start, end)."""
+        """Navigate to map elements by key range [start, end).
+
+        Args:
+            start: Inclusive range start.
+            end: Exclusive range end.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2445,7 +2762,15 @@ class WriteBinBuilder(_WriteVerbs):
     def on_map_rank_range(
         self, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map elements by rank range."""
+        """Navigate to map elements by rank range.
+
+        Args:
+            rank: Rank position (0 = lowest value).
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         if count is None:
             get_f = lambda rt: MapOperation.get_by_rank_range_from(b, rank, rt)
@@ -2460,7 +2785,15 @@ class WriteBinBuilder(_WriteVerbs):
     def on_map_value_range(
         self, start: Any, end: Any,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map elements by value range [start, end)."""
+        """Navigate to map elements by value range [start, end).
+
+        Args:
+            start: Inclusive range start.
+            end: Exclusive range end.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2472,7 +2805,16 @@ class WriteBinBuilder(_WriteVerbs):
     def on_map_key_relative_index_range(
         self, key: Any, index: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map entries by index range relative to an anchor key."""
+        """Navigate to map entries by index range relative to an anchor key.
+
+        Args:
+            key: Map key to target.
+            index: Index offset from the anchor key.
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2488,7 +2830,16 @@ class WriteBinBuilder(_WriteVerbs):
     def on_map_value_relative_rank_range(
         self, value: Any, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map entries by value rank range relative to an anchor value."""
+        """Navigate to map entries by value rank range relative to an anchor value.
+
+        Args:
+            value: Value to match.
+            rank: Rank offset from the anchor value.
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2502,7 +2853,14 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def on_map_key_list(self, keys: List[Any]) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map elements matching a list of keys."""
+        """Navigate to map elements matching a list of keys.
+
+        Args:
+            keys: Map keys to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2512,7 +2870,14 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def on_map_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to map elements matching a list of values."""
+        """Navigate to map elements matching a list of values.
+
+        Args:
+            values: Values to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2524,7 +2889,17 @@ class WriteBinBuilder(_WriteVerbs):
     # -- List navigation (singular -> CdtWriteBuilder) ------------------------
 
     def on_list_index(self, index: int) -> CdtWriteBuilder[WriteSegmentBuilder]:
-        """Navigate to a list element by index."""
+        """Navigate to a list element by index.
+
+        Args:
+            index: List index (0-based, negative counts from end).
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element(s).
+
+        Example::
+            .bin("items").on_list_index(0).set_to("first")
+        """
         b = self._bin
         return CdtWriteBuilder(
             self._segment,
@@ -2535,7 +2910,14 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def on_list_rank(self, rank: int) -> CdtWriteBuilder[WriteSegmentBuilder]:
-        """Navigate to a list element by rank (0 = lowest value)."""
+        """Navigate to a list element by rank (0 = lowest value).
+
+        Args:
+            rank: Rank position (0 = lowest value).
+
+        Returns:
+            :class:`CdtWriteBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteBuilder(
             self._segment,
@@ -2548,7 +2930,14 @@ class WriteBinBuilder(_WriteVerbs):
     # -- List navigation (invertable -> CdtWriteInvertableBuilder) ------------
 
     def on_list_value(self, value: Any) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to list elements matching a value."""
+        """Navigate to list elements matching a value.
+
+        Args:
+            value: Value to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2560,7 +2949,15 @@ class WriteBinBuilder(_WriteVerbs):
     def on_list_index_range(
         self, index: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to list elements by index range."""
+        """Navigate to list elements by index range.
+
+        Args:
+            index: List index (0-based, negative counts from end).
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2572,7 +2969,15 @@ class WriteBinBuilder(_WriteVerbs):
     def on_list_rank_range(
         self, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to list elements by rank range."""
+        """Navigate to list elements by rank range.
+
+        Args:
+            rank: Rank position (0 = lowest value).
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2584,7 +2989,15 @@ class WriteBinBuilder(_WriteVerbs):
     def on_list_value_range(
         self, start: Any, end: Any,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to list elements by value range [start, end)."""
+        """Navigate to list elements by value range [start, end).
+
+        Args:
+            start: Inclusive range start.
+            end: Exclusive range end.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2596,7 +3009,16 @@ class WriteBinBuilder(_WriteVerbs):
     def on_list_value_relative_rank_range(
         self, value: Any, rank: int, count: Optional[int] = None,
     ) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to list elements by value rank range relative to an anchor value."""
+        """Navigate to list elements by value rank range relative to an anchor value.
+
+        Args:
+            value: Value to match.
+            rank: Rank offset from the anchor value.
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2610,7 +3032,14 @@ class WriteBinBuilder(_WriteVerbs):
         )
 
     def on_list_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
-        """Navigate to list elements matching a list of values."""
+        """Navigate to list elements matching a list of values.
+
+        Args:
+            values: Values to match.
+
+        Returns:
+            :class:`CdtWriteInvertableBuilder` for writing the targeted element(s).
+        """
         b = self._bin
         return CdtWriteInvertableBuilder(
             self._segment,
@@ -2644,16 +3073,27 @@ class WriteBinBuilder(_WriteVerbs):
 
 
 class QueryBinBuilder(_WriteVerbs, Generic[_T]):
-    """Builder for bin-level read operations in query contexts.
+    """Per-bin reads and CDT navigation for :class:`QueryBuilder` (and sync twin).
 
-    Generic on ``_T`` (the parent builder) so the same class can be
-    shared between the async :class:`QueryBuilder` and the sync
-    ``SyncQueryBuilder``.  The parent must expose ``add_operation(op)``.
+    The type parameter is the parent builder type; the parent must implement
+    ``add_operation``. Use :meth:`get` for whole-bin reads, :meth:`select_from`
+    for expression reads, ``on_map_*`` / ``on_list_*`` for paths, then
+    :meth:`QueryBuilder.execute`. Write verbs delegate to the parent to chain
+    writes after reads.
 
-    Provides a simple ``get()`` terminal, CDT map/list navigation,
-    ``map_size()``/``list_size()`` on the bin, and the same size reads on
-    nested paths via :class:`CdtReadBuilder`.  Write transitions delegate
-    to the parent builder.
+    Example:
+        Read map keys and list size in a single query::
+
+            stream = await (
+                session.query(key)
+                    .bin("settings").on_map_key("theme").get_values()
+                    .bin("tags").list_size()
+                    .execute()
+            )
+
+    See Also:
+        :class:`WriteBinBuilder`: Per-bin write builder.
+        :class:`~aerospike_fluent.aio.operations.cdt_read.CdtReadBuilder`: Nested reads.
     """
 
     __slots__ = ("_parent", "_bin")
@@ -2665,17 +3105,24 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
     # -- Simple read ----------------------------------------------------------
 
     def get(self) -> _T:
-        """Read the entire bin value."""
+        """Include the bin value in the read result.
+
+        Returns:
+            The parent builder for chaining.
+
+        See Also:
+            :meth:`select_from`: Virtual bin from an expression.
+        """
         self._parent.add_operation(Operation.get_bin(self._bin))  # type: ignore[union-attr]
         return self._parent
 
     def map_size(self) -> _T:
-        """Return the element count of a map bin."""
+        """Return the number of entries in the map."""
         self._parent.add_operation(MapOperation.size(self._bin))  # type: ignore[union-attr]
         return self._parent
 
     def list_size(self) -> _T:
-        """Return the element count of a list bin."""
+        """Read list length into the operate/read result."""
         self._parent.add_operation(ListOperation.size(self._bin))  # type: ignore[union-attr]
         return self._parent
 
@@ -2714,7 +3161,14 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
     # -- Map navigation (singular -> CdtReadBuilder) --------------------------
 
     def on_map_index(self, index: int) -> CdtReadBuilder[_T]:
-        """Navigate to a map element by index."""
+        """Navigate to a map element by index.
+
+        Args:
+            index: List index (0-based, negative counts from end).
+
+        Returns:
+            :class:`CdtReadBuilder` for reading the targeted element(s).
+        """
         b = self._bin
         return CdtReadBuilder(
             self._parent,
@@ -2724,7 +3178,14 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         )
 
     def on_map_key(self, key: Any) -> CdtReadBuilder[_T]:
-        """Navigate to a map element by key."""
+        """Navigate to a map element by key.
+
+        Args:
+            key: Map key to target.
+
+        Returns:
+            :class:`CdtReadBuilder` for reading the targeted element(s).
+        """
         b = self._bin
         return CdtReadBuilder(
             self._parent,
@@ -2810,7 +3271,16 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
     def on_map_key_relative_index_range(
         self, key: Any, index: int, count: Optional[int] = None,
     ) -> CdtReadInvertableBuilder[_T]:
-        """Navigate to map entries by index range relative to an anchor key."""
+        """Navigate to map entries by index range relative to an anchor key.
+
+        Args:
+            key: Map key to target.
+            index: List index (0-based, negative counts from end).
+            count: Maximum entries to select; ``None`` for all remaining.
+
+        Returns:
+            :class:`CdtReadInvertableBuilder` for reading the targeted element(s).
+        """
         b = self._bin
         return CdtReadInvertableBuilder(
             self._parent,
@@ -2860,7 +3330,11 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
     # -- List navigation (singular -> CdtReadBuilder) -------------------------
 
     def on_list_index(self, index: int) -> CdtReadBuilder[_T]:
-        """Navigate to a list element by index."""
+        """Navigate to a list element by index.
+
+        Example::
+            .bin("items").on_list_index(-1).get_values()
+        """
         b = self._bin
         return CdtReadBuilder(
             self._parent,

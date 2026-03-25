@@ -31,19 +31,20 @@ if typing.TYPE_CHECKING:
 
 
 class Cluster:
-    """
-    Represents a connection to an Aerospike cluster (sync version).
-    
-    This class manages the lifecycle of a connection to an Aerospike cluster,
-    including the underlying client. It implements context manager protocol
-    to ensure proper resource cleanup.
-    
-    Example usage:
+    """Synchronous cluster handle from ``sync.cluster_definition.ClusterDefinition.connect``.
+
+    Mirrors :class:`~aerospike_fluent.aio.cluster.Cluster` but uses
+    :class:`~aerospike_fluent.sync.client.SyncFluentClient` and
+    :class:`~aerospike_fluent.sync.session.SyncSession`.
+
+    Example:
         ```python
         with ClusterDefinition("localhost", 3100).connect() as cluster:
             session = cluster.create_session(Behavior.DEFAULT)
-            # Use the session for database operations...
         ```
+
+    See Also:
+        :class:`~aerospike_fluent.aio.cluster.Cluster`
     """
     
     def __init__(self, fluent_client: SyncFluentClient) -> None:
@@ -106,18 +107,19 @@ class Cluster:
         return self._fluent_client
     
     def create_session(self, behavior: Optional[Behavior] = None) -> SyncSession:
-        """
-        Creates a new session with the specified behavior.
-        
+        """Return a :class:`~aerospike_fluent.sync.session.SyncSession` for this cluster.
+
         A session represents a logical connection to the cluster with specific
         behavior settings that control how operations are performed (timeouts,
         retry policies, consistency levels, etc.).
-        
         Args:
-            behavior: The behavior configuration for the session. If None, uses Behavior.DEFAULT.
-        
+            behavior: Defaults to :attr:`~aerospike_fluent.policy.behavior.Behavior.DEFAULT`.
+
         Returns:
-            A new SyncSession instance
+            A new sync session bound to this cluster's client.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.cluster.Cluster.create_session`
         """
         if behavior is None:
             behavior = Behavior.DEFAULT

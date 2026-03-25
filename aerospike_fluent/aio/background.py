@@ -35,7 +35,7 @@ from aerospike_fluent.background_shared import (
 )
 from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.dsl.parser import parse_dsl
-from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.exceptions import _convert_pac_exception
 
 if TYPE_CHECKING:
     from aerospike_fluent.aio.session import Session
@@ -54,48 +54,134 @@ _BG_UNSUPPORTED = (
 
 
 class BackgroundTaskSession:
-    """Entry point for server-side background operations on datasets."""
+    """Choose a dataset-wide background job (update, delete, touch, or UDF).
+
+    From :meth:`~aerospike_fluent.aio.session.Session.background_task`. Each
+    method returns a builder to add filters, bin operations or UDF arguments,
+    then ``await ...execute()`` for a server :class:`~aerospike_async.ExecuteTask`.
+
+    Example:
+        Background update with a filter::
+
+            task = await (
+                session.background_task()
+                .update(users)
+                .where("$.active == true")
+                .bin("score").add(1)
+                .execute()
+            )
+
+    See Also:
+        :meth:`~aerospike_fluent.aio.session.Session.execute_udf`: Foreground UDF on keys.
+    """
 
     def __init__(self, session: Session) -> None:
+        """Bind to *session*; prefer :meth:`Session.background_task`."""
         self._session = session
 
     def update(self, dataset: DataSet) -> BackgroundOperationBuilder:
-        """Background update: apply bin writes to matching records."""
+        """Start a ``query_operate`` update over records in *dataset*.
+
+        Args:
+            dataset: Namespace/set scope for the scan.
+
+        Returns:
+            :class:`BackgroundOperationBuilder` — add ``where``, ``bin``, then
+            :meth:`BackgroundOperationBuilder.execute`.
+
+        Raises:
+            ValueError: On execute if no bin operations were added.
+        """
         return BackgroundOperationBuilder(self._session, dataset, _OpType.UPDATE)
 
     def delete(self, dataset: DataSet) -> BackgroundOperationBuilder:
-        """Background delete: remove matching records."""
+        """Start a background delete of all records matching optional filters.
+
+        Args:
+            dataset: Namespace/set to scan.
+
+        Returns:
+            :class:`BackgroundOperationBuilder` (no bin ops required for delete).
+        """
         return BackgroundOperationBuilder(self._session, dataset, _OpType.DELETE)
 
     def touch(self, dataset: DataSet) -> BackgroundOperationBuilder:
-        """Background touch: reset TTL on matching records."""
+        """Start a background touch (TTL refresh) for matching records.
+
+        Args:
+            dataset: Namespace/set to scan.
+
+        Returns:
+            :class:`BackgroundOperationBuilder` — optional ``expire_record_after_seconds``.
+        """
         return BackgroundOperationBuilder(self._session, dataset, _OpType.TOUCH)
 
     def execute_udf(self, dataset: DataSet) -> BackgroundUdfFunctionBuilder:
-        """Background UDF: call :meth:`BackgroundUdfFunctionBuilder.function` before execute."""
+        """Start a background UDF executed via ``query_execute_udf``.
+
+        Args:
+            dataset: Namespace/set scope.
+
+        Returns:
+            :class:`BackgroundUdfFunctionBuilder` — call :meth:`BackgroundUdfFunctionBuilder.function`
+            then :meth:`BackgroundUdfBuilder.passing` and :meth:`BackgroundUdfBuilder.execute`.
+        """
         return BackgroundUdfFunctionBuilder(self._session, dataset)
 
 
 class BackgroundWriteBinBuilder:
-    """Scalar bin write for a background update (put / add only)."""
+    """Per-bin write helper for background updates (``put`` / ``add`` only).
+
+    Obtained from :meth:`BackgroundOperationBuilder.bin`. Call :meth:`set_to`
+    or :meth:`add`, which return the parent builder for further chaining.
+
+    Example::
+
+        builder.bin("score").add(10)
+    """
 
     __slots__ = ("_parent", "_bin")
 
     def __init__(self, parent: BackgroundOperationBuilder, bin_name: str) -> None:
+        """Capture the bin name; prefer :meth:`BackgroundOperationBuilder.bin`."""
         self._parent = parent
         self._bin = bin_name
 
     def set_to(self, value: Any) -> BackgroundOperationBuilder:
+        """Set the bin to *value* (``Operation.put``).
+
+        Args:
+            value: The value to write.
+
+        Returns:
+            The parent :class:`BackgroundOperationBuilder`.
+        """
         self._parent._operations.append(Operation.put(self._bin, value))
         return self._parent
 
     def add(self, value: Any) -> BackgroundOperationBuilder:
+        """Add a numeric *value* to the bin (``Operation.add``).
+
+        Args:
+            value: Numeric amount to add (may be negative).
+
+        Returns:
+            The parent :class:`BackgroundOperationBuilder`.
+        """
         self._parent._operations.append(Operation.add(self._bin, value))
         return self._parent
 
 
 class BackgroundOperationBuilder:
-    """Configure and run a background ``query_operate`` job."""
+    """Configure filters, TTL, and operations for ``query_operate``.
+
+    Not all query-policy knobs are wired through to PAC for background jobs;
+    ``records_per_second`` is stored for API parity but may not affect the
+    underlying call.
+
+    See Also:
+        :meth:`BackgroundTaskSession.update`: Typical construction path.
+    """
 
     __slots__ = (
         "_session",
@@ -131,6 +217,14 @@ class BackgroundOperationBuilder:
         self,
         expression: Union[str, FilterExpression],
     ) -> BackgroundOperationBuilder:
+        """Restrict the scan with a DSL or ``FilterExpression`` predicate.
+
+        Returns:
+            This builder for chaining.
+
+        Example::
+            builder.where("$.status == 'inactive'")
+        """
         if isinstance(expression, str):
             self._filter_expression = parse_dsl(expression)
         else:
@@ -138,22 +232,29 @@ class BackgroundOperationBuilder:
         return self
 
     def bin(self, name: str) -> BackgroundWriteBinBuilder:
+        """Start a scalar write on *name* (update jobs only).
+
+        Example::
+            builder.bin("score").add(10)
+        """
         return BackgroundWriteBinBuilder(self, name)
 
     def expire_record_after_seconds(self, seconds: int) -> BackgroundOperationBuilder:
+        """Set record TTL in seconds for touches/updates when supported by policy."""
         self._ttl_seconds = seconds
         return self
 
     def records_per_second(self, rps: int) -> BackgroundOperationBuilder:
-        # Stored for API parity; PAC background paths currently take WritePolicy only
-        # (no QueryPolicy.records_per_second on query_operate / query_execute_udf).
+        """Store a throttle hint (may be unused depending on PAC background API)."""
         self._records_per_second = rps
         return self
 
     def fail_on_filtered_out(self) -> BackgroundOperationBuilder:
+        """Unsupported for background tasks (raises ``TypeError``)."""
         raise TypeError(_BG_UNSUPPORTED)
 
     def respond_all_keys(self) -> BackgroundOperationBuilder:
+        """Unsupported for background tasks (raises ``TypeError``)."""
         raise TypeError(_BG_UNSUPPORTED)
 
     def _pac_client(self) -> Client:
@@ -186,6 +287,22 @@ class BackgroundOperationBuilder:
         return None
 
     async def execute(self) -> ExecuteTask:
+        """Start the server job and return an :class:`~aerospike_async.ExecuteTask`.
+
+        Raises:
+            ValueError: For update without bin operations.
+            RuntimeError: If the fluent client is not connected.
+            AerospikeError: On PAC errors (converted).
+
+        Example::
+            task = await (
+                session.background_task()
+                    .update(users)
+                    .bin("visits").add(1)
+                    .execute()
+            )
+            await task.wait_till_complete()
+        """
         ops = self._final_operations()
         reject_unsupported_background_write_ops(ops)
         wp = make_background_write_policy(
@@ -202,11 +319,11 @@ class BackgroundOperationBuilder:
         try:
             return await client.query_operate(wp, statement, ops)
         except Exception as e:
-            raise convert_pac_exception(e) from e
+            raise _convert_pac_exception(e) from e
 
 
 class BackgroundUdfFunctionBuilder:
-    """Requires :meth:`function` before building arguments or executing."""
+    """Pick module and function for a dataset background UDF."""
 
     __slots__ = ("_session", "_dataset")
 
@@ -219,6 +336,18 @@ class BackgroundUdfFunctionBuilder:
         package_name: str,
         function_name: str,
     ) -> BackgroundUdfBuilder:
+        """Select the registered package and Lua entrypoint.
+
+        Args:
+            package_name: Server module name (no ``.lua`` suffix).
+            function_name: Lua function to invoke.
+
+        Returns:
+            :class:`BackgroundUdfBuilder` for arguments and execution.
+
+        Raises:
+            ValueError: If either string is empty.
+        """
         if not package_name:
             raise ValueError("package_name must be a non-empty string")
         if not function_name:
@@ -232,7 +361,7 @@ class BackgroundUdfFunctionBuilder:
 
 
 class BackgroundUdfBuilder:
-    """Background ``query_execute_udf`` configuration and execution."""
+    """Arguments, optional filter, and execution for ``query_execute_udf``."""
 
     __slots__ = (
         "_session",
@@ -260,6 +389,14 @@ class BackgroundUdfBuilder:
         self._records_per_second: Optional[int] = None
 
     def passing(self, *args: Any) -> BackgroundUdfBuilder:
+        """Set Lua arguments after the implicit record parameter.
+
+        Returns:
+            This builder for chaining.
+
+        Example::
+            builder.passing("arg1", 42)
+        """
         self._args = list(args)
         return self
 
@@ -273,6 +410,7 @@ class BackgroundUdfBuilder:
         self,
         expression: Union[str, FilterExpression],
     ) -> BackgroundUdfBuilder:
+        """Optional predicate limiting which records invoke the UDF."""
         if isinstance(expression, str):
             self._filter_expression = parse_dsl(expression)
         else:
@@ -280,13 +418,16 @@ class BackgroundUdfBuilder:
         return self
 
     def records_per_second(self, rps: int) -> BackgroundUdfBuilder:
+        """Throttle hint stored for API parity (may not affect PAC)."""
         self._records_per_second = rps
         return self
 
     def fail_on_filtered_out(self) -> BackgroundUdfBuilder:
+        """Unsupported (raises ``TypeError``)."""
         raise TypeError(_BG_UNSUPPORTED)
 
     def respond_all_keys(self) -> BackgroundUdfBuilder:
+        """Unsupported (raises ``TypeError``)."""
         raise TypeError(_BG_UNSUPPORTED)
 
     def _pac_client(self) -> Client:
@@ -296,6 +437,22 @@ class BackgroundUdfBuilder:
         return fc._client
 
     async def execute(self) -> ExecuteTask:
+        """Start the background UDF job.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+            AerospikeError: On PAC errors (converted).
+
+        Example::
+            task = await (
+                session.background_task()
+                    .execute_udf(users)
+                    .function("mypkg", "expire_old")
+                    .passing(30)
+                    .execute()
+            )
+            await task.wait_till_complete()
+        """
         wp = make_background_write_policy(
             self._session.behavior,
             self._filter_expression,
@@ -319,4 +476,4 @@ class BackgroundUdfBuilder:
                 py_args,
             )
         except Exception as e:
-            raise convert_pac_exception(e) from e
+            raise _convert_pac_exception(e) from e

@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""IndexBuilder - Builder for index operations."""
+"""Fluent builder for creating and dropping secondary indexes."""
 
 from __future__ import annotations
 
@@ -25,14 +25,32 @@ from aerospike_async import (
     IndexType,
 )
 
-from aerospike_fluent.exceptions import convert_pac_exception
+from aerospike_fluent.exceptions import _convert_pac_exception
 
 
 class IndexBuilder:
-    """
-    Builder for index operations.
+    """Configure a secondary index, then :meth:`create` or :meth:`drop` it.
 
-    This class provides a fluent interface for creating and dropping indexes.
+    Typical chain for a new index: :meth:`on_bin` → :meth:`named` →
+    :meth:`numeric` or :meth:`string` → optional :meth:`collection` for
+    collection indexes → ``await`` :meth:`create`.
+
+    For removal, only :meth:`named` (and namespace/set from construction) is
+    required before ``await`` :meth:`drop`.
+
+    Example:
+        ```python
+        await (
+            client.index(namespace="test", set_name="users")
+            .on_bin("email")
+            .named("email_idx")
+            .string()
+            .create()
+        )
+        ```
+
+    See Also:
+        :meth:`~aerospike_fluent.aio.client.FluentClient.index`
     """
 
     def __init__(
@@ -42,12 +60,10 @@ class IndexBuilder:
         set_name: str,
     ) -> None:
         """
-        Initialize an IndexBuilder.
-
         Args:
-            client: The underlying async client.
-            namespace: The namespace name.
-            set_name: The set name.
+            client: Connected async cluster client used for admin calls.
+            namespace: Namespace containing the set to index.
+            set_name: Set name within the namespace.
         """
         self._client = client
         self._namespace = namespace
@@ -58,47 +74,49 @@ class IndexBuilder:
         self._collection_index_type: Optional[CollectionIndexType] = None
 
     def on_bin(self, bin_name: str) -> IndexBuilder:
-        """
-        Specify the bin name for the index.
+        """Set which bin this secondary index covers (required before :meth:`create`).
 
         Args:
-            bin_name: The name of the bin to index.
+            bin_name: Name of the bin to index.
 
         Returns:
-            self for method chaining.
+            ``self`` for method chaining.
         """
         self._bin_name = bin_name
         return self
 
     def named(self, index_name: str) -> IndexBuilder:
-        """
-        Specify the index name.
+        """Set the secondary index name the cluster stores (required for create and drop).
 
         Args:
-            index_name: The name of the index.
+            index_name: Name passed to create/drop admin calls; must match when dropping.
 
         Returns:
-            self for method chaining.
+            ``self`` for method chaining.
         """
         self._index_name = index_name
         return self
 
     def numeric(self) -> IndexBuilder:
-        """
-        Set the index type to numeric.
+        """Set the secondary index type to numeric (for numeric bin values).
+
+        Call this or :meth:`string` before :meth:`create`, matching how the bin is
+        stored. If both are called on the same builder, the last call wins.
 
         Returns:
-            self for method chaining.
+            ``self`` for method chaining.
         """
         self._index_type = IndexType.NUMERIC
         return self
 
     def string(self) -> IndexBuilder:
-        """
-        Set the index type to string.
+        """Set the secondary index type to string (for string bin values).
+
+        Call this or :meth:`numeric` before :meth:`create`. If both are called,
+        the last call wins (see :meth:`numeric`).
 
         Returns:
-            self for method chaining.
+            ``self`` for method chaining.
         """
         self._index_type = IndexType.STRING
         return self
@@ -106,24 +124,40 @@ class IndexBuilder:
     def collection(
         self, collection_index_type: CollectionIndexType
     ) -> IndexBuilder:
-        """
-        Set the collection index type.
+        """Set the collection index variant for map or list bins (optional).
+
+        Use together with :meth:`numeric` or :meth:`string` when indexing into
+        collection data types.
 
         Args:
-            collection_index_type: The collection index type.
+            collection_index_type: ``CollectionIndexType`` constant from the
+                ``aerospike_async`` package (map- vs list-style collection indexing).
 
         Returns:
-            self for method chaining.
+            ``self`` for method chaining.
         """
         self._collection_index_type = collection_index_type
         return self
 
     async def create(self) -> None:
-        """
-        Create the index.
+        """Create the index on the cluster.
+
+        Example::
+            await (
+                client.index(namespace="test", set_name="users")
+                .on_bin("email")
+                .named("email_idx")
+                .string()
+                .create()
+            )
 
         Raises:
-            ValueError: If required fields (bin_name, index_name, index_type) are not set.
+            ValueError: If ``on_bin``, ``named``, or index type was not set.
+            AerospikeError: On server or transport failure (typed subclass when
+                the driver maps a result code).
+
+        See Also:
+            :meth:`drop`
         """
         if not self._bin_name:
             raise ValueError("bin_name is required. Call on_bin() first.")
@@ -142,14 +176,25 @@ class IndexBuilder:
                 self._collection_index_type,
             )
         except Exception as e:
-            raise convert_pac_exception(e) from e
+            raise _convert_pac_exception(e) from e
 
     async def drop(self) -> None:
-        """
-        Drop the index.
+        """Drop a previously created index by name.
+
+        Example::
+            await (
+                client.index(namespace="test", set_name="users")
+                .named("email_idx")
+                .drop()
+            )
 
         Raises:
-            ValueError: If index_name is not set.
+            ValueError: If :meth:`named` was not called.
+            AerospikeError: On server or transport failure.
+
+        Note:
+            Namespace and set come from the builder constructor, not from
+            :meth:`on_bin`.
         """
         if not self._index_name:
             raise ValueError("index_name is required. Call named() first.")
@@ -159,6 +204,4 @@ class IndexBuilder:
                 self._namespace, self._set_name, self._index_name
             )
         except Exception as e:
-            raise convert_pac_exception(e) from e
-
-
+            raise _convert_pac_exception(e) from e

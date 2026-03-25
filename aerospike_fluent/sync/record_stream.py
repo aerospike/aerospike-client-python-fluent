@@ -27,13 +27,30 @@ if TYPE_CHECKING:
 
 
 class SyncRecordStream:
-    """Synchronous iterable of :class:`RecordResult`.
+    """Blocking view of :class:`~aerospike_fluent.record_stream.RecordStream`.
 
-    Wraps an async :class:`RecordStream` and delegates to the event-loop
-    manager for each blocking call, following the existing PFC sync pattern.
+    Iterator protocol and helpers (``first``, ``collect``, …) call into the
+    underlying async stream via the parent client's event-loop manager, so
+    each step may block the calling thread until data is ready.
+
+    **Behavior vs async:** Ordering and per-row semantics match
+    :class:`~aerospike_fluent.record_stream.RecordStream`; only the API surface
+    is synchronous. ``close()`` closes the async stream directly without crossing
+    the loop (releases resources; pending async iteration should stop).
+
+    Example::
+        with SyncFluentClient("localhost:3000") as client:
+            session = client.create_session()
+            for row in session.query(ns, set).bins(["name"]).execute():
+                if row.record:
+                    print(row.record.bins)
+
+    See Also:
+        :class:`~aerospike_fluent.record_stream.RecordStream`
     """
 
     def __init__(self, stream: RecordStream, loop_manager: _EventLoopManager) -> None:
+        """Wrap ``stream`` for synchronous consumption (internal use)."""
         self._stream = stream
         self._loop_manager = loop_manager
 
@@ -54,25 +71,35 @@ class SyncRecordStream:
     # -- convenience methods -------------------------------------------------
 
     def first(self) -> RecordResult | None:
-        """Return the first result, or ``None`` if the stream is empty."""
+        """Return the first row, or ``None`` if the stream is empty.
+
+        See Also:
+            :meth:`~aerospike_fluent.record_stream.RecordStream.first`
+        """
         return self._loop_manager.run_async(self._stream.first())
 
     def first_or_raise(self) -> RecordResult:
-        """Return the first result (raising if not OK or empty)."""
+        """Return the first row or raise if the stream is empty or not OK.
+
+        Raises:
+            Same as :meth:`~aerospike_fluent.record_stream.RecordStream.first_or_raise`
+            (for example :class:`~aerospike_fluent.exceptions.AerospikeError` on a
+            failed row, empty-stream error from the async layer).
+        """
         return self._loop_manager.run_async(self._stream.first_or_raise())
 
     def first_udf_result(self) -> Any | None:
-        """Return the first non-``None`` ``udf_result`` from the stream."""
+        """Return the first non-``None`` :attr:`~RecordResult.udf_result`."""
         return self._loop_manager.run_async(self._stream.first_udf_result())
 
     def collect(self) -> list[RecordResult]:
-        """Materialise the entire stream into a list."""
+        """Drain the stream into a list (blocks until complete)."""
         return self._loop_manager.run_async(self._stream.collect())
 
     def failures(self) -> list[RecordResult]:
-        """Materialise and return only non-OK results."""
+        """Collect rows whose :attr:`~RecordResult.result_code` is not OK."""
         return self._loop_manager.run_async(self._stream.failures())
 
     def close(self) -> None:
-        """Close the underlying stream."""
+        """Release the underlying async stream."""
         self._stream.close()

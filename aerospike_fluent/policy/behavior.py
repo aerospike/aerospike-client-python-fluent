@@ -65,6 +65,12 @@ class Behavior:
             reads_batch=Settings(max_concurrent_nodes=8),
         )
         session = cluster.create_session(fast)
+
+    Attributes:
+        DEFAULT: Balanced defaults (30 s total timeout, 2 retries, send key).
+        READ_FAST: Low-latency reads (200 ms total, 50 ms socket, 3 retries).
+        STRICTLY_CONSISTENT: Placeholder for SC mode when PAC exposes it.
+        FAST_RACK_AWARE: Like READ_FAST with rack-preferred replica.
     """
 
     __slots__ = ("_name", "_patches", "_parent", "_children", "_resolved")
@@ -89,14 +95,17 @@ class Behavior:
 
     @property
     def name(self) -> str:
+        """Identifier for this behavior (for example ``'DEFAULT'``)."""
         return self._name
 
     @property
     def parent(self) -> Optional[Behavior]:
+        """Behavior from which this one inherits, or ``None`` for root."""
         return self._parent
 
     @property
     def children(self) -> List[Behavior]:
+        """Behaviors derived from this one via :meth:`derive_with_changes`."""
         return list(self._children)
 
     def get_settings(
@@ -151,6 +160,13 @@ class Behavior:
         Accepts either scope-keyed ``Settings`` objects or flat keyword
         arguments (which are applied to the ``ALL`` scope).  Both styles
         can be combined; flat kwargs are merged into the ``all`` Settings.
+
+        Example::
+
+            fast_reads = default_behavior.derive_with_changes(
+                "fast_reads",
+                reads=Settings(total_timeout=timedelta(milliseconds=200)),
+            )
         """
         patches: Dict[Scope, Settings] = {}
 
@@ -187,7 +203,11 @@ class Behavior:
         return Behavior(name=name, patches=patches, parent=self)
 
     def find_behavior(self, name: str) -> Optional[Behavior]:
-        """Search this behavior and its descendants for one with *name*."""
+        """Search this behavior and its descendants for one with *name*.
+
+        Returns:
+            The matching :class:`Behavior`, or ``None`` if not found.
+        """
         if self._name == name:
             return self
         for child in self._children:
@@ -197,7 +217,15 @@ class Behavior:
         return None
 
     def explain(self) -> str:
-        """Return a human-readable dump of patches and the resolved matrix."""
+        """Return a human-readable summary of overrides and resolved settings.
+
+        Example::
+
+            print(behavior.explain())
+
+        Returns:
+            Multi-line string with overrides and the full resolved settings matrix.
+        """
         lines: list[str] = [f"Behavior: {self._name}"]
 
         lines.append("--- Patches ---")
@@ -238,26 +266,31 @@ class Behavior:
 
     @property
     def total_timeout(self) -> timedelta:
+        """Total timeout for point reads (from ``READ:POINT:AP`` scope)."""
         s = self.get_settings(OpKind.READ, OpShape.POINT)
         return s.total_timeout if s.total_timeout is not None else timedelta(0)
 
     @property
     def socket_timeout(self) -> timedelta:
+        """Socket timeout for point reads (from ``READ:POINT:AP`` scope)."""
         s = self.get_settings(OpKind.READ, OpShape.POINT)
         return s.socket_timeout if s.socket_timeout is not None else timedelta(0)
 
     @property
     def max_retries(self) -> int:
+        """Max retries for point reads (from ``READ:POINT:AP`` scope)."""
         s = self.get_settings(OpKind.READ, OpShape.POINT)
         return s.max_retries if s.max_retries is not None else 0
 
     @property
     def retry_delay(self) -> timedelta:
+        """Retry delay for point reads (from ``READ:POINT:AP`` scope)."""
         s = self.get_settings(OpKind.READ, OpShape.POINT)
         return s.retry_delay if s.retry_delay is not None else timedelta(0)
 
     @property
     def send_key(self) -> bool:
+        """Whether to send the user key with point reads (from ``READ:POINT:AP`` scope)."""
         s = self.get_settings(OpKind.READ, OpShape.POINT)
         return s.send_key if s.send_key is not None else False
 

@@ -65,6 +65,15 @@ class CdtReadBuilder(Generic[T]):
 
     Navigation fields (``bin_name``, ``ctx``, ``to_ctx``) are optional;
     when not provided, further navigation is not available (terminal-only).
+
+    Example:
+        Read values from a map key within a query::
+
+            stream = await (
+                session.query(key)
+                    .bin("settings").on_map_key("theme").get_values()
+                    .execute()
+            )
     """
 
     __slots__ = (
@@ -144,7 +153,17 @@ class CdtReadBuilder(Generic[T]):
     # -- Singular CDT navigation (deeper nesting) ----------------------------
 
     def on_map_key(self, key: Any) -> CdtReadBuilder[T]:
-        """Navigate into a map element by key."""
+        """Navigate into a map element by key.
+
+        Args:
+            key: Map key to target.
+
+        Returns:
+            :class:`CdtReadBuilder` for reading the targeted element.
+
+        Example::
+            .bin("m").on_map_key("x").get_values()
+        """
         b, new_ctx, ctx_l = self._push_ctx()
         return self._build_navigated(
             op_factory=lambda rt: MapOperation.get_by_key(b, key, rt).set_context(ctx_l),
@@ -154,7 +173,14 @@ class CdtReadBuilder(Generic[T]):
         )
 
     def on_map_index(self, index: int) -> CdtReadBuilder[T]:
-        """Navigate into a map element by index."""
+        """Navigate into a map element by index.
+
+        Args:
+            index: Map index to target.
+
+        Returns:
+            :class:`CdtReadBuilder` for reading the targeted element.
+        """
         b, new_ctx, ctx_l = self._push_ctx()
         return self._build_navigated(
             op_factory=lambda rt: MapOperation.get_by_index(b, index, rt).set_context(ctx_l),
@@ -164,7 +190,14 @@ class CdtReadBuilder(Generic[T]):
         )
 
     def on_map_rank(self, rank: int) -> CdtReadBuilder[T]:
-        """Navigate into a map element by rank (0 = lowest value)."""
+        """Navigate into a map element by rank (0 = lowest value).
+
+        Args:
+            rank: Rank position (0 = lowest value).
+
+        Returns:
+            :class:`CdtReadBuilder` for reading the targeted element.
+        """
         b, new_ctx, ctx_l = self._push_ctx()
         return self._build_navigated(
             op_factory=lambda rt: MapOperation.get_by_rank(b, rank, rt).set_context(ctx_l),
@@ -174,7 +207,17 @@ class CdtReadBuilder(Generic[T]):
         )
 
     def on_list_index(self, index: int) -> CdtReadBuilder[T]:
-        """Navigate into a list element by index."""
+        """Navigate into a list element by index.
+
+        Args:
+            index: List index (0-based, negative counts from end).
+
+        Returns:
+            :class:`CdtReadBuilder` for reading the targeted element.
+
+        Example::
+            .bin("items").on_list_index(0).get_values()
+        """
         b, new_ctx, ctx_l = self._push_ctx()
         return self._build_navigated(
             op_factory=lambda rt: ListOperation.get_by_index(b, index, rt).set_context(ctx_l),
@@ -184,7 +227,14 @@ class CdtReadBuilder(Generic[T]):
         )
 
     def on_list_rank(self, rank: int) -> CdtReadBuilder[T]:
-        """Navigate into a list element by rank (0 = lowest value)."""
+        """Navigate into a list element by rank (0 = lowest value).
+
+        Args:
+            rank: Rank position (0 = lowest value).
+
+        Returns:
+            :class:`CdtReadBuilder` for reading the targeted element.
+        """
         b, new_ctx, ctx_l = self._push_ctx()
         return self._build_navigated(
             op_factory=lambda rt: ListOperation.get_by_rank(b, rank, rt).set_context(ctx_l),
@@ -196,37 +246,88 @@ class CdtReadBuilder(Generic[T]):
     # -- Terminal read methods ------------------------------------------------
 
     def get_values(self) -> T:
+        """Return value(s) at the current CDT selection.
+
+        Returns:
+            The parent builder for chaining.
+
+        Example::
+            .bin("m").on_map_key("x").get_values()
+        """
         return self._emit(self._rt.VALUE)
 
     def get_keys(self) -> T:
+        """Return map keys at the current CDT selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         self._require_map("get_keys")
         return self._emit(self._rt.KEY)
 
     def get_keys_and_values(self) -> T:
+        """Return map key-value pairs at the current CDT selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         self._require_map("get_keys_and_values")
         return self._emit(self._rt.KEY_VALUE)
 
     def count(self) -> T:
+        """Return the count of elements at the current CDT selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.COUNT)
 
     def get_indexes(self) -> T:
+        """Return indexes of the selected CDT elements.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.INDEX)
 
     def get_reverse_indexes(self) -> T:
+        """Return reverse indexes of the selected CDT elements.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.REVERSE_INDEX)
 
     def get_ranks(self) -> T:
+        """Return ranks of the selected CDT elements.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.RANK)
 
     def get_reverse_ranks(self) -> T:
+        """Return reverse ranks of the selected CDT elements.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.REVERSE_RANK)
 
     def exists(self) -> T:
-        """Check whether the selected CDT element(s) exist."""
+        """Check whether the selected CDT element(s) exist.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.EXISTS)
 
     def map_size(self) -> T:
-        """Return the element count of the map at the current CDT path."""
+        """Return the element count of the map at the current CDT path.
+
+        Returns:
+            The parent builder for chaining.
+        """
         op = MapOperation.size(self._bin_name).set_context(
             self._context_list_for_nested_ops(),
         )
@@ -234,7 +335,11 @@ class CdtReadBuilder(Generic[T]):
         return self._parent
 
     def list_size(self) -> T:
-        """Return the element count of the list at the current CDT path."""
+        """Return the element count of the list at the current CDT path.
+
+        Returns:
+            The parent builder for chaining.
+        """
         op = ListOperation.size(self._bin_name).set_context(
             self._context_list_for_nested_ops(),
         )
@@ -248,32 +353,77 @@ class CdtReadInvertableBuilder(CdtReadBuilder[T]):
     Used for range and list selectors where INVERTED makes semantic sense
     (e.g. "all keys *except* those in this range").  Does not support
     further navigation.
+
+    Example:
+        Get all map values *except* those in a key range::
+
+            .bin("m").on_map_key_range("a", "d").get_all_other_values()
     """
 
     # -- Inverted terminal methods --------------------------------------------
 
     def get_all_other_values(self) -> T:
+        """Return all values *except* those matching the selection (INVERTED).
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.VALUE | self._rt.INVERTED)
 
     def get_all_other_keys(self) -> T:
+        """Return all map keys *except* those matching the selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         self._require_map("get_all_other_keys")
         return self._emit(self._rt.KEY | self._rt.INVERTED)
 
     def get_all_other_keys_and_values(self) -> T:
+        """Return all map key-value pairs *except* those matching the selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         self._require_map("get_all_other_keys_and_values")
         return self._emit(self._rt.KEY_VALUE | self._rt.INVERTED)
 
     def count_all_others(self) -> T:
+        """Return the count of elements *except* those matching the selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.COUNT | self._rt.INVERTED)
 
     def get_all_other_indexes(self) -> T:
+        """Return indexes of all elements *except* those matching the selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.INDEX | self._rt.INVERTED)
 
     def get_all_other_reverse_indexes(self) -> T:
+        """Return reverse indexes of all elements *except* those matching the selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.REVERSE_INDEX | self._rt.INVERTED)
 
     def get_all_other_ranks(self) -> T:
+        """Return ranks of all elements *except* those matching the selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.RANK | self._rt.INVERTED)
 
     def get_all_other_reverse_ranks(self) -> T:
+        """Return reverse ranks of all elements *except* those matching the selection.
+
+        Returns:
+            The parent builder for chaining.
+        """
         return self._emit(self._rt.REVERSE_RANK | self._rt.INVERTED)

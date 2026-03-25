@@ -24,19 +24,19 @@ from aerospike_async import Key
 
 
 class DataSet:
-    """
-    Represents a dataset in Aerospike, which is a collection of records within a namespace.
-    A dataset is identified by a namespace and set name combination.
+    """Pair a namespace and set name for building :class:`~aerospike_async.Key` values.
 
-    This class provides a fluent API for creating Aerospike keys for records within the dataset.
-    It supports various key types including String, Integer, and byte array keys.
+    Use :meth:`of` as the factory, then :meth:`id` for one key or :meth:`ids` for
+    many. Pass keys to :meth:`~aerospike_fluent.aio.session.Session.query`,
+    :meth:`~aerospike_fluent.aio.session.Session.upsert`, and other session APIs.
 
     Example:
-        ```python
         users = DataSet.of("test", "users")
-        user_key = users.id("user123")
-        user_keys = users.ids("user1", "user2", "user3")
-        ```
+        k = users.id("user-123")
+        ks = users.ids("a", "b", "c")
+
+    See Also:
+        :class:`~aerospike_fluent.aio.session.Session`: Operations on keys.
     """
 
     def __init__(self, namespace: str, set_name: str) -> None:
@@ -60,18 +60,24 @@ class DataSet:
 
     @staticmethod
     def of(namespace: str, set_name: str) -> DataSet:
-        """
-        Create a new DataSet instance for the specified namespace and set.
+        """Construct a dataset handle for ``namespace`` and ``set_name``.
 
         Args:
-            namespace: The Aerospike namespace
-            set_name: The set name within the namespace
+            namespace: Non-empty Aerospike namespace name.
+            set_name: Non-empty set name within that namespace.
 
         Returns:
-            A new DataSet instance
+            A :class:`DataSet` sharing the same equality/hash for the pair.
 
         Raises:
-            ValueError: If namespace or set_name is empty
+            ValueError: If either string is empty.
+
+        Example:
+            orders = DataSet.of("prod", "orders")
+
+        See Also:
+            :meth:`id`: Build a single user key.
+            :meth:`ids`: Build several keys at once.
         """
         return DataSet(namespace, set_name)
 
@@ -86,22 +92,22 @@ class DataSet:
         return self._set_name
 
     def id(self, identifier: Union[str, int, bytes]) -> Key:
-        """
-        Create an Aerospike key with the given identifier.
+        """Build one :class:`~aerospike_async.Key` for this namespace and set.
 
         Args:
-            identifier: The key identifier (string, int, or bytes)
+            identifier: User key value (string, integer, or bytes).
 
         Returns:
-            A new Key instance
+            A :class:`~aerospike_async.Key` bound to this dataset's namespace/set.
 
         Example:
-            ```python
             users = DataSet.of("test", "users")
-            key1 = users.id("user123")  # String key
-            key2 = users.id(12345)      # Integer key
-            key3 = users.id(b"bytes")   # Bytes key
-            ```
+            key_str = users.id("user123")
+            key_int = users.id(12345)
+            key_bin = users.id(b"pk")
+
+        See Also:
+            :meth:`ids`: Multiple keys in one call.
         """
         return Key(self._namespace, self._set_name, identifier)
 
@@ -193,30 +199,31 @@ class DataSet:
         self,
         *identifiers: Union[str, int, bytes],
     ) -> List[Key]:
-        """
-        Create multiple Aerospike keys from identifiers.
+        """Build many keys sharing this dataset's namespace and set.
 
-        Can be called with:
-        - Multiple positional arguments: `ids("id1", "id2", "id3")`
-        - A single list argument: `ids(["id1", "id2", "id3"])`
+        Call either with several positional identifiers
+        (``ids("a", "b", "c")``) or with a single list
+        (``ids(["a", "b", "c"])``). Mixed-type lists use :meth:`id_for_object`
+        per element when the single-list form is used.
 
         Args:
-            *identifiers: Variable number of identifiers (str, int, or bytes)
-                          OR a single list of identifiers
+            *identifiers: One or more identifiers, or exactly one list of
+                identifiers.
 
         Returns:
-            A list of Key instances
+            A list of :class:`~aerospike_async.Key` instances in input order.
+
+        Raises:
+            TypeError: If list elements are not supported key types.
 
         Example:
-            ```python
             users = DataSet.of("test", "users")
-            # Multiple arguments
-            keys1 = users.ids("user1", "user2", "user3")
-            # Single list argument
-            keys2 = users.ids(["user1", "user2", "user3"])
-            # Integer keys
-            keys3 = users.ids(1, 2, 3, 4, 5)
-            ```
+            keys1 = users.ids("u1", "u2", "u3")
+            keys2 = users.ids(["u1", "u2"])
+            keys3 = users.ids(1, 2, 3)
+
+        See Also:
+            :meth:`id`: Single-key helper.
         """
         # Handle case where a single list is passed
         if len(identifiers) == 1 and isinstance(identifiers[0], list):

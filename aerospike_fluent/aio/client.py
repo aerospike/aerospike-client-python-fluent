@@ -42,20 +42,25 @@ if typing.TYPE_CHECKING:
 
 
 class FluentClient:
-    """
-    Fluent API wrapper for the Aerospike Python Async Client.
+    """Async entry point for the Fluent API over the Aerospike Python Async Client.
 
-    Provides a more intuitive and chainable interface for database operations.
+    Use ``async with FluentClient(...) as client`` (or ``await connect()``) to
+    open a connection, then :meth:`create_session` for reads and writes with a
+    chosen :class:`~aerospike_fluent.policy.behavior.Behavior`.
 
     Example:
-        ```python
-        async with FluentClient("localhost:3000") as client:
-            async for record in client.query(
+        async with FluentClient("127.0.0.1:3000") as client:
+            session = client.create_session()
+            stream = await client.query(
                 namespace="test",
-                set_name="users"
-            ).execute():
-                print(record.bins)
-        ```
+                set_name="users",
+            ).execute()
+            async for row in stream:
+                if row.record is not None:
+                    print(row.record.bins)
+
+    See Also:
+        :meth:`create_session`: Primary API for application code.
     """
 
     def __init__(
@@ -63,16 +68,17 @@ class FluentClient:
         seeds: str,
         policy: Optional[ClientPolicy] = None,
     ) -> None:
-        """
-        Initialize a FluentClient.
+        """Store cluster seeds and policy; connection starts in :meth:`connect` or ``async with``.
 
         Args:
-            seeds: Aerospike cluster seed addresses (e.g., "localhost:3000")
-            policy: Optional client policy. If None, a default policy is used.
+            seeds: Seed address string understood by the async client (for example
+                ``"127.0.0.1:3000"`` or a comma-separated host list if supported).
+            policy: Optional :class:`~aerospike_async.ClientPolicy`; defaults to a
+                new client policy when omitted.
 
         Note:
-            The client is not connected until `connect()` is called or
-            the client is used as a context manager.
+            No network I/O occurs here. The client connects when you ``await
+            connect()`` or enter ``async with``.
         """
         self._seeds = seeds
         if policy is None:
@@ -82,11 +88,20 @@ class FluentClient:
         self._connected = False
 
     async def connect(self) -> None:
-        """
-        Connect to the Aerospike cluster.
+        """Open a connection to the cluster using the configured seeds and policy.
+
+        Idempotent: if already connected, returns immediately.
 
         Raises:
-            ConnectionError: If connection fails.
+            ConnectionError: If the async client cannot reach the cluster (from PAC).
+
+        See Also:
+            :meth:`close`: Release the connection.
+
+        Example::
+
+            client = FluentClient(ClusterDefinition("localhost", 3000))
+            await client.connect()
         """
         if self._connected and self._client is not None:
             return
@@ -95,7 +110,13 @@ class FluentClient:
         self._connected = True
 
     async def close(self) -> None:
-        """Close the connection to the Aerospike cluster."""
+        """Close the underlying async client and clear connection state.
+
+        Safe to call when already closed.
+
+        See Also:
+            :meth:`connect`.
+        """
         if self._client is not None:
             await self._client.close()
             self._client = None
@@ -117,7 +138,11 @@ class FluentClient:
 
     @property
     def is_connected(self) -> bool:
-        """Check if the client is connected."""
+        """Check if the client is connected.
+
+        Returns:
+            ``True`` when :meth:`connect` has succeeded and :meth:`close` has not been called.
+        """
         return self._connected
 
     @property
@@ -248,15 +273,34 @@ class FluentClient:
            ```
 
         Args:
-            arg1: Optional positional argument (DataSet, Key, or List[Key]).
-            namespace: The namespace name (if not using DataSet or Key).
-            set_name: The set name (if not using DataSet or Key).
-            dataset: Optional DataSet to use for namespace/set.
-            key: Optional single Key for point read.
-            keys: Optional list of Keys for batch read.
+            arg1: Optional first positional: :class:`~aerospike_fluent.dataset.DataSet`,
+                :class:`~aerospike_async.Key`, list of keys, or namespace string for
+                the ``("namespace", "set")`` pair form.
+            set_name: When ``arg1`` is a namespace string, the set name as the second
+                positional (``client.query("test", "users")``).
+            namespace: Optional third positional; not used for the usual two-string
+                namespace/set pair (that form uses ``arg1`` and ``set_name``).
+            dataset: Keyword-only :class:`~aerospike_fluent.dataset.DataSet`.
+            key: Keyword-only single key for a point read.
+            keys: Keyword-only list of keys for a batch read.
+            behavior: Optional :class:`~aerospike_fluent.policy.behavior.Behavior`
+                for timeouts, retries, and replica settings on this builder. If
+                ``None``, the client uses generic defaults (unlike
+                :meth:`~aerospike_fluent.aio.session.Session.query`, which applies
+                the session's behavior automatically).
 
         Returns:
-            A QueryBuilder for chaining query operations.
+            A :class:`~aerospike_fluent.aio.operations.query.QueryBuilder` for
+            chaining filters, bin selection, and execution.
+
+        Raises:
+            TypeError: If a positional argument is not a dataset, key, or key list.
+            ValueError: If required namespace/set information is missing or key
+                lists are empty.
+
+        See Also:
+            :meth:`~aerospike_fluent.aio.session.Session.query`: Same builder with
+                session-scoped behavior.
         """
         from aerospike_fluent.aio.operations.query import QueryBuilder
 
@@ -444,20 +488,24 @@ class FluentClient:
                      If None, uses Behavior.DEFAULT.
 
         Returns:
-            A new Session instance.
+            A new :class:`~aerospike_fluent.aio.session.Session` bound to this
+            client.
 
         Example:
-            ```python
-            # Create a session with default behavior
             session = client.create_session()
+            users = DataSet.of("test", "users")
+            await session.upsert(users.id(1)).put({"k": 1}).execute()
 
-            # Create a session with custom behavior
-            fast_behavior = Behavior.DEFAULT.derive_with_changes(
+        Example:
+            from datetime import timedelta
+            fast = Behavior.DEFAULT.derive_with_changes(
                 name="fast",
-                total_timeout=timedelta(seconds=5)
+                total_timeout=timedelta(seconds=5),
             )
-            session = client.create_session(fast_behavior)
-            ```
+            session = client.create_session(fast)
+
+        See Also:
+            :class:`~aerospike_fluent.policy.behavior.Behavior`: Available presets.
         """
         from aerospike_fluent.aio.session import Session
 
@@ -474,7 +522,31 @@ class FluentClient:
         *,
         policy: Optional[AdminPolicy] = None,
     ) -> RegisterTask:
-        """Register a UDF module from bytes (passthrough to the async client)."""
+        """Register a UDF package from in-memory bytes on the cluster.
+
+        Args:
+            body: Raw module source (for example UTF-8 encoded Lua).
+            server_path: Path name stored on the server (often ends with ``.lua``).
+            language: :class:`~aerospike_async.UDFLang`; default is Lua.
+            policy: Optional :class:`~aerospike_async.AdminPolicy` (PAC leading
+                argument); use keyword ``policy=``.
+
+        Returns:
+            A :class:`~aerospike_async.RegisterTask`; await
+            ``wait_till_complete(...)`` until propagation finishes.
+
+        Raises:
+            RuntimeError: If not connected.
+            AerospikeError: On cluster or admin errors (via PAC).
+
+        See Also:
+            :meth:`register_udf_from_file`: Load source from disk.
+
+        Example::
+
+            task = await client.register_udf("my_module", udf_source_code)
+            await task.wait_till_complete()
+        """
         return await self._async_client.register_udf(
             policy, body, server_path, language)
 
@@ -486,7 +558,30 @@ class FluentClient:
         *,
         policy: Optional[AdminPolicy] = None,
     ) -> RegisterTask:
-        """Register a UDF module from a local file path."""
+        """Register a UDF by reading module bytes from a local path.
+
+        Args:
+            client_path: Filesystem path to the module file on the client machine.
+            server_path: Path name stored on the server.
+            language: :class:`~aerospike_async.UDFLang`; default is Lua.
+            policy: Optional admin policy; use keyword ``policy=``.
+
+        Returns:
+            A :class:`~aerospike_async.RegisterTask` for completion polling.
+
+        Raises:
+            RuntimeError: If not connected.
+            OSError: If ``client_path`` cannot be read.
+            AerospikeError: On cluster or admin errors (via PAC).
+
+        See Also:
+            :meth:`register_udf`: Register from bytes.
+
+        Example::
+
+            task = await client.register_udf_from_file("scripts/my_module.lua", "my_module.lua")
+            await task.wait_till_complete()
+        """
         return await self._async_client.register_udf_from_file(
             policy, client_path, server_path, language)
 
@@ -496,6 +591,23 @@ class FluentClient:
         *,
         policy: Optional[AdminPolicy] = None,
     ) -> UdfRemoveTask:
-        """Remove a UDF module from the cluster by server path."""
+        """Remove a registered UDF package from the cluster.
+
+        Args:
+            server_path: Same server path used when registering the module.
+            policy: Optional admin policy; use keyword ``policy=``.
+
+        Returns:
+            A :class:`~aerospike_async.UdfRemoveTask`; await completion like register.
+
+        Raises:
+            RuntimeError: If not connected.
+            AerospikeError: On cluster or admin errors (via PAC).
+
+        Example::
+
+            task = await client.remove_udf("my_module")
+            await task.wait_till_complete()
+        """
         return await self._async_client.remove_udf(policy, server_path)
 
