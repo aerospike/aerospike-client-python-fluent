@@ -17,9 +17,10 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from aerospike_async import (
+    CTX,
     Client,
     CollectionIndexType,
     IndexType,
@@ -32,8 +33,8 @@ class IndexBuilder:
     """Configure a secondary index, then :meth:`create` or :meth:`drop` it.
 
     Typical chain for a new index: :meth:`on_bin` → :meth:`named` →
-    :meth:`numeric` or :meth:`string` → optional :meth:`collection` for
-    collection indexes → ``await`` :meth:`create`.
+    :meth:`numeric` or :meth:`string` → optional :meth:`collection` or
+    :meth:`context` → ``await`` :meth:`create`.
 
     For removal, only :meth:`named` (and namespace/set from construction) is
     required before ``await`` :meth:`drop`.
@@ -72,6 +73,7 @@ class IndexBuilder:
         self._index_name: Optional[str] = None
         self._index_type: Optional[IndexType] = None
         self._collection_index_type: Optional[CollectionIndexType] = None
+        self._ctx: Optional[List[CTX]] = None
 
     def on_bin(self, bin_name: str) -> IndexBuilder:
         """Set which bin this secondary index covers (required before :meth:`create`).
@@ -139,6 +141,32 @@ class IndexBuilder:
         self._collection_index_type = collection_index_type
         return self
 
+    def context(self, ctx: List[CTX]) -> IndexBuilder:
+        """Set a CDT context path for indexing a nested list or map element.
+
+        Args:
+            ctx: One or more ``CTX`` entries describing the path to the
+                nested element (e.g., ``[CTX.map_key("outer"), CTX.list_index(0)]``).
+
+        Returns:
+            ``self`` for method chaining.
+
+        Example::
+            await (
+                client.index("test", "events")
+                .on_bin("payload")
+                .named("nested_ts_idx")
+                .numeric()
+                .context([CTX.map_key("meta"), CTX.map_key("timestamp")])
+                .create()
+            )
+
+        See Also:
+            :meth:`~aerospike_async.Filter.context`: Attach the same path when querying.
+        """
+        self._ctx = ctx
+        return self
+
     async def create(self) -> None:
         """Create the index on the cluster.
 
@@ -174,6 +202,7 @@ class IndexBuilder:
                 self._index_name,
                 self._index_type,
                 self._collection_index_type,
+                self._ctx,
             )
         except Exception as e:
             raise _convert_pac_exception(e) from e

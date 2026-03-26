@@ -20,7 +20,6 @@ import pytest
 from aerospike_fluent import DataSet, FluentClient
 
 
-@pytest.mark.asyncio
 async def test_key_value_with_dataset(aerospike_host, client_policy):
     """Test key_value operation using DataSet."""
     users = DataSet.of("test", "users")
@@ -41,7 +40,6 @@ async def test_key_value_with_dataset(aerospike_host, client_policy):
         # Clean up
         await session.delete(key).execute()
 
-@pytest.mark.asyncio
 async def test_key_value_with_key_object(aerospike_host, client_policy):
     """Test key_value operation using Key object."""
     users = DataSet.of("test", "users")
@@ -62,7 +60,6 @@ async def test_key_value_with_key_object(aerospike_host, client_policy):
         # Clean up
         await session.delete(key).execute()
 
-@pytest.mark.asyncio
 async def test_query_with_dataset(aerospike_host, client_policy):
     """Test query operation using DataSet."""
     users = DataSet.of("test", "query_test")
@@ -89,7 +86,6 @@ async def test_query_with_dataset(aerospike_host, client_policy):
         await session.delete(users.id("q1")).execute()
         await session.delete(users.id("q2")).execute()
 
-@pytest.mark.asyncio
 async def test_query_with_single_key(aerospike_host, client_policy):
     """Test query operation using a single Key."""
     users = DataSet.of("test", "users")
@@ -114,7 +110,6 @@ async def test_query_with_single_key(aerospike_host, client_policy):
         # Clean up
         await session.delete(key).execute()
 
-@pytest.mark.asyncio
 async def test_query_with_multiple_keys(aerospike_host, client_policy):
     """Test query operation using multiple Keys."""
     users = DataSet.of("test", "users")

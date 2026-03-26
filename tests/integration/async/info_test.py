@@ -16,24 +16,22 @@
 """Tests for InfoCommands."""
 
 import pytest
-import pytest_asyncio
 from aerospike_fluent import Behavior, FluentClient
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def session(client):
     """Setup session with default behavior for testing."""
     return client.create_session(Behavior.DEFAULT)
 
 
-@pytest.mark.asyncio
 async def test_info_creation(session):
     """Test creating an InfoCommands instance."""
     info = session.info()
@@ -41,7 +39,6 @@ async def test_info_creation(session):
     assert info._session is session
 
 
-@pytest.mark.asyncio
 async def test_build(session):
     """Test getting build information."""
     info = session.info()
@@ -52,7 +49,6 @@ async def test_build(session):
     assert all(isinstance(b, str) for b in build_info), "All build strings should be strings"
 
 
-@pytest.mark.asyncio
 async def test_namespaces(session):
     """Test getting list of namespaces."""
     info = session.info()
@@ -63,7 +59,6 @@ async def test_namespaces(session):
     assert all(isinstance(ns, str) for ns in namespaces), "All namespaces should be strings"
 
 
-@pytest.mark.asyncio
 async def test_namespace_details(session):
     """Test getting namespace details."""
     info = session.info()
@@ -82,7 +77,6 @@ async def test_namespace_details(session):
     assert len(details) > 0, "Namespace details should contain data"
 
 
-@pytest.mark.asyncio
 async def test_namespace_details_nonexistent(session):
     """Test getting details for a non-existent namespace."""
     info = session.info()
@@ -91,7 +85,6 @@ async def test_namespace_details_nonexistent(session):
     assert details is None
 
 
-@pytest.mark.asyncio
 async def test_sets(session):
     """Test getting list of sets in a namespace."""
     info = session.info()
@@ -109,7 +102,6 @@ async def test_sets(session):
     assert all(isinstance(s, str) for s in sets), "All sets should be strings"
 
 
-@pytest.mark.asyncio
 async def test_secondary_indexes(session):
     """Test getting list of secondary indexes."""
     info = session.info()
@@ -125,7 +117,6 @@ async def test_secondary_indexes(session):
         assert "name" in idx
 
 
-@pytest.mark.asyncio
 async def test_secondary_indexes_with_namespace_filter(session):
     """Test getting secondary indexes filtered by namespace."""
     info = session.info()
@@ -145,7 +136,6 @@ async def test_secondary_indexes_with_namespace_filter(session):
         assert idx["namespace"] == test_namespace
 
 
-@pytest.mark.asyncio
 async def test_secondary_index_details(session):
     """Test getting details for a specific secondary index."""
     info = session.info()
@@ -166,7 +156,6 @@ async def test_secondary_index_details(session):
         assert isinstance(details, dict)
 
 
-@pytest.mark.asyncio
 async def test_secondary_index_details_nonexistent(session):
     """Test getting details for a non-existent secondary index."""
     info = session.info()
@@ -182,7 +171,6 @@ async def test_secondary_index_details_nonexistent(session):
     assert details is None
 
 
-@pytest.mark.asyncio
 async def test_get_cluster_size(session):
     """Test getting cluster size."""
     info = session.info()
@@ -192,7 +180,6 @@ async def test_get_cluster_size(session):
     assert cluster_size > 0, "Should have at least one node"
 
 
-@pytest.mark.asyncio
 async def test_is_cluster_stable(session):
     """Test checking if cluster is stable."""
     info = session.info()
@@ -201,7 +188,6 @@ async def test_is_cluster_stable(session):
     assert isinstance(is_stable, bool)
 
 
-@pytest.mark.asyncio
 async def test_info_build(session):
     """Test executing raw info command for build information (InfoCommands style)."""
     info = session.info()
@@ -211,7 +197,6 @@ async def test_info_build(session):
     assert len(response) > 0, "Build info should contain data"
 
 
-@pytest.mark.asyncio
 async def test_info_statistics(session):
     """Test executing raw info command for statistics (InfoCommands style)."""
     info = session.info()
@@ -221,7 +206,6 @@ async def test_info_statistics(session):
     assert len(response) > 0, "Statistics should contain data"
 
 
-@pytest.mark.asyncio
 async def test_info_direct_build(session):
     """Test session.info(command) style for build (new style, no .info().info())."""
     response = await session.info("build")
@@ -230,7 +214,6 @@ async def test_info_direct_build(session):
     assert len(response) > 0, "Build info should contain data"
 
 
-@pytest.mark.asyncio
 async def test_info_direct_statistics(session):
     """Test session.info(command) style for statistics (new style)."""
     response = await session.info("statistics")
@@ -239,7 +222,6 @@ async def test_info_direct_statistics(session):
     assert len(response) > 0, "Statistics should contain data"
 
 
-@pytest.mark.asyncio
 async def test_info_direct_sindex_list(session):
     """Test session.info(command) style for sindex-list (new style)."""
     response = await session.info("sindex-list")
@@ -248,7 +230,6 @@ async def test_info_direct_sindex_list(session):
     assert len(response) > 0, "sindex-list should return data from at least one node"
 
 
-@pytest.mark.asyncio
 async def test_info_both_styles_equivalent(session):
     """Test that session.info(cmd) and session.info().info(cmd) return equivalent results."""
     direct = await session.info("build")
@@ -262,7 +243,6 @@ async def test_info_both_styles_equivalent(session):
         assert direct[key] == via_commands[key], f"Same content for node {key}"
 
 
-@pytest.mark.asyncio
 async def test_info_on_all_nodes_build(session):
     """Test executing info command on all nodes for build information."""
     info = session.info()
@@ -278,7 +258,6 @@ async def test_info_on_all_nodes_build(session):
         assert len(node_response) > 0, "Node response should contain data"
 
 
-@pytest.mark.asyncio
 async def test_info_on_all_nodes_statistics(session):
     """Test executing info command on all nodes for statistics."""
     info = session.info()

@@ -16,7 +16,6 @@
 """Integration tests for session.background_task() (async)."""
 
 import pytest
-import pytest_asyncio
 from aerospike_async import Operation, UDFLang
 
 from aerospike_fluent import DataSet, FluentClient
@@ -60,7 +59,7 @@ end
 """
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
@@ -80,7 +79,6 @@ async def client(aerospike_host, client_policy):
         yield c
 
 
-@pytest.mark.asyncio
 async def test_background_update(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -104,7 +102,6 @@ async def test_background_update(client):
         assert rr.record.bins.get(BG_BIN2) == "updated"
 
 
-@pytest.mark.asyncio
 async def test_background_update_with_where(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -132,7 +129,6 @@ async def test_background_update_with_where(client):
             assert rr.record.bins.get(BG_BIN2) == "original"
 
 
-@pytest.mark.asyncio
 async def test_background_delete(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -158,7 +154,6 @@ async def test_background_delete(client):
             assert rr.is_ok
 
 
-@pytest.mark.asyncio
 async def test_background_touch(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -177,7 +172,6 @@ async def test_background_touch(client):
     assert rr.record.ttl > 0
 
 
-@pytest.mark.asyncio
 async def test_background_udf(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -201,7 +195,6 @@ async def test_background_udf(client):
     assert rr.record.bins.get(BG_BIN2) == "udf_written"
 
 
-@pytest.mark.asyncio
 async def test_background_udf_with_args(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -225,7 +218,6 @@ async def test_background_udf_with_args(client):
         assert rr.record.bins.get(BG_BIN) == i + 100
 
 
-@pytest.mark.asyncio
 async def test_background_udf_with_where(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -254,7 +246,6 @@ async def test_background_udf_with_where(client):
             assert rr.record.bins.get(BG_BIN2) == "original"
 
 
-@pytest.mark.asyncio
 async def test_background_udf_with_records_per_second(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -279,7 +270,6 @@ async def test_background_udf_with_records_per_second(client):
     assert rr.record.bins.get(BG_BIN2) == "rate_limited"
 
 
-@pytest.mark.asyncio
 async def test_background_udf_with_validation(client):
     session = client.create_session()
     for i in range(1, 11):
@@ -304,7 +294,6 @@ async def test_background_udf_with_validation(client):
         assert rr.record.bins.get(BG_BIN2) == 5
 
 
-@pytest.mark.asyncio
 async def test_legacy_query_builder_background_scan(client):
     session = client.create_session()
     for i in range(5):
@@ -321,7 +310,6 @@ async def test_legacy_query_builder_background_scan(client):
     assert rec.record.bins.get(MARKER) == 1
 
 
-@pytest.mark.asyncio
 async def test_point_query_rejects_background_task(client):
     session = client.create_session()
     k = DS.id(40)

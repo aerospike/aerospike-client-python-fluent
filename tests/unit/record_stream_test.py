@@ -53,7 +53,6 @@ def _fail_result(idx: int = 0) -> RecordResult:
 
 class TestFromList:
 
-    @pytest.mark.asyncio
     async def test_iterates_all(self):
         items = [_ok_result(0), _ok_result(1), _ok_result(2)]
         stream = RecordStream.from_list(items)
@@ -61,7 +60,6 @@ class TestFromList:
         assert len(collected) == 3
         assert [r.index for r in collected] == [0, 1, 2]
 
-    @pytest.mark.asyncio
     async def test_empty_list(self):
         stream = RecordStream.from_list([])
         collected = await stream.collect()
@@ -74,7 +72,6 @@ class TestFromList:
 
 class TestFromSingle:
 
-    @pytest.mark.asyncio
     async def test_found_record(self):
         rec = _record(x=1)
         stream = RecordStream.from_single(_key(), rec)
@@ -83,7 +80,6 @@ class TestFromSingle:
         assert results[0].is_ok
         assert results[0].record is rec
 
-    @pytest.mark.asyncio
     async def test_not_found(self):
         stream = RecordStream.from_single(_key(), None)
         results = await stream.collect()
@@ -98,7 +94,6 @@ class TestFromSingle:
 
 class TestFromError:
 
-    @pytest.mark.asyncio
     async def test_wraps_error_as_single_result(self):
         stream = RecordStream.from_error(_key(), ResultCode.KEY_NOT_FOUND_ERROR)
         results = await stream.collect()
@@ -108,7 +103,6 @@ class TestFromError:
         assert results[0].record is None
         assert results[0].in_doubt is False
 
-    @pytest.mark.asyncio
     async def test_preserves_in_doubt(self):
         stream = RecordStream.from_error(
             _key(), ResultCode.TIMEOUT, in_doubt=True)
@@ -122,7 +116,6 @@ class TestFromError:
 
 class TestFromBatchRecords:
 
-    @pytest.mark.asyncio
     async def test_converts_and_iterates(self):
         br1 = SimpleNamespace(
             key=_key(1), record=_record(),
@@ -162,7 +155,6 @@ class _FakeRecordset:
 
 class TestFromRecordset:
 
-    @pytest.mark.asyncio
     async def test_wraps_async_iterable(self):
         rec1 = SimpleNamespace(bins={"a": 1}, key=_key(1))
         rec2 = SimpleNamespace(bins={"b": 2}, key=_key(2))
@@ -173,12 +165,10 @@ class TestFromRecordset:
         assert all(r.is_ok for r in results)
         assert results[0].record is rec1
 
-    @pytest.mark.asyncio
     async def test_empty_recordset(self):
         stream = RecordStream.from_recordset(_FakeRecordset([]))
         assert await stream.collect() == []
 
-    @pytest.mark.asyncio
     async def test_fallback_key_when_no_key_attribute(self):
         rec = SimpleNamespace(bins={"x": 1})
         stream = RecordStream.from_recordset(_FakeRecordset([rec]))
@@ -194,31 +184,26 @@ class TestFromRecordset:
 
 class TestFirst:
 
-    @pytest.mark.asyncio
     async def test_first_returns_item(self):
         stream = RecordStream.from_list([_ok_result(0), _ok_result(1)])
         result = await stream.first()
         assert result is not None
         assert result.index == 0
 
-    @pytest.mark.asyncio
     async def test_first_empty_returns_none(self):
         stream = RecordStream.from_list([])
         assert await stream.first() is None
 
-    @pytest.mark.asyncio
     async def test_first_or_raise_ok(self):
         stream = RecordStream.from_list([_ok_result()])
         result = await stream.first_or_raise()
         assert result.is_ok
 
-    @pytest.mark.asyncio
     async def test_first_or_raise_empty(self):
         stream = RecordStream.from_list([])
         with pytest.raises(StopAsyncIteration):
             await stream.first_or_raise()
 
-    @pytest.mark.asyncio
     async def test_first_or_raise_error(self):
         from aerospike_fluent.exceptions import AerospikeError
         stream = RecordStream.from_list([_fail_result()])
@@ -232,7 +217,6 @@ class TestFirst:
 
 class TestFailures:
 
-    @pytest.mark.asyncio
     async def test_filters_to_non_ok(self):
         items = [_ok_result(0), _fail_result(1), _ok_result(2), _fail_result(3)]
         stream = RecordStream.from_list(items)
@@ -240,7 +224,6 @@ class TestFailures:
         assert len(fails) == 2
         assert [f.index for f in fails] == [1, 3]
 
-    @pytest.mark.asyncio
     async def test_no_failures(self):
         stream = RecordStream.from_list([_ok_result()])
         fails = await stream.failures()
@@ -253,14 +236,12 @@ class TestFailures:
 
 class TestClose:
 
-    @pytest.mark.asyncio
     async def test_close_stops_iteration(self):
         stream = RecordStream.from_list([_ok_result(), _ok_result()])
         stream.close()
         collected = await stream.collect()
         assert collected == []
 
-    @pytest.mark.asyncio
     async def test_close_is_idempotent(self):
         stream = RecordStream.from_list([_ok_result()])
         stream.close()
@@ -274,7 +255,6 @@ class TestClose:
 
 class TestErrorPropagation:
 
-    @pytest.mark.asyncio
     async def test_source_error_propagates(self):
         async def _exploding() -> AsyncIterator[RecordResult]:
             yield _ok_result(0)
@@ -294,7 +274,6 @@ class TestErrorPropagation:
 
 class TestExhaustion:
 
-    @pytest.mark.asyncio
     async def test_stream_exhausted_after_collect(self):
         stream = RecordStream.from_list([_ok_result(), _ok_result()])
         first = await stream.collect()

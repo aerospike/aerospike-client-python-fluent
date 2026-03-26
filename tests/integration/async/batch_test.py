@@ -22,7 +22,6 @@ Tests both:
 """
 
 import pytest
-import pytest_asyncio
 from aerospike_async.exceptions import ResultCode
 
 from aerospike_fluent.aio.client import FluentClient
@@ -30,7 +29,7 @@ from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.exceptions import AerospikeError
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -283,7 +282,7 @@ class TestHomogeneousBatchOperations:
     - batchDelete
     """
 
-    @pytest_asyncio.fixture
+    @pytest.fixture
     async def setup_batch_data(self, client: FluentClient, users: DataSet):
         """Setup test data for batch operations."""
         session = client.create_session()

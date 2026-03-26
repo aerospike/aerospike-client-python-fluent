@@ -17,9 +17,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
-from aerospike_async import CollectionIndexType, IndexType
+from aerospike_async import CTX, CollectionIndexType, IndexType
 
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.aio.operations.index import IndexBuilder
@@ -53,6 +53,7 @@ class SyncIndexBuilder:
         self._index_name: Optional[str] = None
         self._index_type: Optional[IndexType] = None
         self._collection_index_type: Optional[CollectionIndexType] = None
+        self._ctx: Optional[List[CTX]] = None
 
     def _get_async_builder(self) -> IndexBuilder:
         """Get the underlying async index builder."""
@@ -72,6 +73,8 @@ class SyncIndexBuilder:
                 builder.string()
         if self._collection_index_type:
             builder.collection(self._collection_index_type)
+        if self._ctx:
+            builder.context(self._ctx)
         return builder
 
     def on_bin(self, bin_name: str) -> SyncIndexBuilder:
@@ -104,6 +107,18 @@ class SyncIndexBuilder:
                 :meth:`~aerospike_fluent.aio.operations.index.IndexBuilder.collection`.
         """
         self._collection_index_type = collection_index_type
+        return self
+
+    def context(self, ctx: List[CTX]) -> SyncIndexBuilder:
+        """Set a CDT context path for indexing a nested list or map element.
+
+        Args:
+            ctx: CDT path entries (e.g., ``[CTX.map_key("outer")]``).
+
+        Returns:
+            ``self`` for method chaining.
+        """
+        self._ctx = ctx
         return self
 
     def create(self) -> None:

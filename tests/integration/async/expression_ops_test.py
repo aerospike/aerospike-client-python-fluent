@@ -28,7 +28,6 @@ Coverage:
 """
 
 import pytest
-import pytest_asyncio
 
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode, ServerError
@@ -42,7 +41,7 @@ KEY_A = "exp_A"
 KEY_B = "exp_B"
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client, seed test data, yield the client, cleanup."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
@@ -74,7 +73,6 @@ def _key(name: str) -> Key:
 
 class TestSelectFrom:
 
-    @pytest.mark.asyncio
     async def test_select_from_returns_int(self, client):
         """select_from evaluating an integer DSL expression."""
         rs = await (
@@ -84,7 +82,6 @@ class TestSelectFrom:
         result = await rs.first_or_raise()
         assert result.record.bins["ev"] == 5
 
-    @pytest.mark.asyncio
     async def test_select_from_returns_string(self, client):
         """select_from evaluating a string DSL expression."""
         rs = await (
@@ -94,7 +91,6 @@ class TestSelectFrom:
         result = await rs.first_or_raise()
         assert result.record.bins["ev"] == "hello"
 
-    @pytest.mark.asyncio
     async def test_select_from_returns_boolean(self, client):
         """select_from evaluating a boolean DSL expression."""
         rs = await (
@@ -104,7 +100,6 @@ class TestSelectFrom:
         result = await rs.first_or_raise()
         assert result.record.bins["ev"] is True
 
-    @pytest.mark.asyncio
     async def test_select_from_eval_error(self, client):
         """select_from referencing a missing bin raises server error."""
         with pytest.raises((AerospikeError, ServerError)):
@@ -114,7 +109,6 @@ class TestSelectFrom:
             )
             await rs.first_or_raise()
 
-    @pytest.mark.asyncio
     async def test_select_from_ignore_eval_failure(self, client):
         """select_from with ignore_eval_failure returns None on missing bin."""
         rs = await (
@@ -124,7 +118,6 @@ class TestSelectFrom:
         result = await rs.first_or_raise()
         assert result.record.bins.get("ev") is None
 
-    @pytest.mark.asyncio
     async def test_multiple_select_from(self, client):
         """Multiple select_from in same execute (expMerge pattern)."""
         rs = await (
@@ -144,7 +137,6 @@ class TestSelectFrom:
 
 class TestUpsertFrom:
 
-    @pytest.mark.asyncio
     async def test_upsert_from_creates_bin(self, client):
         """upsert_from writes computed value to a new bin."""
         session = client.create_session()
@@ -156,7 +148,6 @@ class TestUpsertFrom:
         result = await rec.first_or_raise()
         assert result.record.bins["C"] == 5
 
-    @pytest.mark.asyncio
     async def test_upsert_from_overwrites_bin(self, client):
         """upsert_from overwrites an existing bin."""
         session = client.create_session()
@@ -171,7 +162,6 @@ class TestUpsertFrom:
 
 class TestUpdateFrom:
 
-    @pytest.mark.asyncio
     async def test_update_from_existing_bin(self, client):
         """update_from on an existing bin succeeds."""
         session = client.create_session()
@@ -183,7 +173,6 @@ class TestUpdateFrom:
         result = await rec.first_or_raise()
         assert result.record.bins["D"] == 101
 
-    @pytest.mark.asyncio
     async def test_update_from_missing_bin_raises(self, client):
         """update_from on non-existent bin raises server error."""
         session = client.create_session()
@@ -193,7 +182,6 @@ class TestUpdateFrom:
                     .execute()
             )
 
-    @pytest.mark.asyncio
     async def test_update_from_missing_bin_ignore_op_failure(self, client):
         """update_from with ignore_op_failure silently skips."""
         session = client.create_session()
@@ -209,7 +197,6 @@ class TestUpdateFrom:
 
 class TestInsertFrom:
 
-    @pytest.mark.asyncio
     async def test_insert_from_new_bin(self, client):
         """insert_from creates a new bin."""
         session = client.create_session()
@@ -221,7 +208,6 @@ class TestInsertFrom:
         result = await rec.first_or_raise()
         assert result.record.bins["C"] == 5
 
-    @pytest.mark.asyncio
     async def test_insert_from_existing_bin_raises(self, client):
         """insert_from on existing bin raises server error."""
         session = client.create_session()
@@ -237,7 +223,6 @@ class TestInsertFrom:
                     .execute()
             )
 
-    @pytest.mark.asyncio
     async def test_insert_from_existing_bin_ignore_op_failure(self, client):
         """insert_from with ignore_op_failure silently skips."""
         session = client.create_session()
@@ -259,7 +244,6 @@ class TestInsertFrom:
 
 class TestCombinedExpression:
 
-    @pytest.mark.asyncio
     async def test_upsert_from_and_select_from(self, client):
         """upsert_from + select_from in same execute."""
         session = client.create_session()
@@ -273,7 +257,6 @@ class TestCombinedExpression:
         assert result is not None
         assert result.record.bins["ev"] == 1
 
-    @pytest.mark.asyncio
     async def test_upsert_from_and_get(self, client):
         """upsert_from + .get() in same execute."""
         session = client.create_session()
@@ -285,7 +268,6 @@ class TestCombinedExpression:
         assert result is not None
         assert result.record.bins["C"] == 5
 
-    @pytest.mark.asyncio
     async def test_write_eval_error_with_ignore(self, client):
         """upsert_from + select_from with ignore_eval_failure on both."""
         session = client.create_session()
@@ -307,7 +289,6 @@ class TestCombinedExpression:
 
 class TestMixedOps:
 
-    @pytest.mark.asyncio
     async def test_set_to_and_upsert_from(self, client):
         """set_to + upsert_from in same execute."""
         session = client.create_session()
@@ -334,7 +315,6 @@ class TestMixedOps:
 
 class TestGuards:
 
-    @pytest.mark.asyncio
     async def test_dataset_query_select_from_raises(self, client):
         """select_from on dataset query raises OP_NOT_APPLICABLE."""
         session = client.create_session()
@@ -345,7 +325,6 @@ class TestGuards:
             )
         assert exc_info.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    @pytest.mark.asyncio
     async def test_batch_key_query_select_from_works(self, client):
         """select_from on batch key query works (no guard)."""
         rs = await (

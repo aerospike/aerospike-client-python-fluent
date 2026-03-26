@@ -19,7 +19,6 @@ import pytest
 from aerospike_fluent import FluentClient
 
 
-@pytest.mark.asyncio
 async def test_client_connection(aerospike_host, client_policy):
     """Test that we can connect to Aerospike using the fluent client."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -28,7 +27,6 @@ async def test_client_connection(aerospike_host, client_policy):
         session = client.create_session()
         assert session is not None
 
-@pytest.mark.asyncio
 async def test_client_context_manager(aerospike_host, client_policy):
     """Test that the context manager properly manages connection lifecycle."""
     client = FluentClient(seeds=aerospike_host, policy=client_policy)
@@ -40,7 +38,6 @@ async def test_client_context_manager(aerospike_host, client_policy):
     # After exiting context, connection should be closed
     assert not client.is_connected
 
-@pytest.mark.asyncio
 async def test_client_manual_connect_close(aerospike_host, client_policy):
     """Test manual connect and close methods."""
     client = FluentClient(seeds=aerospike_host, policy=client_policy)

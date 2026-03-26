@@ -59,7 +59,6 @@ def test_update_builder_produces_add_operation():
     assert len(b._operations) == 1
 
 
-@pytest.mark.asyncio
 async def test_delete_auto_adds_delete_op():
     s = _session_mock()
     s.client._client.query_operate = AsyncMock(return_value=MagicMock())
@@ -70,7 +69,6 @@ async def test_delete_auto_adds_delete_op():
     assert ops[0] is not None
 
 
-@pytest.mark.asyncio
 async def test_touch_auto_adds_touch_op():
     s = _session_mock()
     s.client._client.query_operate = AsyncMock(return_value=MagicMock())
@@ -80,7 +78,6 @@ async def test_touch_auto_adds_touch_op():
     assert len(ops) == 1
 
 
-@pytest.mark.asyncio
 async def test_update_with_no_ops_raises():
     s = _session_mock()
     ds = DataSet.of("test", "bgset")
@@ -116,7 +113,6 @@ def test_records_per_second_stored_on_builder():
     assert b._records_per_second == 5000
 
 
-@pytest.mark.asyncio
 async def test_rejects_cdt_operations():
     s = _session_mock()
     ds = DataSet.of("test", "bgset")
@@ -159,7 +155,6 @@ def test_fail_on_filtered_out_raises():
         b.fail_on_filtered_out()
 
 
-@pytest.mark.asyncio
 async def test_execute_background_task_requires_write_ops():
     client = MagicMock()
     qb = QueryBuilder(client, "test", "bgset")
@@ -167,7 +162,6 @@ async def test_execute_background_task_requires_write_ops():
         await qb.execute_background_task()
 
 
-@pytest.mark.asyncio
 async def test_execute_background_task_rejects_key_chain():
     client = MagicMock()
     qb = QueryBuilder(client, "test", "bgset")
@@ -177,7 +171,6 @@ async def test_execute_background_task_rejects_key_chain():
         await qb.execute_background_task()
 
 
-@pytest.mark.asyncio
 async def test_execute_background_task_rejects_map_operation():
     client = MagicMock()
     qb = QueryBuilder(client, "test", "bgset")
@@ -188,7 +181,6 @@ async def test_execute_background_task_rejects_map_operation():
     assert ei.value.result_code is not None
 
 
-@pytest.mark.asyncio
 async def test_execute_udf_background_task_rejects_with_write_ops():
     client = MagicMock()
     qb = QueryBuilder(client, "test", "bgset")
@@ -197,7 +189,6 @@ async def test_execute_udf_background_task_rejects_with_write_ops():
         await qb.execute_udf_background_task("pkg", "fn")
 
 
-@pytest.mark.asyncio
 async def test_execute_udf_background_task_rejects_key_chain():
     client = MagicMock()
     qb = QueryBuilder(client, "test", "bgset")

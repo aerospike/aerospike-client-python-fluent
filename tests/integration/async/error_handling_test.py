@@ -25,7 +25,6 @@ Covers:
 """
 
 import pytest
-import pytest_asyncio
 from aerospike_async.exceptions import ResultCode
 
 from aerospike_fluent.aio.client import FluentClient
@@ -34,7 +33,7 @@ from aerospike_fluent.error_strategy import ErrorStrategy
 from aerospike_fluent.exceptions import AerospikeError, GenerationError
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         yield c
@@ -45,7 +44,7 @@ def ds():
     return DataSet.of("test", "error_handling")
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def session(client):
     return client.create_session()
 

@@ -16,12 +16,11 @@
 """Tests for delete bin operations."""
 
 import pytest
-import pytest_asyncio
 from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.dataset import DataSet
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
