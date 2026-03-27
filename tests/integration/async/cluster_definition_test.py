@@ -105,8 +105,11 @@ async def test_cluster_definition_services_alternate(aerospike_host):
         await cluster.close()
 
 
-async def test_cluster_definition_preferring_racks(aerospike_host):
+async def test_cluster_definition_preferring_racks(aerospike_host, enterprise):
     """Test ClusterDefinition with preferred racks."""
+    if not enterprise:
+        pytest.skip("Rack awareness requires Enterprise Edition")
+
     if ":" in aerospike_host:
         hostname, port_str = aerospike_host.split(":", 1)
         port = int(port_str)
