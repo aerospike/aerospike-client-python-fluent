@@ -118,15 +118,15 @@ async def test_query_fluent_chaining(client):
     stream.close()
     assert count > 0
 
-async def test_query_with_range_filter(client):
+async def test_query_with_range_filter(client, enterprise):
     """Test query with range filter (requires index)."""
     try:
-        try:
-            await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
-            await asyncio.sleep(0.5)
-        except Exception:
-            pass
+        await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
+    except Exception:
+        pass
 
+    try:
         stream = await (
             client.query("test", "query_test")
             .filter(Filter.range("age", 22, 26))
@@ -142,14 +142,11 @@ async def test_query_with_range_filter(client):
                 break
 
         stream.close()
-
+    finally:
         try:
             await client.index("test", "query_test").named("age_idx").drop()
         except Exception:
             pass
-
-    except Exception:
-        pytest.skip("Index not available or query failed")
 
 async def test_query_empty_result(client):
     """Test query that returns no results."""
@@ -201,11 +198,11 @@ async def test_query_with_filter_expression(client):
     stream.close()
     assert count > 0
 
-async def test_query_with_filter_and_filter_expression(client):
+async def test_query_with_filter_and_filter_expression(client, enterprise):
     """Test query with both Filter (secondary index) and Exp (FilterExpression)."""
     try:
         await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
     except Exception:
         pass
 
@@ -232,13 +229,11 @@ async def test_query_with_filter_and_filter_expression(client):
                 break
 
         stream.close()
-
+    finally:
         try:
             await client.index("test", "query_test").named("age_idx").drop()
         except Exception:
             pass
-    except Exception:
-        pytest.skip("Index not available or query failed")
 
 async def test_query_with_filter_expression_and(client):
     """Test query with Exp (FilterExpression) using AND for multiple conditions."""

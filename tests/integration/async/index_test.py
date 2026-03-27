@@ -179,7 +179,7 @@ async def test_create_duplicate_index_fails(client):
         pass
 
 
-async def test_create_index_with_cdt_context(client):
+async def test_create_index_with_cdt_context(client, enterprise):
     """Create a numeric index on a nested map element via fluent .context()."""
     index_name = "test_ctx_idx"
     bin_name = "payload"
@@ -199,7 +199,7 @@ async def test_create_index_with_cdt_context(client):
             .context([CTX.map_key("inner")])
             .create()
     )
-    await asyncio.sleep(0.75)
+    await asyncio.sleep(0.25 if not enterprise else 0.01)
 
     k1 = ds.id("ctx_idx_a")
     k2 = ds.id("ctx_idx_b")

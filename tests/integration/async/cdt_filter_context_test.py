@@ -69,7 +69,7 @@ def _user_keys_from_stream(results):
     return keys
 
 
-async def test_query_filter_equal_with_map_nested_context(client):
+async def test_query_filter_equal_with_map_nested_context(client, enterprise):
     """Query with ``Filter.equal(...).context([...])`` on a nested map value (indexed path).
 
     Records store ``mapbin`` as ``{outer: {inner: <int>, ...}}``. A numeric index on
@@ -106,7 +106,7 @@ async def test_query_filter_equal_with_map_nested_context(client):
     except Exception as e:
         pytest.skip(f"Could not create nested-map secondary index: {e}")
 
-    await asyncio.sleep(0.75)
+    await asyncio.sleep(0.25 if not enterprise else 0.01)
 
     target = 4242
     other_inner = 7
@@ -174,7 +174,7 @@ async def test_query_filter_equal_with_map_nested_context(client):
         await _cleanup_records(session, keys)
 
 
-async def test_query_filter_equal_single_map_key_context(client):
+async def test_query_filter_equal_single_map_key_context(client, enterprise):
     """``Filter.equal(bin, value).context([CTX.map_key(...)])`` on a scalar under one map key."""
     _require_filter_context()
 
@@ -206,7 +206,7 @@ async def test_query_filter_equal_single_map_key_context(client):
     except Exception as e:
         pytest.skip(f"Could not create CDT-path numeric index: {e}")
 
-    await asyncio.sleep(0.75)
+    await asyncio.sleep(0.25 if not enterprise else 0.01)
     val = 5150
 
     try:

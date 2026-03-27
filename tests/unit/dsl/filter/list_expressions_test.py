@@ -72,12 +72,8 @@ def _assert_equal_filter(result, bin_name: str, value) -> None:
 def _assert_equal_filter_with_ctx(
     result, bin_name: str, value, ctx_list: list
 ) -> None:
-    """Assert result.filter equals Filter.equal(bin_name, value, *ctx_list). Skips if PAC / Rust core
-    does not support ctx."""
-    try:
-        expected = Filter.equal(bin_name, value, *ctx_list)
-    except TypeError:
-        pytest.skip("Filter.equal with ctx not supported in PAC / RUST core")
+    """Assert result.filter equals Filter.equal(bin_name, value).context(ctx_list)."""
+    expected = Filter.equal(bin_name, value).context(ctx_list)
     assert result.filter is not None
     assert str(result.filter) == str(expected), f"{result.filter!r} != {expected!r}"
 

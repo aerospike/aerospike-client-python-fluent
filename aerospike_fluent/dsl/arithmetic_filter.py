@@ -243,10 +243,7 @@ def filter_from_arithmetic_node(
                 eq_val = arith_constant // comparison_value
         if eq_val is not None:
             if ctx:
-                try:
-                    return Filter.equal(bin_name, eq_val, *ctx)
-                except TypeError:
-                    return Filter.equal(bin_name, eq_val)
+                return Filter.equal(bin_name, eq_val).context(ctx)
             return Filter.equal(bin_name, eq_val)
         return None
     expr = _ArithExpr(bin_name=bin_name, op=arith_op, constant=arith_constant, bin_on_left=bin_on_left)

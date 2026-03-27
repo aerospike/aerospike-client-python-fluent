@@ -96,7 +96,7 @@ async def _admin_create_flat(pac, index_name: str) -> None:
     )
 
 
-def test_query_filter_equal_with_map_nested_context(client):
+def test_query_filter_equal_with_map_nested_context(client, enterprise):
     """Sync query with ``Filter.equal(...).context([...])`` on a nested map value."""
     _require_filter_context()
 
@@ -121,7 +121,7 @@ def test_query_filter_equal_with_map_nested_context(client):
     except Exception as e:
         pytest.skip(f"Could not create nested-map secondary index: {e}")
 
-    time.sleep(0.75)
+    time.sleep(0.25 if not enterprise else 0.01)
 
     target = 4242
     other_inner = 7
@@ -182,7 +182,7 @@ def test_query_filter_equal_with_map_nested_context(client):
         _cleanup_records(session, keys)
 
 
-def test_query_filter_equal_single_map_key_context(client):
+def test_query_filter_equal_single_map_key_context(client, enterprise):
     """``Filter.equal(bin, value).context([CTX.map_key(...)])`` on a scalar under one map key."""
     _require_filter_context()
 
@@ -207,7 +207,7 @@ def test_query_filter_equal_single_map_key_context(client):
     except Exception as e:
         pytest.skip(f"Could not create CDT-path numeric index: {e}")
 
-    time.sleep(0.75)
+    time.sleep(0.25 if not enterprise else 0.01)
     val = 5150
 
     try:
