@@ -7,9 +7,10 @@ for variables not already in os.environ (override=False).
 """
 import os
 import pytest
+import pytest_asyncio
 from pathlib import Path
 
-from aerospike_async import ClientPolicy
+from aerospike_async import ClientPolicy, new_client
 
 
 def load_env_file(env_file_path, *, override: bool = True) -> None:
@@ -75,11 +76,15 @@ def aerospike_host():
     return os.environ.get('AEROSPIKE_HOST', 'localhost:3000')
 
 
-@pytest.fixture(scope="session")
-def enterprise():
-    """True when the test cluster is Enterprise Edition."""
-    v = os.environ.get('AEROSPIKE_ENTERPRISE', '').strip().lower()
-    return v in ('true', '1', 'yes')
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def enterprise(aerospike_host, client_policy):
+    """True when the test cluster is Enterprise Edition (queried via info)."""
+    client = await new_client(client_policy, aerospike_host)
+    try:
+        result = await client.info("edition")
+        return any("Enterprise" in v for v in result.values())
+    finally:
+        await client.close()
 
 
 @pytest.fixture(scope="session") 
