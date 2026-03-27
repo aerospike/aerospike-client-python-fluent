@@ -17,12 +17,11 @@
 
 import asyncio
 import pytest
-import pytest_asyncio
 from aerospike_async import Filter, PartitionFilter, QueryPolicy
 from aerospike_fluent import DataSet, Exp, FluentClient
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client and test data for query tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -40,7 +39,6 @@ async def client(aerospike_host, client_policy):
 
         yield client
 
-@pytest.mark.asyncio
 async def test_query_basic(client):
     """Test basic query operation without filters."""
     stream = await client.query("test", "query_test").execute()
@@ -55,7 +53,6 @@ async def test_query_basic(client):
     stream.close()
     assert count > 0
 
-@pytest.mark.asyncio
 async def test_query_with_bins(client):
     """Test query with specific bin selection."""
     stream = await client.query("test", "query_test").bins(["name", "age"]).execute()
@@ -70,7 +67,6 @@ async def test_query_with_bins(client):
     stream.close()
     assert count > 0
 
-@pytest.mark.asyncio
 async def test_query_with_policy(client):
     """Test query with custom policy."""
     policy = QueryPolicy()
@@ -85,7 +81,6 @@ async def test_query_with_policy(client):
     stream.close()
     assert count > 0
 
-@pytest.mark.asyncio
 async def test_query_with_partition_filter(client):
     """Test query with partition filter."""
     partition_filter = PartitionFilter.all()
@@ -100,7 +95,6 @@ async def test_query_with_partition_filter(client):
     stream.close()
     assert count > 0
 
-@pytest.mark.asyncio
 async def test_query_fluent_chaining(client):
     """Test fluent method chaining on query builder."""
     policy = QueryPolicy()
@@ -124,16 +118,15 @@ async def test_query_fluent_chaining(client):
     stream.close()
     assert count > 0
 
-@pytest.mark.asyncio
-async def test_query_with_range_filter(client):
+async def test_query_with_range_filter(client, enterprise):
     """Test query with range filter (requires index)."""
     try:
-        try:
-            await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
-            await asyncio.sleep(0.5)
-        except Exception:
-            pass
+        await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
+    except Exception:
+        pass
 
+    try:
         stream = await (
             client.query("test", "query_test")
             .filter(Filter.range("age", 22, 26))
@@ -149,16 +142,12 @@ async def test_query_with_range_filter(client):
                 break
 
         stream.close()
-
+    finally:
         try:
             await client.index("test", "query_test").named("age_idx").drop()
         except Exception:
             pass
 
-    except Exception:
-        pytest.skip("Index not available or query failed")
-
-@pytest.mark.asyncio
 async def test_query_empty_result(client):
     """Test query that returns no results."""
     stream = await client.query("test", "non_existent_set").execute()
@@ -169,7 +158,6 @@ async def test_query_empty_result(client):
     stream.close()
     assert count == 0
 
-@pytest.mark.asyncio
 async def test_query_iteration(client):
     """Test that query builder can execute and return a RecordStream."""
     query_builder = client.query("test", "query_test")
@@ -186,7 +174,6 @@ async def test_query_iteration(client):
     stream.close()
     assert count > 0
 
-@pytest.mark.asyncio
 async def test_query_with_filter_expression(client):
     """Test query with Exp (FilterExpression) for server-side filtering."""
     filter_exp = Exp.ge(
@@ -211,12 +198,11 @@ async def test_query_with_filter_expression(client):
     stream.close()
     assert count > 0
 
-@pytest.mark.asyncio
-async def test_query_with_filter_and_filter_expression(client):
+async def test_query_with_filter_and_filter_expression(client, enterprise):
     """Test query with both Filter (secondary index) and Exp (FilterExpression)."""
     try:
         await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
     except Exception:
         pass
 
@@ -243,15 +229,12 @@ async def test_query_with_filter_and_filter_expression(client):
                 break
 
         stream.close()
-
+    finally:
         try:
             await client.index("test", "query_test").named("age_idx").drop()
         except Exception:
             pass
-    except Exception:
-        pytest.skip("Index not available or query failed")
 
-@pytest.mark.asyncio
 async def test_query_with_filter_expression_and(client):
     """Test query with Exp (FilterExpression) using AND for multiple conditions."""
     filter_exp = Exp.and_([

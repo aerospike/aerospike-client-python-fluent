@@ -122,8 +122,6 @@ jobs:
         env:
           AEROSPIKE_HOST: localhost:3000
           AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
-          # Docker aerospike-server image is Community; durable-delete needs Enterprise.
-          AEROSPIKE_ENTERPRISE: "false"
         run: |
           rm -f aerospike.env
           python -m pytest tests/integration -v || TEST_FAILED=true

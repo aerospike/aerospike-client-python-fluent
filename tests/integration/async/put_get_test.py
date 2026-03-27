@@ -16,7 +16,6 @@
 """Integration tests for put/get and core fluent operations."""
 
 import pytest
-import pytest_asyncio
 from aerospike_async import ListOperation, ListPolicy, ListOrderType, MapOperation, MapPolicy, MapReturnType, Operation, WritePolicy
 from aerospike_async.exceptions import ResultCode
 from aerospike_fluent import FluentClient
@@ -24,7 +23,7 @@ from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.exceptions import AerospikeError
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -34,7 +33,6 @@ async def client(aerospike_host, client_policy):
         yield client
 
 
-@pytest.mark.asyncio
 async def test_put_get_basic(client):
     """Test basic put and get operations."""
     session = client.create_session()
@@ -48,7 +46,6 @@ async def test_put_get_basic(client):
     assert first.record_or_raise().bins == {"name": "John", "age": 30}
 
 
-@pytest.mark.asyncio
 async def test_put_get_int(client):
     """Test putting and getting integer values."""
     session = client.create_session()
@@ -62,7 +59,6 @@ async def test_put_get_int(client):
     assert first.record_or_raise().bins == {"bin": 42}
 
 
-@pytest.mark.asyncio
 async def test_put_get_float(client):
     """Test putting and getting float values."""
     session = client.create_session()
@@ -76,7 +72,6 @@ async def test_put_get_float(client):
     assert first.record_or_raise().bins == {"bin": 3.14159}
 
 
-@pytest.mark.asyncio
 async def test_put_get_string(client):
     """Test putting and getting string values."""
     session = client.create_session()
@@ -90,7 +85,6 @@ async def test_put_get_string(client):
     assert first.record_or_raise().bins == {"bin": "hello world"}
 
 
-@pytest.mark.asyncio
 async def test_put_get_bool(client):
     """Test putting and getting boolean values."""
     session = client.create_session()
@@ -104,7 +98,6 @@ async def test_put_get_bool(client):
     assert first.record_or_raise().bins == {"bint": True, "binf": False}
 
 
-@pytest.mark.asyncio
 async def test_get_specific_bins(client):
     """Test getting only specific bins."""
     session = client.create_session()
@@ -120,7 +113,6 @@ async def test_get_specific_bins(client):
     assert "city" not in bins
 
 
-@pytest.mark.asyncio
 async def test_delete(client):
     """Test delete operation."""
     session = client.create_session()
@@ -138,7 +130,6 @@ async def test_delete(client):
     assert first is None or not first.as_bool()
 
 
-@pytest.mark.asyncio
 async def test_delete_nonexistent(client):
     """Test deleting a non-existent record."""
     session = client.create_session()
@@ -149,7 +140,6 @@ async def test_delete_nonexistent(client):
     assert first is None or not first.is_ok
 
 
-@pytest.mark.asyncio
 async def test_exists(client):
     """Test exists operation."""
     session = client.create_session()
@@ -166,7 +156,6 @@ async def test_exists(client):
     assert first is not None and first.as_bool()
 
 
-@pytest.mark.asyncio
 async def test_add(client):
     """Test add (increment) operation."""
     session = client.create_session()
@@ -181,7 +170,6 @@ async def test_add(client):
     assert first.record_or_raise().bins == {"counter": 15}
 
 
-@pytest.mark.asyncio
 async def test_append(client):
     """Test append operation."""
     session = client.create_session()
@@ -196,7 +184,6 @@ async def test_append(client):
     assert first.record_or_raise().bins == {"name": "John Doe"}
 
 
-@pytest.mark.asyncio
 async def test_prepend(client):
     """Test prepend operation."""
     session = client.create_session()
@@ -211,7 +198,6 @@ async def test_prepend(client):
     assert first.record_or_raise().bins == {"name": "John Doe"}
 
 
-@pytest.mark.asyncio
 async def test_touch(client):
     """Test touch operation (update TTL without modifying data)."""
     session = client.create_session()
@@ -231,7 +217,6 @@ async def test_touch(client):
     assert first2.record_or_raise().bins == {"name": "John"}
 
 
-@pytest.mark.asyncio
 async def test_get_nonexistent(client):
     """Test getting a non-existent record."""
     session = client.create_session()
@@ -242,7 +227,6 @@ async def test_get_nonexistent(client):
     assert first is None or not first.is_ok
 
 
-@pytest.mark.asyncio
 async def test_string_key(client):
     """Test using string keys."""
     session = client.create_session()
@@ -256,7 +240,6 @@ async def test_string_key(client):
     assert first.record_or_raise().bins == {"name": "John"}
 
 
-@pytest.mark.asyncio
 async def test_fluent_chaining(client):
     """Test that fluent method chaining works correctly."""
     session = client.create_session()
@@ -272,7 +255,6 @@ async def test_fluent_chaining(client):
     assert "name" not in bins
 
 
-@pytest.mark.asyncio
 async def test_operate_put_and_get(client):
     """Test operate with Put and Get operations."""
     session = client.create_session()
@@ -292,7 +274,6 @@ async def test_operate_put_and_get(client):
     assert record.bins.get("bin1") == 7
 
 
-@pytest.mark.asyncio
 async def test_operate_get_only(client):
     """Test operate with Get operation only."""
     session = client.create_session()
@@ -308,7 +289,6 @@ async def test_operate_get_only(client):
     assert bins.get("bin2") == 42
 
 
-@pytest.mark.asyncio
 async def test_operate_list_append(client):
     """Test operate with ListOperation.append."""
     session = client.create_session()
@@ -331,7 +311,6 @@ async def test_operate_list_append(client):
     assert size == 4
 
 
-@pytest.mark.asyncio
 async def test_operate_map_put_and_get(client):
     """Test operate with MapOperation.put and get_by_key."""
     session = client.create_session()
@@ -354,7 +333,6 @@ async def test_operate_map_put_and_get(client):
     assert value == "value2"
 
 
-@pytest.mark.asyncio
 async def test_operate_map_clear(client):
     """Test operate with MapOperation.clear."""
     session = client.create_session()
@@ -374,7 +352,6 @@ async def test_operate_map_clear(client):
     assert size == 0
 
 
-@pytest.mark.asyncio
 async def test_bin_chaining_set_to(client):
     """Test bin chaining API with set_to."""
     session = client.create_session()
@@ -388,7 +365,6 @@ async def test_bin_chaining_set_to(client):
     assert first.record_or_raise().bins == {"name": "Tim", "age": 1, "gender": "male"}
 
 
-@pytest.mark.asyncio
 async def test_bin_chaining_add(client):
     """Test bin chaining API with add."""
     session = client.create_session()
@@ -403,7 +379,6 @@ async def test_bin_chaining_add(client):
     assert first.record_or_raise().bins["age"] == 31
 
 
-@pytest.mark.asyncio
 async def test_bin_chaining_mixed_operations(client):
     """Test bin chaining with both set_to and add."""
     session = client.create_session()
@@ -418,7 +393,6 @@ async def test_bin_chaining_mixed_operations(client):
     assert first.record_or_raise().bins == {"name": "Tim Updated", "age": 2}
 
 
-@pytest.mark.asyncio
 async def test_and_remove_other_bins(client):
     """Test and_remove_other_bins functionality."""
     session = client.create_session()
@@ -433,7 +407,6 @@ async def test_and_remove_other_bins(client):
     assert first.record_or_raise().bins == {"name": "Tim Updated", "age": 26}
 
 
-@pytest.mark.asyncio
 async def test_set_bins_execute(client):
     """Test set_bins with execute method."""
     session = client.create_session()
@@ -447,7 +420,6 @@ async def test_set_bins_execute(client):
     assert first.record_or_raise().bins == {"name": "Tim", "age": 1, "gender": "male"}
 
 
-@pytest.mark.asyncio
 async def test_durably_delete(client, enterprise):
     """Test durably method for delete operations."""
     if not enterprise:
@@ -466,7 +438,6 @@ async def test_durably_delete(client, enterprise):
     assert first is None or not first.is_ok
 
 
-@pytest.mark.asyncio
 async def test_insert_creates_new_record(client):
     """Test that insert() creates a new record successfully."""
     session = client.create_session()
@@ -480,7 +451,6 @@ async def test_insert_creates_new_record(client):
     assert first.record_or_raise().bins == {"name": "Alice", "age": 25}
 
 
-@pytest.mark.asyncio
 async def test_insert_fails_if_record_exists(client):
     """Test that insert() fails if record already exists."""
     session = client.create_session()
@@ -492,7 +462,6 @@ async def test_insert_fails_if_record_exists(client):
         await session.insert(k).put({"name": "Bob"}).execute()
 
 
-@pytest.mark.asyncio
 async def test_update_succeeds_if_record_exists(client):
     """Test that update() succeeds if record exists."""
     session = client.create_session()
@@ -507,7 +476,6 @@ async def test_update_succeeds_if_record_exists(client):
     assert first.record_or_raise().bins == {"name": "Alice", "age": 26}
 
 
-@pytest.mark.asyncio
 async def test_update_fails_if_record_not_exists(client):
     """Test that update() raises KEY_NOT_FOUND_ERROR if record does not exist."""
     session = client.create_session()
@@ -523,7 +491,6 @@ async def test_update_fails_if_record_not_exists(client):
     assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
 
-@pytest.mark.asyncio
 async def test_replace_succeeds_if_record_exists(client):
     """Test that replace() succeeds if record exists and replaces all bins."""
     session = client.create_session()
@@ -541,7 +508,6 @@ async def test_replace_succeeds_if_record_exists(client):
     assert "city" not in bins
 
 
-@pytest.mark.asyncio
 async def test_replace_if_exists_fails_if_record_not_exists(client):
     """Test that replace_if_exists() raises KEY_NOT_FOUND_ERROR if record does not exist."""
     session = client.create_session()

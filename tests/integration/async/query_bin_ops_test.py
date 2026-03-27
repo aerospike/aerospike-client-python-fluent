@@ -25,7 +25,6 @@ Coverage:
 """
 
 import pytest
-import pytest_asyncio
 
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode
@@ -38,7 +37,7 @@ NS = "test"
 SET = "query_bin_ops"
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client, seed test data, yield the client."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -74,13 +73,11 @@ def _key(i: int) -> Key:
 
 class TestSimpleBinReads:
 
-    @pytest.mark.asyncio
     async def test_get_single_bin(self, client):
         rs = await client.query(key=_key(1)).bin("name").get().execute()
         result = await rs.first_or_raise()
         assert result.record.bins["name"] == "user1"
 
-    @pytest.mark.asyncio
     async def test_get_multiple_bins(self, client):
         rs = await (
             client.query(key=_key(1))
@@ -92,13 +89,11 @@ class TestSimpleBinReads:
         assert result.record.bins["name"] == "user1"
         assert result.record.bins["age"] == 21
 
-    @pytest.mark.asyncio
     async def test_map_size(self, client):
         rs = await client.query(key=_key(1)).bin("settings").map_size().execute()
         result = await rs.first_or_raise()
         assert result.record.bins["settings"] == 3
 
-    @pytest.mark.asyncio
     async def test_list_size(self, client):
         rs = await client.query(key=_key(1)).bin("scores").list_size().execute()
         result = await rs.first_or_raise()
@@ -111,7 +106,6 @@ class TestSimpleBinReads:
 
 class TestCdtMapReads:
 
-    @pytest.mark.asyncio
     async def test_map_key_get_values(self, client):
         rs = await (
             client.query(key=_key(1)).bin("settings").on_map_key("theme").get_values()
@@ -120,7 +114,6 @@ class TestCdtMapReads:
         result = await rs.first_or_raise()
         assert result.record.bins["settings"] == "dark"
 
-    @pytest.mark.asyncio
     async def test_map_key_count(self, client):
         rs = await (
             client.query(key=_key(1)).bin("settings").on_map_key("theme").count()
@@ -129,7 +122,6 @@ class TestCdtMapReads:
         result = await rs.first_or_raise()
         assert result.record.bins["settings"] == 1
 
-    @pytest.mark.asyncio
     async def test_map_index_range_get_values(self, client):
         rs = await (
             client.query(key=_key(1)).bin("settings").on_map_index_range(0, 2).get_values()
@@ -140,7 +132,6 @@ class TestCdtMapReads:
         assert isinstance(vals, list)
         assert len(vals) == 2
 
-    @pytest.mark.asyncio
     async def test_map_rank_get_values(self, client):
         rs = await (
             client.query(key=_key(2)).bin("settings").on_map_rank(0).get_values()
@@ -156,7 +147,6 @@ class TestCdtMapReads:
 
 class TestCdtListReads:
 
-    @pytest.mark.asyncio
     async def test_list_index_get_values(self, client):
         rs = await (
             client.query(key=_key(1)).bin("scores").on_list_index(0).get_values()
@@ -165,7 +155,6 @@ class TestCdtListReads:
         result = await rs.first_or_raise()
         assert result.record.bins["scores"] == 10
 
-    @pytest.mark.asyncio
     async def test_list_index_count(self, client):
         rs = await (
             client.query(key=_key(1)).bin("scores").on_list_index(0).count()
@@ -174,7 +163,6 @@ class TestCdtListReads:
         result = await rs.first_or_raise()
         assert result.record.bins["scores"] == 1
 
-    @pytest.mark.asyncio
     async def test_list_rank_get_values(self, client):
         """Rank 0 = lowest value; for key 2 scores=[20,40,60], lowest=20."""
         rs = await (
@@ -191,7 +179,6 @@ class TestCdtListReads:
 
 class TestBatchKeyQueries:
 
-    @pytest.mark.asyncio
     async def test_batch_bin_get(self, client):
         rs = await (
             client.query(keys=[_key(1), _key(2)]).bin("name").get()
@@ -202,7 +189,6 @@ class TestBatchKeyQueries:
         names = {r.record.bins["name"] for r in results if r.is_ok}
         assert names == {"user1", "user2"}
 
-    @pytest.mark.asyncio
     async def test_batch_cdt_map_read(self, client):
         rs = await (
             client.query(keys=[_key(1), _key(2), _key(3)])
@@ -222,7 +208,6 @@ class TestBatchKeyQueries:
 
 class TestDatasetQueryGuard:
 
-    @pytest.mark.asyncio
     async def test_dataset_query_with_bin_ops_raises(self, client):
         with pytest.raises(AerospikeError) as exc_info:
             await (
@@ -231,7 +216,6 @@ class TestDatasetQueryGuard:
             )
         assert exc_info.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    @pytest.mark.asyncio
     async def test_dataset_query_with_get_raises(self, client):
         with pytest.raises(AerospikeError) as exc_info:
             await (
@@ -247,7 +231,6 @@ class TestDatasetQueryGuard:
 
 class TestQueryStacking:
 
-    @pytest.mark.asyncio
     async def test_stack_two_point_queries(self, client):
         rs = await (
             client
@@ -265,7 +248,6 @@ class TestQueryStacking:
         digests = list(bins_by_key.keys())
         assert len(digests) == 2
 
-    @pytest.mark.asyncio
     async def test_stack_batch_queries(self, client):
         rs = await (
             client
@@ -276,12 +258,10 @@ class TestQueryStacking:
         results = await rs.collect()
         assert len(results) == 3
 
-    @pytest.mark.asyncio
     async def test_dataset_query_cannot_stack(self, client):
         with pytest.raises(ValueError, match="cannot be stacked"):
             client.query(NS, SET).query(_key(1))
 
-    @pytest.mark.asyncio
     async def test_stacked_read_complex(self, client):
         """Stacked query mixing specific bins, all bins, no bins,
         select_from, missing bin, and missing key."""
@@ -333,7 +313,6 @@ class TestQueryStacking:
 
 class TestInvertedReads:
 
-    @pytest.mark.asyncio
     async def test_map_key_range_get_all_other_values(self, client):
         """Get all map values EXCEPT those in the range."""
         rs = await (
@@ -349,7 +328,6 @@ class TestInvertedReads:
         # values for "notifications" and "volume".
         assert len(vals) == 2
 
-    @pytest.mark.asyncio
     async def test_list_value_get_all_other_values(self, client):
         """Get all list elements EXCEPT those matching the value."""
         rs = await (
@@ -371,7 +349,6 @@ class TestInvertedReads:
 
 class TestExpressionReads:
 
-    @pytest.mark.asyncio
     async def test_select_from_simple(self, client):
         rs = await (
             client.query(key=_key(1))
@@ -381,7 +358,6 @@ class TestExpressionReads:
         result = await rs.first_or_raise()
         assert result.record.bins["age_plus_20"] == 41
 
-    @pytest.mark.asyncio
     async def test_select_from_multiple(self, client):
         rs = await (
             client.query(key=_key(2))
@@ -393,7 +369,6 @@ class TestExpressionReads:
         assert result.record.bins["double_age"] == 44   # (20+2)*2
         assert result.record.bins["triple_score"] == 600  # 200*3
 
-    @pytest.mark.asyncio
     async def test_select_from_with_get(self, client):
         rs = await (
             client.query(key=_key(1))
@@ -412,7 +387,6 @@ class TestExpressionReads:
 
 class TestNestedCdtReads:
 
-    @pytest.mark.asyncio
     async def test_nested_map_key_get_values(self, client):
         """Read a value 2 levels deep: nested.level1.a"""
         session = client.create_session()
@@ -423,7 +397,6 @@ class TestNestedCdtReads:
         ).first_or_raise()
         assert rs.record.bins["nested"] == 100
 
-    @pytest.mark.asyncio
     async def test_nested_map_key_count(self, client):
         """Count at a nested path should be 1 for a scalar."""
         session = client.create_session()
@@ -434,7 +407,6 @@ class TestNestedCdtReads:
         ).first_or_raise()
         assert rs.record.bins["nested"] == 1
 
-    @pytest.mark.asyncio
     async def test_nested_map_key_different_branches(self, client):
         """Read from two different nested branches in separate queries."""
         session = client.create_session()
@@ -452,7 +424,6 @@ class TestNestedCdtReads:
         ).first_or_raise()
         assert rs2.record.bins["nested"] == 2
 
-    @pytest.mark.asyncio
     async def test_nested_map_key_with_flat_bin(self, client):
         """Combine a nested CDT read with a flat bin read."""
         session = client.create_session()
@@ -465,7 +436,6 @@ class TestNestedCdtReads:
         assert rs.record.bins["nested"] == 300
         assert rs.record.bins["name"] == "user3"
 
-    @pytest.mark.asyncio
     async def test_nested_map_key_get_values_key3(self, client):
         """Read nested value for a different key to verify data independence."""
         session = client.create_session()

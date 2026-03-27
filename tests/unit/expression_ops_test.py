@@ -155,7 +155,6 @@ class TestQueryBinBuilderSelectFrom:
 
 class TestDatasetQueryGuard:
 
-    @pytest.mark.asyncio
     async def test_select_from_on_dataset_query_raises(self):
         qb = QueryBuilder(client=MagicMock(), namespace="test", set_name="s")
         qb.bin("ev").select_from("$.A + 4")

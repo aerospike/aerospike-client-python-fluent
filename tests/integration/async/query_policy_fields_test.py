@@ -16,27 +16,25 @@
 """Tests for QueryPolicy field exposure."""
 
 import pytest
-import pytest_asyncio
 from aerospike_async import BasePolicy, QueryDuration, QueryPolicy, Replica
 
 from aerospike_fluent import DataSet, FluentClient
 from aerospike_fluent.policy.behavior import Behavior
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def session(client):
     """Setup session with default behavior for testing."""
     return client.create_session(Behavior.DEFAULT)
 
 
-@pytest.mark.asyncio
 async def test_records_per_second(session):
     """Test records_per_second method on QueryBuilder."""
     users = DataSet.of("test", "users")
@@ -51,7 +49,6 @@ async def test_records_per_second(session):
     assert policy.records_per_second == 1000
 
 
-@pytest.mark.asyncio
 async def test_max_records(session):
     """Test max_records method on QueryBuilder."""
     users = DataSet.of("test", "users")
@@ -66,7 +63,6 @@ async def test_max_records(session):
     assert policy.max_records == 10000
 
 
-@pytest.mark.asyncio
 async def test_expected_duration(session):
     """Test expected_duration method on QueryBuilder."""
     users = DataSet.of("test", "users")
@@ -81,7 +77,6 @@ async def test_expected_duration(session):
     assert policy.expected_duration == QueryDuration.SHORT
 
 
-@pytest.mark.asyncio
 async def test_replica(session):
     """Test replica method on QueryBuilder."""
     users = DataSet.of("test", "users")
@@ -96,7 +91,6 @@ async def test_replica(session):
     assert policy.replica == Replica.SEQUENCE
 
 
-@pytest.mark.asyncio
 async def test_base_policy(session):
     """Test base_policy method on QueryBuilder."""
     users = DataSet.of("test", "users")
@@ -112,7 +106,6 @@ async def test_base_policy(session):
     assert policy.base_policy is not None
 
 
-@pytest.mark.asyncio
 async def test_chaining_policy_fields(session):
     """Test that multiple policy fields can be chained."""
     users = DataSet.of("test", "users")
@@ -136,7 +129,6 @@ async def test_chaining_policy_fields(session):
     assert policy.replica == Replica.SEQUENCE
 
 
-@pytest.mark.asyncio
 async def test_policy_fields_with_existing_policy(session):
     """Test that policy fields work with an existing QueryPolicy."""
     users = DataSet.of("test", "users")

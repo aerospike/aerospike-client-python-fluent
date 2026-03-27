@@ -16,11 +16,10 @@
 """Integration tests for session-level operations and TransactionalSession."""
 
 import pytest
-import pytest_asyncio
 from aerospike_fluent import DataSet, FluentClient
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -34,7 +33,6 @@ async def client(aerospike_host, client_policy):
         yield client
 
 
-@pytest.mark.asyncio
 async def test_session_put_get(client):
     """Test session put and get operations."""
     session = client.create_session()
@@ -48,7 +46,6 @@ async def test_session_put_get(client):
     assert record.bins == {"name": "John", "age": 30}
 
 
-@pytest.mark.asyncio
 async def test_session_multiple_operations(client):
     """Test multiple operations using the same session."""
     session = client.create_session()
@@ -67,7 +64,6 @@ async def test_session_multiple_operations(client):
     assert record2.bins == {"name": "Jane"}
 
 
-@pytest.mark.asyncio
 async def test_session_get_with_bins(client):
     """Test getting specific bins with session query."""
     session = client.create_session()
@@ -82,7 +78,6 @@ async def test_session_get_with_bins(client):
     assert "city" not in record.bins
 
 
-@pytest.mark.asyncio
 async def test_session_delete(client):
     """Test delete operation with session."""
     session = client.create_session()
@@ -98,7 +93,6 @@ async def test_session_delete(client):
     assert exists is False
 
 
-@pytest.mark.asyncio
 async def test_session_exists(client):
     """Test exists operation with session."""
     session = client.create_session()
@@ -118,7 +112,6 @@ async def test_session_exists(client):
     assert exists is True
 
 
-@pytest.mark.asyncio
 async def test_session_increment(client):
     """Test increment operation with session."""
     session = client.create_session()
@@ -134,7 +127,6 @@ async def test_session_increment(client):
     assert record.bins["counter"] == 15
 
 
-@pytest.mark.asyncio
 async def test_session_append_prepend(client):
     """Test append and prepend operations with session."""
     session = client.create_session()
@@ -151,7 +143,6 @@ async def test_session_append_prepend(client):
     assert record.bins["name"] == "Mr. John Doe"
 
 
-@pytest.mark.asyncio
 async def test_session_string_keys(client):
     """Test using string keys with session."""
     session = client.create_session()
@@ -165,7 +156,6 @@ async def test_session_string_keys(client):
     assert record.bins["name"] == "John"
 
 
-@pytest.mark.asyncio
 async def test_transactional_session_basic(client):
     """Test basic TransactionalSession usage."""
     session = client.create_session()
@@ -182,7 +172,6 @@ async def test_transactional_session_basic(client):
     assert record2 is not None
 
 
-@pytest.mark.asyncio
 async def test_transactional_session_context_manager(client):
     """Test TransactionalSession context manager behavior."""
     session = client.transaction_session()

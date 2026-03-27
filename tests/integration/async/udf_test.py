@@ -20,7 +20,6 @@ from __future__ import annotations
 import os
 
 import pytest
-import pytest_asyncio
 from aerospike_async import UDFLang
 from aerospike_async.exceptions import ResultCode
 from aerospike_fluent import DataSet, FluentClient
@@ -36,7 +35,7 @@ SERVER_PATH = "record_example.lua"
 MODULE = "record_example"
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client_with_udf(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         try:
@@ -55,7 +54,6 @@ async def client_with_udf(aerospike_host, client_policy):
             pass
 
 
-@pytest.mark.asyncio
 async def test_write_using_udf(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_write_1")
@@ -75,7 +73,6 @@ async def test_write_using_udf(client_with_udf):
     assert rec.record.bins.get("udfbin1") == "string value"
 
 
-@pytest.mark.asyncio
 async def test_first_udf_result_read_bin(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_read_1")
@@ -90,7 +87,6 @@ async def test_first_udf_result_read_bin(client_with_udf):
     assert val == "stored"
 
 
-@pytest.mark.asyncio
 async def test_write_read_blob_via_udf(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_blob_rtt")
@@ -112,7 +108,6 @@ async def test_write_read_blob_via_udf(client_with_udf):
     assert bytes(val) == payload
 
 
-@pytest.mark.asyncio
 async def test_nested_list_map_round_trip_via_udf_read_bin(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_list_map_rtt")
@@ -137,7 +132,6 @@ async def test_nested_list_map_round_trip_via_udf_read_bin(client_with_udf):
     assert val == expected
 
 
-@pytest.mark.asyncio
 async def test_batch_udf(client_with_udf):
     session = client_with_udf.create_session()
     k1 = DS.id("batch_udf_1")
@@ -160,7 +154,6 @@ async def test_batch_udf(client_with_udf):
         assert rr.record.bins.get("B5") == "value5"
 
 
-@pytest.mark.asyncio
 async def test_batch_udf_validation_error_in_stream(client_with_udf):
     session = client_with_udf.create_session()
     k1 = DS.id("batch_udf_err_1")
@@ -181,7 +174,6 @@ async def test_batch_udf_validation_error_in_stream(client_with_udf):
         assert r.record is not None
 
 
-@pytest.mark.asyncio
 async def test_batch_udf_respond_all_keys_includes_filtered_out(client_with_udf):
     session = client_with_udf.create_session()
     k1 = DS.id("batch_udf_rak_1")
@@ -220,7 +212,6 @@ async def test_batch_udf_respond_all_keys_includes_filtered_out(client_with_udf)
     assert r2.result_code == ResultCode.FILTERED_OUT
 
 
-@pytest.mark.asyncio
 async def test_get_generation_udf_result(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_gen_read")
@@ -235,7 +226,6 @@ async def test_get_generation_udf_result(client_with_udf):
     assert gen >= 1
 
 
-@pytest.mark.asyncio
 async def test_write_if_generation_not_changed(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_gen_guard")
@@ -274,7 +264,6 @@ async def test_write_if_generation_not_changed(client_with_udf):
     assert rr2.record.bins.get("gcol") == "b"
 
 
-@pytest.mark.asyncio
 async def test_write_unique_idempotent(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_write_unique")
@@ -298,7 +287,6 @@ async def test_write_unique_idempotent(client_with_udf):
     assert rr.record.bins.get("ub") == "first"
 
 
-@pytest.mark.asyncio
 async def test_append_list_bin_via_udf(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_list_append")
@@ -320,7 +308,6 @@ async def test_append_list_bin_via_udf(client_with_udf):
     assert list(lst) == [10, 20, 30]
 
 
-@pytest.mark.asyncio
 async def test_process_record_even_adds_to_bin(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_proc_even")
@@ -340,7 +327,6 @@ async def test_process_record_even_adds_to_bin(client_with_udf):
     assert rr.record.bins.get("n2") == 1
 
 
-@pytest.mark.asyncio
 async def test_process_record_multiple_of_five_clears_second_bin(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_proc_five")
@@ -360,7 +346,6 @@ async def test_process_record_multiple_of_five_clears_second_bin(client_with_udf
     assert rr.record.bins.get("n2") is None
 
 
-@pytest.mark.asyncio
 async def test_process_record_multiple_of_nine_removes_record(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_proc_nine")
@@ -379,7 +364,6 @@ async def test_process_record_multiple_of_nine_removes_record(client_with_udf):
         assert first.record is None
 
 
-@pytest.mark.asyncio
 async def test_chained_udf(client_with_udf):
     session = client_with_udf.create_session()
     k1 = DS.id("chain_udf_1")
@@ -405,7 +389,6 @@ async def test_chained_udf(client_with_udf):
         assert "B5" in rr.record.bins
 
 
-@pytest.mark.asyncio
 async def test_chained_udf_three_specs_mixed_ok_and_udf_bad_response(
     client_with_udf,
 ):
@@ -450,7 +433,6 @@ async def test_chained_udf_three_specs_mixed_ok_and_udf_bad_response(
     assert r2.record.bins.get("cx") == 7
 
 
-@pytest.mark.asyncio
 async def test_single_key_validation_raises(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_val_fail")

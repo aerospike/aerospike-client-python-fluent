@@ -16,12 +16,11 @@
 """Tests for ClusterDefinition and Cluster."""
 
 import pytest
-import pytest_asyncio
 
 from aerospike_fluent import ClusterDefinition, Host, Behavior
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def cluster(aerospike_host):
     """Setup cluster for testing."""
     # Parse host:port from aerospike_host
@@ -38,7 +37,6 @@ async def cluster(aerospike_host):
     await cluster.close()
 
 
-@pytest.mark.asyncio
 async def test_cluster_definition_basic_connection(cluster):
     """Test basic ClusterDefinition connection."""
     assert cluster.is_connected()
@@ -49,7 +47,6 @@ async def test_cluster_definition_basic_connection(cluster):
     assert session.behavior.name == "DEFAULT"
 
 
-@pytest.mark.asyncio
 async def test_cluster_definition_with_hosts(aerospike_host):
     """Test ClusterDefinition with Host objects."""
     if ":" in aerospike_host:
@@ -71,7 +68,6 @@ async def test_cluster_definition_with_hosts(aerospike_host):
         await cluster.close()
 
 
-@pytest.mark.asyncio
 async def test_cluster_definition_with_credentials(aerospike_host):
     """Test ClusterDefinition with credentials (if auth is enabled)."""
     if ":" in aerospike_host:
@@ -91,7 +87,6 @@ async def test_cluster_definition_with_credentials(aerospike_host):
         await cluster.close()
 
 
-@pytest.mark.asyncio
 async def test_cluster_definition_services_alternate(aerospike_host):
     """Test ClusterDefinition with services alternate."""
     if ":" in aerospike_host:
@@ -110,9 +105,11 @@ async def test_cluster_definition_services_alternate(aerospike_host):
         await cluster.close()
 
 
-@pytest.mark.asyncio
-async def test_cluster_definition_preferring_racks(aerospike_host):
+async def test_cluster_definition_preferring_racks(aerospike_host, enterprise):
     """Test ClusterDefinition with preferred racks."""
+    if not enterprise:
+        pytest.skip("Rack awareness requires Enterprise Edition")
+
     if ":" in aerospike_host:
         hostname, port_str = aerospike_host.split(":", 1)
         port = int(port_str)
@@ -129,7 +126,6 @@ async def test_cluster_definition_preferring_racks(aerospike_host):
         await cluster.close()
 
 
-@pytest.mark.asyncio
 async def test_cluster_definition_context_manager(aerospike_host):
     """Test ClusterDefinition with async context manager."""
     if ":" in aerospike_host:
@@ -146,7 +142,6 @@ async def test_cluster_definition_context_manager(aerospike_host):
         assert session is not None
 
 
-@pytest.mark.asyncio
 async def test_cluster_create_session(cluster):
     """Test creating sessions from cluster."""
     # Create session with default behavior
@@ -167,14 +162,12 @@ async def test_cluster_create_session(cluster):
     assert session3.behavior.name == "test"
 
 
-@pytest.mark.asyncio
 async def test_cluster_create_transactional_session(cluster):
     """Test creating transactional session from cluster."""
     tx_session = cluster.create_transactional_session()
     assert tx_session is not None
 
 
-@pytest.mark.asyncio
 async def test_host_parse_hosts():
     """Test Host.parse_hosts() method."""
     hosts = Host.parse_hosts("host1:3000,host2:3001", 3000)
@@ -191,7 +184,6 @@ async def test_host_parse_hosts():
     assert hosts2[1].port == 3000
 
 
-@pytest.mark.asyncio
 async def test_host_of():
     """Test Host.of() static method."""
     host = Host.of("localhost", 3000)
@@ -199,7 +191,6 @@ async def test_host_of():
     assert host.port == 3000
 
 
-@pytest.mark.asyncio
 async def test_fail_if_not_connected_default_bad_host():
     """Default fail_if_not_connected=True raises on unreachable host."""
     cd = ClusterDefinition("127.0.0.1", 19999)
@@ -207,7 +198,6 @@ async def test_fail_if_not_connected_default_bad_host():
         await cd.connect()
 
 
-@pytest.mark.asyncio
 async def test_fail_if_not_connected_explicit_true(aerospike_host):
     """Explicit fail_if_not_connected(True) still connects to a live cluster."""
     if ":" in aerospike_host:

@@ -16,7 +16,6 @@
 """Integration tests for CDT write operations: list_add, list_append, remove, exists."""
 
 import pytest
-import pytest_asyncio
 from aerospike_async import ListOrderType, ListSortFlags, MapOrder
 from aerospike_async.exceptions import ResultCode
 
@@ -77,7 +76,7 @@ def _assert_list_get_relative_batch(raw_bin):
         assert [int(x) for x in got] == exp
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
@@ -93,7 +92,6 @@ async def client(aerospike_host, client_policy):
 class TestListAdd:
     """Ordered list add operations via list_add()."""
 
-    @pytest.mark.asyncio
     async def test_list_add_maintains_sorted_order(self, client):
         """Insert values out of order; verify they are stored sorted."""
         session = client.create_session()
@@ -106,7 +104,6 @@ class TestListAdd:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["scores"] == [10, 20, 30, 40, 50]
 
-    @pytest.mark.asyncio
     async def test_list_add_to_empty_bin(self, client):
         """Create an ordered list from scratch on a non-existent bin."""
         session = client.create_session()
@@ -127,7 +124,6 @@ class TestListAdd:
 class TestListAppend:
     """Unordered list append operations via list_append()."""
 
-    @pytest.mark.asyncio
     async def test_list_append_adds_to_end(self, client):
         """Append a value to an existing list; verify it lands at the end."""
         session = client.create_session()
@@ -139,7 +135,6 @@ class TestListAppend:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["items"] == ["a", "b", "c"]
 
-    @pytest.mark.asyncio
     async def test_list_append_multiple(self, client):
         """Append multiple values sequentially; verify order is preserved."""
         session = client.create_session()
@@ -160,7 +155,6 @@ class TestListAppend:
 class TestMapKeyRemove:
     """Remove map entries by key or key range."""
 
-    @pytest.mark.asyncio
     async def test_remove_map_key(self, client):
         """Remove a single map entry by key."""
         session = client.create_session()
@@ -174,7 +168,6 @@ class TestMapKeyRemove:
         assert "b" not in ratings
         assert ratings == {"a": 1, "c": 3}
 
-    @pytest.mark.asyncio
     async def test_remove_map_key_range(self, client):
         """Remove map entries within a key range [b, d)."""
         session = client.create_session()
@@ -195,7 +188,6 @@ class TestMapKeyRemove:
 class TestListValueRemove:
     """Remove list elements by value or index."""
 
-    @pytest.mark.asyncio
     async def test_remove_list_value(self, client):
         """Remove a list element matching a specific value."""
         session = client.create_session()
@@ -207,7 +199,6 @@ class TestListValueRemove:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["scores"] == [10, 30, 40]
 
-    @pytest.mark.asyncio
     async def test_remove_list_by_index(self, client):
         """Remove a list element at a specific index."""
         session = client.create_session()
@@ -227,7 +218,6 @@ class TestListValueRemove:
 class TestMapKeyExists:
     """Check map key existence via on_map_key().exists()."""
 
-    @pytest.mark.asyncio
     async def test_map_key_exists_true(self, client):
         """Existing key returns True."""
         session = client.create_session()
@@ -239,7 +229,6 @@ class TestMapKeyExists:
         ).first_or_raise()
         assert result.record.bins["info"] is True
 
-    @pytest.mark.asyncio
     async def test_map_key_exists_false(self, client):
         """Non-existent key returns False."""
         session = client.create_session()
@@ -259,7 +248,6 @@ class TestMapKeyExists:
 class TestListValueExists:
     """Check list value existence via on_list_value().exists()."""
 
-    @pytest.mark.asyncio
     async def test_list_value_exists_true(self, client):
         """Present value returns True."""
         session = client.create_session()
@@ -271,7 +259,6 @@ class TestListValueExists:
         ).first_or_raise()
         assert result.record.bins["tags"] is True
 
-    @pytest.mark.asyncio
     async def test_list_value_exists_false(self, client):
         """Absent value returns False."""
         session = client.create_session()
@@ -291,7 +278,6 @@ class TestListValueExists:
 class TestCdtWriteCombined:
     """Multi-step CDT write scenarios combining different operations."""
 
-    @pytest.mark.asyncio
     async def test_list_add_then_remove(self, client):
         """Add several values to an ordered list, then remove one."""
         session = client.create_session()
@@ -306,7 +292,6 @@ class TestCdtWriteCombined:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["nums"] == [20, 25, 30]
 
-    @pytest.mark.asyncio
     async def test_multi_bin_cdt_ops(self, client):
         """Multiple CDT operations on different bins in one request."""
         session = client.create_session()
@@ -335,7 +320,6 @@ class TestCdtWriteCombined:
 class TestNestedSetTo:
     """Nested CDT navigation with set_to() write terminal."""
 
-    @pytest.mark.asyncio
     async def test_set_to_on_map_key(self, client):
         """Set a value at a single-level map key."""
         session = client.create_session()
@@ -347,7 +331,6 @@ class TestNestedSetTo:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["ratings"] == {"a": 10, "b": 2}
 
-    @pytest.mark.asyncio
     async def test_set_to_creates_new_key(self, client):
         """set_to() on a non-existent key creates it."""
         session = client.create_session()
@@ -359,7 +342,6 @@ class TestNestedSetTo:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["m"] == {"a": 1, "b": 2}
 
-    @pytest.mark.asyncio
     async def test_nested_set_to_two_deep(self, client):
         """Set a value at a 2-deep nested map path."""
         session = client.create_session()
@@ -382,7 +364,6 @@ class TestNestedSetTo:
 class TestNestedAdd:
     """Nested CDT navigation with add() (increment) terminal."""
 
-    @pytest.mark.asyncio
     async def test_add_on_map_key(self, client):
         """Increment a value at a single-level map key."""
         session = client.create_session()
@@ -394,7 +375,6 @@ class TestNestedAdd:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["counters"]["views"] == 15
 
-    @pytest.mark.asyncio
     async def test_nested_add_two_deep(self, client):
         """Increment at a 2-deep nested map path."""
         session = client.create_session()
@@ -416,7 +396,6 @@ class TestNestedAdd:
 class TestNestedCombined:
     """Combined nested write operations."""
 
-    @pytest.mark.asyncio
     async def test_nested_set_to_and_flat_read(self, client):
         """Combine nested set_to with flat read in one execute."""
         session = client.create_session()
@@ -437,7 +416,6 @@ class TestNestedCombined:
         assert result.record.bins["meta"]["status"] == "published"
         assert result.record.bins["scores"] == [10, 20, 30]
 
-    @pytest.mark.asyncio
     async def test_multiple_nested_writes_same_map(self, client):
         """Multiple set_to operations on different keys in the same map."""
         session = client.create_session()
@@ -462,7 +440,6 @@ class TestNestedCombined:
 class TestProductRatingsWorkflow:
     """End-to-end CDT map workflow: write, read by key/rank/range, update, remove."""
 
-    @pytest.mark.asyncio
     async def test_bulk_set_to_multiple_keys(self, client):
         """Write multiple map entries in one upsert."""
         session = client.create_session()
@@ -487,7 +464,6 @@ class TestProductRatingsWorkflow:
         assert ratings["alice"] == 5
         assert ratings["frank"] == 2
 
-    @pytest.mark.asyncio
     async def test_read_by_map_key(self, client):
         """Read a specific map entry by key."""
         session = client.create_session()
@@ -501,7 +477,6 @@ class TestProductRatingsWorkflow:
         ).first_or_raise()
         assert result.record.bins["ratings"] == 5
 
-    @pytest.mark.asyncio
     async def test_read_highest_by_rank(self, client):
         """Read the highest-ranked entry (rank -1)."""
         session = client.create_session()
@@ -517,7 +492,6 @@ class TestProductRatingsWorkflow:
         ).first_or_raise()
         assert result.record.bins["ratings"] == {"alice": 5}
 
-    @pytest.mark.asyncio
     async def test_count_by_value_range(self, client):
         """Count entries within a value range [4, 6)."""
         session = client.create_session()
@@ -533,7 +507,6 @@ class TestProductRatingsWorkflow:
         ).first_or_raise()
         assert result.record.bins["ratings"] == 3
 
-    @pytest.mark.asyncio
     async def test_update_then_remove_then_verify(self, client):
         """Update a rating, remove another, then verify the map state."""
         session = client.create_session()
@@ -549,7 +522,6 @@ class TestProductRatingsWorkflow:
         ratings = result.record.bins["ratings"]
         assert ratings == {"alice": 5, "bob": 5, "carol": 4}
 
-    @pytest.mark.asyncio
     async def test_count_after_update_and_remove(self, client):
         """Verify value-range count changes after updates and removals."""
         session = client.create_session()
@@ -579,7 +551,6 @@ class TestProductRatingsWorkflow:
 class TestCdtReadsInWriteContext:
     """CDT read operations (get_values, count) issued as part of an upsert/update."""
 
-    @pytest.mark.asyncio
     async def test_cdt_read_in_upsert(self, client):
         """Read a CDT value as part of an upsert; the result is returned."""
         session = client.create_session()
@@ -594,7 +565,6 @@ class TestCdtReadsInWriteContext:
         result = await rs.first_or_raise()
         assert result.record.bins["info"] == "Alice"
 
-    @pytest.mark.asyncio
     async def test_cdt_count_in_upsert(self, client):
         """Count CDT elements in an upsert context."""
         session = client.create_session()
@@ -609,7 +579,6 @@ class TestCdtReadsInWriteContext:
         result = await rs.first_or_raise()
         assert result.record.bins["tags"] == 2
 
-    @pytest.mark.asyncio
     async def test_mixed_cdt_read_and_write_in_upsert(self, client):
         """Mix CDT reads and writes on different bins in a single upsert."""
         session = client.create_session()
@@ -631,7 +600,6 @@ class TestCdtReadsInWriteContext:
         verify = await (await session.query(k).execute()).first_or_raise()
         assert verify.record.bins["meta"]["ver"] == 2
 
-    @pytest.mark.asyncio
     async def test_cdt_read_and_flat_write_in_upsert(self, client):
         """CDT read + flat bin write in the same upsert."""
         session = client.create_session()
@@ -650,7 +618,6 @@ class TestCdtReadsInWriteContext:
         verify = await (await session.query(k).execute()).first_or_raise()
         assert verify.record.bins["status"] == "reviewed"
 
-    @pytest.mark.asyncio
     async def test_inverted_count_in_write_context(self, client):
         """Inverted count (count_all_others) in an upsert context."""
         session = client.create_session()
@@ -675,7 +642,6 @@ class TestCdtReadsInWriteContext:
 class TestMapCollectionOps:
     """Top-level and nested map collection CDT operations."""
 
-    @pytest.mark.asyncio
     async def test_map_clear_top_level(self, client):
         session = client.create_session()
         k = DS.id(33)
@@ -686,7 +652,6 @@ class TestMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["m"] == {}
 
-    @pytest.mark.asyncio
     async def test_map_clear_nested(self, client):
         session = client.create_session()
         k = DS.id(34)
@@ -697,7 +662,6 @@ class TestMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["outer"]["inner"] == {}
 
-    @pytest.mark.asyncio
     async def test_map_upsert_items(self, client):
         session = client.create_session()
         k = DS.id(35)
@@ -708,7 +672,6 @@ class TestMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["m"] == {"a": 1, "b": 2, "c": 3}
 
-    @pytest.mark.asyncio
     async def test_map_insert_items_new_keys_only(self, client):
         session = client.create_session()
         k = DS.id(36)
@@ -719,7 +682,6 @@ class TestMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["m"] == {"a": 1, "b": 2}
 
-    @pytest.mark.asyncio
     async def test_map_update_items_existing_keys_only(self, client):
         session = client.create_session()
         k = DS.id(37)
@@ -730,7 +692,6 @@ class TestMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["m"] == {"a": 10, "b": 2}
 
-    @pytest.mark.asyncio
     async def test_map_insert_items_rejects_existing_key(self, client):
         """CREATE_ONLY refuses to overwrite an existing map key."""
         session = client.create_session()
@@ -741,7 +702,6 @@ class TestMapCollectionOps:
             await session.update(k).bin("m").map_insert_items({"a": 2}).execute()
         assert exc_info.value.result_code == ResultCode.ELEMENT_EXISTS
 
-    @pytest.mark.asyncio
     async def test_map_update_items_rejects_new_key(self, client):
         """UPDATE_ONLY refuses to create a map entry for a missing key."""
         session = client.create_session()
@@ -752,7 +712,6 @@ class TestMapCollectionOps:
             await session.update(k).bin("m").map_update_items({"b": 2}).execute()
         assert exc_info.value.result_code == ResultCode.ELEMENT_NOT_FOUND
 
-    @pytest.mark.asyncio
     async def test_map_create_then_upsert_key_ordered(self, client):
         session = client.create_session()
         k = DS.id(38)
@@ -766,7 +725,6 @@ class TestMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert list(result.record.bins["ord"].keys()) == ["a", "b", "c"]
 
-    @pytest.mark.asyncio
     async def test_map_set_policy_key_ordered(self, client):
         session = client.create_session()
         k = DS.id(39)
@@ -777,7 +735,6 @@ class TestMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert list(result.record.bins["m"].keys()) == ["a", "z"]
 
-    @pytest.mark.asyncio
     async def test_map_size_in_update_context(self, client):
         session = client.create_session()
         k = DS.id(40)
@@ -795,7 +752,6 @@ class TestMapCollectionOps:
 class TestListCollectionOps:
     """List clear, sort, bulk append, create, and order."""
 
-    @pytest.mark.asyncio
     async def test_list_clear(self, client):
         session = client.create_session()
         k = DS.id(41)
@@ -806,7 +762,6 @@ class TestListCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["lst"] == []
 
-    @pytest.mark.asyncio
     async def test_list_sort_descending(self, client):
         session = client.create_session()
         k = DS.id(42)
@@ -817,7 +772,6 @@ class TestListCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["lst"] == [5, 3, 2, 1]
 
-    @pytest.mark.asyncio
     async def test_list_append_items(self, client):
         session = client.create_session()
         k = DS.id(43)
@@ -828,7 +782,6 @@ class TestListCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["lst"] == [1, 2, 3, 4]
 
-    @pytest.mark.asyncio
     async def test_list_add_items_ordered(self, client):
         session = client.create_session()
         k = DS.id(44)
@@ -841,7 +794,6 @@ class TestListCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["scores"] == [10, 20, 30]
 
-    @pytest.mark.asyncio
     async def test_empty_list_then_append_items(self, client):
         session = client.create_session()
         k = DS.id(45)
@@ -851,7 +803,6 @@ class TestListCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["items"] == ["a", "b"]
 
-    @pytest.mark.asyncio
     async def test_list_set_order(self, client):
         session = client.create_session()
         k = DS.id(46)
@@ -870,7 +821,6 @@ class TestListCollectionOps:
 class TestNestedMapCollectionOps:
     """Collection-level ops with accumulated CDT context."""
 
-    @pytest.mark.asyncio
     async def test_nested_map_upsert_items(self, client):
         session = client.create_session()
         k = DS.id(47)
@@ -885,7 +835,6 @@ class TestNestedMapCollectionOps:
         result = await (await session.query(k).execute()).first_or_raise()
         assert result.record.bins["root"]["inner"] == {"a": 1, "b": 2}
 
-    @pytest.mark.asyncio
     async def test_nested_map_size_read_path(self, client):
         session = client.create_session()
         k = DS.id(48)
@@ -918,7 +867,6 @@ class TestRelativeRangeNavigation:
             [0, 4, 5, 9, 11, 15],
         ).execute()
 
-    @pytest.mark.asyncio
     async def test_map_get_by_key_relative_index_range(self, client):
         session = client.create_session()
         k = DS.id(52)
@@ -935,7 +883,6 @@ class TestRelativeRangeNavigation:
         assert 5 in flat
         assert 9 in flat
 
-    @pytest.mark.asyncio
     async def test_map_get_by_value_relative_rank_range(self, client):
         session = client.create_session()
         k = DS.id(53)
@@ -951,7 +898,6 @@ class TestRelativeRangeNavigation:
         flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["mapbin"])
         assert [int(x) for x in flat] == [17]
 
-    @pytest.mark.asyncio
     async def test_map_remove_by_key_relative_index_range(self, client):
         session = client.create_session()
         k = DS.id(54)
@@ -968,7 +914,6 @@ class TestRelativeRangeNavigation:
         rec = await (await session.query(k).execute()).first_or_raise()
         assert rec.record.bins["mapbin"] == {0: 17, 4: 2}
 
-    @pytest.mark.asyncio
     async def test_map_remove_by_value_relative_rank_range(self, client):
         session = client.create_session()
         k = DS.id(55)
@@ -985,7 +930,6 @@ class TestRelativeRangeNavigation:
         rec = await (await session.query(k).execute()).first_or_raise()
         assert rec.record.bins["mapbin"] == {4: 2, 5: 15, 9: 10}
 
-    @pytest.mark.asyncio
     async def test_list_get_by_value_relative_rank_range(self, client):
         session = client.create_session()
         k = DS.id(56)
@@ -1001,7 +945,6 @@ class TestRelativeRangeNavigation:
         flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["lst"])
         assert [int(x) for x in flat] == [5, 9, 11, 15]
 
-    @pytest.mark.asyncio
     async def test_list_remove_by_value_relative_rank_range(self, client):
         session = client.create_session()
         k = DS.id(57)
@@ -1018,7 +961,6 @@ class TestRelativeRangeNavigation:
         rec = await (await session.query(k).execute()).first_or_raise()
         assert rec.record.bins["lst"] == [0, 4]
 
-    @pytest.mark.asyncio
     async def test_relative_range_unbounded_count_none(self, client):
         session = client.create_session()
         k = DS.id(58)
@@ -1047,7 +989,6 @@ class TestRelativeRangeNavigation:
             (await rs_list.first_or_raise()).record.bins["lst"],
         )
 
-    @pytest.mark.asyncio
     async def test_relative_range_with_count(self, client):
         session = client.create_session()
         k = DS.id(59)
@@ -1064,7 +1005,6 @@ class TestRelativeRangeNavigation:
         assert 5 in flat
         assert 9 in flat
 
-    @pytest.mark.asyncio
     async def test_relative_range_inverted_get_all_other_values(self, client):
         session = client.create_session()
         k = DS.id(60)
@@ -1080,7 +1020,6 @@ class TestRelativeRangeNavigation:
         flat = _flatten_cdt_values((await rs.first_or_raise()).record.bins["lst"])
         assert 0 in flat or 4 in flat or 11 in flat or 15 in flat
 
-    @pytest.mark.asyncio
     async def test_query_read_path_key_relative_index_range(self, client):
         session = client.create_session()
         k = DS.id(61)
@@ -1110,7 +1049,6 @@ class TestRelativeRangeBatchOrdering:
     Remove coverage uses a trailing ``.get()`` and asserts final bin state.
     """
 
-    @pytest.mark.asyncio
     async def test_operate_map_get_relative_batch(self, client):
         session = client.create_session()
         k = DS.id(70)
@@ -1140,7 +1078,6 @@ class TestRelativeRangeBatchOrdering:
         raw = (await rs.first_or_raise()).record.bins["mapbin"]
         _assert_map_get_relative_batch(raw)
 
-    @pytest.mark.asyncio
     async def test_operate_list_get_relative_batch(self, client):
         session = client.create_session()
         k = DS.id(71)
@@ -1164,7 +1101,6 @@ class TestRelativeRangeBatchOrdering:
         raw = (await rs.first_or_raise()).record.bins["lst"]
         _assert_list_get_relative_batch(raw)
 
-    @pytest.mark.asyncio
     async def test_operate_map_remove_relative_final_state(self, client):
         session = client.create_session()
         k = DS.id(72)
@@ -1203,7 +1139,6 @@ class TestRelativeRangeBatchOrdering:
         m2 = (await rs2.first_or_raise()).record.bins["mapbin"]
         assert m2 == {4: 2, 5: 15}
 
-    @pytest.mark.asyncio
     async def test_operate_list_remove_relative_final_state(self, client):
         session = client.create_session()
         k = DS.id(73)
@@ -1234,7 +1169,6 @@ class TestRelativeRangeBatchOrdering:
 class TestBatchCdtWrite:
     """Multi-key batch writes combined with CDT operations."""
 
-    @pytest.mark.asyncio
     async def test_batch_uniform_map_key_set_to(self, client):
         session = client.create_session()
         k1, k2, k3 = DS.id(80), DS.id(81), DS.id(82)
@@ -1252,7 +1186,6 @@ class TestBatchCdtWrite:
             assert rec.record.bins["info"]["a"] == 99
             assert rec.record.bins["info"]["b"] == 0
 
-    @pytest.mark.asyncio
     async def test_batch_per_key_cdt_ops(self, client):
         session = client.create_session()
         k1, k2 = DS.id(83), DS.id(84)
@@ -1271,7 +1204,6 @@ class TestBatchCdtWrite:
         r2 = await (await session.query(k2).execute()).first_or_raise()
         assert r2.record.bins["m"]["y"] == 20
 
-    @pytest.mark.asyncio
     async def test_batch_mixed_cdt_and_scalar(self, client):
         session = client.create_session()
         k1, k2 = DS.id(85), DS.id(86)
@@ -1291,7 +1223,6 @@ class TestBatchCdtWrite:
         r2 = await (await session.query(k2).execute()).first_or_raise()
         assert r2.record.bins["name"] == "new"
 
-    @pytest.mark.asyncio
     async def test_batch_cdt_collection_clear(self, client):
         session = client.create_session()
         k1, k2 = DS.id(87), DS.id(88)
@@ -1308,7 +1239,6 @@ class TestBatchCdtWrite:
             rec = await (await session.query(k).execute()).first_or_raise()
             assert rec.record.bins["m"] == {}
 
-    @pytest.mark.asyncio
     async def test_batch_cdt_remove(self, client):
         session = client.create_session()
         k1, k2 = DS.id(89), DS.id(90)
@@ -1326,7 +1256,6 @@ class TestBatchCdtWrite:
             assert "drop" not in rec.record.bins["m"]
             assert "keep" in rec.record.bins["m"]
 
-    @pytest.mark.asyncio
     async def test_batch_cdt_list_add_items(self, client):
         session = client.create_session()
         k1, k2 = DS.id(91), DS.id(92)

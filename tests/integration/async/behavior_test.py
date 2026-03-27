@@ -20,24 +20,23 @@ when performing real cluster operations."""
 from datetime import timedelta
 
 import pytest
-import pytest_asyncio
 
 from aerospike_fluent import Behavior, DataSet, FluentClient
 from aerospike_fluent.policy.behavior_settings import OpKind, OpShape, Settings
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 def dataset():
     return DataSet.of("test", "behavior_test")
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def cleanup(client, dataset):
     """Delete test keys after each test."""
     keys_to_clean = []
@@ -50,7 +49,6 @@ async def cleanup(client, dataset):
             pass
 
 
-@pytest.mark.asyncio
 async def test_custom_behavior_put_get(client, dataset, cleanup):
     """A session with a derived behavior can write and read back data."""
     behavior = Behavior.DEFAULT.derive_with_changes(
@@ -69,7 +67,6 @@ async def test_custom_behavior_put_get(client, dataset, cleanup):
         assert result.record.bins == {"name": "Alice", "score": 100}
 
 
-@pytest.mark.asyncio
 async def test_predefined_read_fast(client, dataset, cleanup):
     """Behavior.READ_FAST works end-to-end for writes (inherited from
     DEFAULT) and reads (with its own short timeouts)."""
@@ -85,7 +82,6 @@ async def test_predefined_read_fast(client, dataset, cleanup):
     assert result.record.bins["x"] == 42
 
 
-@pytest.mark.asyncio
 async def test_behavior_inheritance_chain(client, dataset, cleanup):
     """A grandchild behavior inherits correctly through the chain and
     can perform operations."""
@@ -112,7 +108,6 @@ async def test_behavior_inheritance_chain(client, dataset, cleanup):
         assert result.record.bins["level"] == "grandchild"
 
 
-@pytest.mark.asyncio
 async def test_different_sessions_independent(client, dataset, cleanup):
     """Two sessions with different behaviors operate independently on
     the same cluster connection."""
@@ -153,7 +148,6 @@ async def test_different_sessions_independent(client, dataset, cleanup):
     assert safe_session.behavior.name == "safe"
 
 
-@pytest.mark.asyncio
 async def test_batch_with_custom_behavior(client, dataset, cleanup):
     """Batch operations work through a session with a custom behavior."""
     behavior = Behavior.DEFAULT.derive_with_changes(

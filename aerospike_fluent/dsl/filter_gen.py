@@ -437,10 +437,7 @@ class FilterGenerator:
 
         if node.op == OperationType.EQ:
             if node.ctx:
-                try:
-                    return Filter.equal(node.bin_name, value, *node.ctx)
-                except TypeError:
-                    return Filter.equal(node.bin_name, value)
+                return Filter.equal(node.bin_name, value).context(node.ctx)
             return Filter.equal(node.bin_name, value)
         elif node.op == OperationType.GT:
             return Filter.range(node.bin_name, int(node.value) + 1, 2**63 - 1)

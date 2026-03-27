@@ -18,7 +18,6 @@
 import logging
 
 import pytest
-import pytest_asyncio
 from datetime import timedelta
 
 logger = logging.getLogger(__name__)
@@ -26,20 +25,19 @@ logger = logging.getLogger(__name__)
 from aerospike_fluent import Behavior, DataSet, FluentClient
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     """Setup fluent client for testing."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def session(client):
     """Setup session with default behavior for testing."""
     return client.create_session(Behavior.DEFAULT)
 
 
-@pytest.mark.asyncio
 async def test_session_creation_default_behavior(client):
     """Test creating a session with default behavior."""
     session = client.create_session()
@@ -48,7 +46,6 @@ async def test_session_creation_default_behavior(client):
     assert session.client is client
 
 
-@pytest.mark.asyncio
 async def test_session_creation_custom_behavior(client):
     """Test creating a session with custom behavior."""
     custom_behavior = Behavior.DEFAULT.derive_with_changes(
@@ -64,7 +61,7 @@ async def test_session_creation_custom_behavior(client):
     assert session.client is client
 
 
-@pytest.mark.asyncio
+
 async def test_session_repr(session):
     """Test session string representation."""
     repr_str = repr(session)
@@ -72,7 +69,6 @@ async def test_session_repr(session):
     assert "DEFAULT" in repr_str
 
 
-@pytest.mark.asyncio
 async def test_session_upsert_with_key(session):
     """Test session.upsert() with Key object."""
     users = DataSet.of("test", "users")
@@ -86,7 +82,6 @@ async def test_session_upsert_with_key(session):
         assert rec.bins == {"name": "John", "age": 30}
 
 
-@pytest.mark.asyncio
 async def test_session_upsert_with_dataset(session):
     """Test session.upsert() with DataSet."""
     users = DataSet.of("test", "users")
@@ -102,7 +97,6 @@ async def test_session_upsert_with_dataset(session):
         assert rec.bins == {"name": "Jane", "age": 25}
 
 
-@pytest.mark.asyncio
 async def test_session_upsert_with_namespace_set(session):
     """Test session.upsert() with explicit namespace/set."""
     from aerospike_async import Key
@@ -118,7 +112,6 @@ async def test_session_upsert_with_namespace_set(session):
         assert rec.bins == {"name": "Bob", "age": 35}
 
 
-@pytest.mark.asyncio
 async def test_session_insert(session):
     """Test session.insert() method."""
     users = DataSet.of("test", "users")
@@ -137,7 +130,6 @@ async def test_session_insert(session):
         assert rec.bins == {"name": "Insert", "value": 1}
 
 
-@pytest.mark.asyncio
 async def test_session_update(session):
     """Test session.update() method."""
     users = DataSet.of("test", "users")
@@ -152,7 +144,6 @@ async def test_session_update(session):
         assert rec.bins["age"] == 21
 
 
-@pytest.mark.asyncio
 async def test_session_delete(session):
     """Test session.delete() method."""
     users = DataSet.of("test", "users")
@@ -171,7 +162,6 @@ async def test_session_delete(session):
     assert first is None or not first.as_bool()
 
 
-@pytest.mark.asyncio
 async def test_session_touch(session):
     """Test session.touch() method."""
     users = DataSet.of("test", "users")
@@ -185,7 +175,6 @@ async def test_session_touch(session):
     assert (await exists_result.first()).as_bool() is True
 
 
-@pytest.mark.asyncio
 async def test_session_exists(session):
     """Test session.exists() method."""
     users = DataSet.of("test", "users")
@@ -204,7 +193,6 @@ async def test_session_exists(session):
     assert first is not None and first.as_bool()
 
 
-@pytest.mark.asyncio
 async def test_session_query_delegation(session):
     """Test that session.query() delegates to client correctly."""
     users = DataSet.of("test", "users")
@@ -218,7 +206,6 @@ async def test_session_query_delegation(session):
         assert rec.bins == {"name": "QueryTest", "value": 42}
 
 
-@pytest.mark.asyncio
 async def test_session_key_value_delegation(session):
     """Test that session.upsert/query work correctly for key-value operations."""
     users = DataSet.of("test", "users")
@@ -232,7 +219,6 @@ async def test_session_key_value_delegation(session):
     assert first.record_or_raise().bins == {"name": "KVTest"}
 
 
-@pytest.mark.asyncio
 async def test_session_index_delegation(session):
     """Test that session.index() delegates to client correctly."""
     users = DataSet.of("test", "users")
@@ -243,14 +229,12 @@ async def test_session_index_delegation(session):
     assert index_builder._set_name == "users"
 
 
-@pytest.mark.asyncio
 async def test_session_upsert_error_no_key(session):
     """Test that upsert raises error when no key is provided."""
     with pytest.raises(ValueError, match="At least one key must be provided"):
         await session.upsert().put({"name": "Test"}).execute()
 
 
-@pytest.mark.asyncio
 async def test_session_multiple_sessions_different_behaviors(client):
     """Test creating multiple sessions with different behaviors."""
     default_session = client.create_session(Behavior.DEFAULT)
@@ -267,14 +251,12 @@ async def test_session_multiple_sessions_different_behaviors(client):
     assert default_session.behavior.total_timeout == timedelta(seconds=30)
 
 
-@pytest.mark.asyncio
 async def test_session_transaction_session(session):
     """Test that session.transaction_session() works."""
     tx_session = session.transaction_session()
     assert tx_session is not None
 
 
-@pytest.mark.asyncio
 async def test_session_behavior_immutability(session):
     """Test that behavior is immutable."""
     original_timeout = session.behavior.total_timeout
@@ -289,7 +271,6 @@ async def test_session_behavior_immutability(session):
     assert new_behavior.name == "new"
 
 
-@pytest.mark.asyncio
 async def test_session_query_with_dataset(session):
     """Test session.query() with DataSet."""
     users = DataSet.of("test", "users")
@@ -303,7 +284,6 @@ async def test_session_query_with_dataset(session):
         assert rec.bins == {"name": "DatasetQuery"}
 
 
-@pytest.mark.asyncio
 async def test_session_query_with_multiple_keys(session):
     """Test session.query() with multiple keys."""
     users = DataSet.of("test", "users")
@@ -322,7 +302,6 @@ async def test_session_query_with_multiple_keys(session):
     assert count == 3
 
 
-@pytest.mark.asyncio
 async def test_session_truncate(session):
     """Test session.truncate() deletes all records in a set."""
     users = DataSet.of("test", "users")

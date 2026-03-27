@@ -19,7 +19,6 @@ Tests expression building and usage with actual database operations.
 """
 
 import pytest
-import pytest_asyncio
 from aerospike_async import FilterExpression
 
 from aerospike_fluent import DslParseException, Exp, FluentClient, val
@@ -377,7 +376,7 @@ class TestBinExpressions:
 
 # Integration tests with actual database operations
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client_with_data(aerospike_host, client_policy):
     """Setup test data for expression tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -403,7 +402,6 @@ async def client_with_data(aerospike_host, client_policy):
                 pass
 
 
-@pytest.mark.asyncio
 class TestExpWithQuery:
     """Test Exp expressions with actual query operations."""
 
@@ -553,7 +551,6 @@ class TestExpWithQuery:
         assert len(records) == 0
 
 
-@pytest.mark.asyncio
 class TestExpWithDsl:
     """Test DSL string expressions with where() method.
 
@@ -721,7 +718,7 @@ class TestExpWithDsl:
 
 # CDT Path Access Tests
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client_with_cdt_data(aerospike_host, client_policy):
     """Setup test data with lists and maps for CDT path tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -762,7 +759,6 @@ async def client_with_cdt_data(aerospike_host, client_policy):
                 pass
 
 
-@pytest.mark.asyncio
 class TestCdtPathWithExp:
     """Test CDT path expressions using the Exp builder."""
 
@@ -825,7 +821,6 @@ class TestCdtPathWithExp:
         assert records[0].bins["info"]["age"] == 30
 
 
-@pytest.mark.asyncio
 class TestCdtPathWithDsl:
     """Test CDT path expressions using the DSL parser."""
 
@@ -932,7 +927,6 @@ class TestCdtPathWithDsl:
             assert rec.bins["info"]["city"] == "NYC"
 
 
-@pytest.mark.asyncio
 class TestExistsAndCount:
     """Test exists() and count() DSL functions."""
 
@@ -1033,7 +1027,7 @@ class TestExistsAndCount:
         assert len(records) == 2
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client_with_list_data(aerospike_host, client_policy):
     """Setup test data with various lists for advanced list DSL tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -1072,7 +1066,6 @@ async def client_with_list_data(aerospike_host, client_policy):
                 pass
 
 
-@pytest.mark.asyncio
 class TestAdvancedListDsl:
     """Test advanced list DSL features."""
 
@@ -1215,7 +1208,7 @@ class TestAdvancedListDsl:
             assert "alpha" in rec.bins["tags"]
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client_with_map_data(aerospike_host, client_policy):
     """Setup test data with maps for advanced map DSL tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -1250,7 +1243,6 @@ async def client_with_map_data(aerospike_host, client_policy):
                 pass
 
 
-@pytest.mark.asyncio
 class TestAdvancedMapDsl:
     """Test advanced map DSL features."""
 
@@ -1324,7 +1316,7 @@ class TestAdvancedMapDsl:
 # Nested operations, key range/list, etc.
 # =============================================================================
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client_with_nested_data(aerospike_host, client_policy):
     """Setup test data with deeply nested structures."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -1363,7 +1355,6 @@ async def client_with_nested_data(aerospike_host, client_policy):
                 pass
 
 
-@pytest.mark.asyncio
 class TestNestedCdtDsl:
     """Tests for nested CDT operations."""
 
@@ -1445,7 +1436,6 @@ class TestNestedCdtDsl:
         assert len(records) == 1
 
 
-@pytest.mark.asyncio
 class TestMapKeyOperationsDsl:
     """Tests for map key range and key list operations."""
 
@@ -1483,7 +1473,7 @@ class TestMapKeyOperationsDsl:
         assert len(records) >= 1
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client_with_relative_range_data(aerospike_host, client_policy):
     """Setup test data for relative range operations."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
@@ -1518,7 +1508,6 @@ async def client_with_relative_range_data(aerospike_host, client_policy):
                 pass
 
 
-@pytest.mark.asyncio
 class TestRelativeRangeDsl:
     """Tests for relative rank/index range operations."""
 
@@ -1658,7 +1647,6 @@ class TestRelativeRangeDsl:
         assert len(records) >= 1
 
 
-@pytest.mark.asyncio
 class TestDslErrorHandling:
     """Tests for DSL error handling."""
 
@@ -1686,7 +1674,7 @@ class TestDslErrorHandling:
 # Advanced expression filter tests (JFC FilterExpTest equivalents)
 # =============================================================================
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def filter_session(aerospike_host, client_policy):
     """Session with test data matching JFC FilterExpTest setUp.
 
@@ -1717,7 +1705,6 @@ async def filter_session(aerospike_host, client_policy):
                 pass
 
 
-@pytest.mark.asyncio
 class TestAdvancedExpFilters:
     """Integration tests for advanced expression filter functions.
 
@@ -1811,7 +1798,6 @@ class TestAdvancedExpFilters:
         await self._assert_matches(session, key, cond_dsl, "A", 1)
 
 
-@pytest.mark.asyncio
 class TestInExpression:
     """Test the IN operator: expression in expression → boolean.
 

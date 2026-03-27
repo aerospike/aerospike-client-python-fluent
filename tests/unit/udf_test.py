@@ -55,7 +55,6 @@ def test_rejects_empty_function():
         fb.function("pkg", "")
 
 
-@pytest.mark.asyncio
 async def test_passing_accumulates_args():
     qb = _connected_qb()
     qb._set_current_keys_from_varargs((Key("test", "set", 1),))
@@ -66,7 +65,6 @@ async def test_passing_accumulates_args():
     assert call[0][4] == ["a", 1]
 
 
-@pytest.mark.asyncio
 async def test_single_key_routing():
     qb = _connected_qb()
     k = Key("test", "set", 1)
@@ -76,7 +74,6 @@ async def test_single_key_routing():
     qb._client.batch_apply.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_multi_key_routing():
     qb = _connected_qb()
     keys = (Key("test", "set", 1), Key("test", "set", 2))
@@ -104,7 +101,6 @@ def test_udf_spec_type_in_operation_spec():
     assert s.udf_package == "p"
 
 
-@pytest.mark.asyncio
 async def test_where_sets_filter_on_builder():
     qb = _connected_qb()
     qb._set_current_keys_from_varargs((Key("test", "set", 1),))

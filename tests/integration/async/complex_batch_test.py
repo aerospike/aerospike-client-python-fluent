@@ -18,7 +18,6 @@
 import asyncio
 
 import pytest
-import pytest_asyncio
 from aerospike_async.exceptions import ResultCode
 
 from aerospike_fluent.aio.client import FluentClient
@@ -27,7 +26,7 @@ from aerospike_fluent.policy.behavior import Behavior
 from aerospike_fluent.policy.behavior_settings import Settings
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         yield c
@@ -38,7 +37,7 @@ def ds():
     return DataSet.of("test", "complex_batch")
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def session(client):
     return client.create_session()
 
@@ -445,7 +444,7 @@ KEY_PREFIX = "batchkey"
 SIZE = 10
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def seed_data(session, ds):
     """Seed 10 records mirroring the shared batch test dataset.
 

@@ -16,7 +16,6 @@
 """Tests proving K-ordered map key ordering is preserved through native Python dict."""
 
 import pytest
-import pytest_asyncio
 from aerospike_async import (
     MapOperation, MapOrder, MapPolicy, MapReturnType,
     WritePolicy,
@@ -30,7 +29,7 @@ BIN = "mapbin"
 DS = DataSet.of(NS, SET)
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(aerospike_host, client_policy):
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
@@ -42,7 +41,6 @@ async def client(aerospike_host, client_policy):
 class TestKOrderedMapOrdering:
     """K-ordered maps return dict with keys in sorted iteration order."""
 
-    @pytest.mark.asyncio
     async def test_string_keys_sorted(self, client):
         """Insert string keys out of order into a K-ordered map, read back sorted."""
         key = 1
@@ -63,7 +61,6 @@ class TestKOrderedMapOrdering:
         assert isinstance(m, dict)
         assert list(m.keys()) == ["apple", "banana", "cherry"]
 
-    @pytest.mark.asyncio
     async def test_integer_keys_sorted(self, client):
         """Insert integer keys out of order into a K-ordered map, read back sorted."""
         key = 2
@@ -86,7 +83,6 @@ class TestKOrderedMapOrdering:
         assert isinstance(m, dict)
         assert list(m.keys()) == [10, 20, 30, 40, 50]
 
-    @pytest.mark.asyncio
     async def test_many_keys_sorted(self, client):
         """K-ordered map with 100 keys preserves sorted order."""
         key = 3
@@ -104,7 +100,6 @@ class TestKOrderedMapOrdering:
         m = record.bins[BIN]
         assert list(m.keys()) == list(range(1, 101))
 
-    @pytest.mark.asyncio
     async def test_ordering_after_add(self, client):
         """Adding a key to a K-ordered map keeps all keys sorted."""
         key = 4
@@ -128,7 +123,6 @@ class TestKOrderedMapOrdering:
         m = record.bins[BIN]
         assert list(m.keys()) == ["a", "b", "c", "d"]
 
-    @pytest.mark.asyncio
     async def test_ordering_after_remove(self, client):
         """Removing keys from a K-ordered map keeps remaining keys sorted."""
         key = 5
@@ -153,7 +147,6 @@ class TestKOrderedMapOrdering:
         m = record.bins[BIN]
         assert list(m.keys()) == ["a", "c", "d"]
 
-    @pytest.mark.asyncio
     async def test_ordering_after_remove_by_value(self, client):
         """Removing entries by value from a K-ordered map keeps remaining keys sorted."""
         key = 9
@@ -180,7 +173,6 @@ class TestKOrderedMapOrdering:
         assert list(m.keys()) == ["a", "c", "d"]
         assert list(m.values()) == [100, 100, 300]
 
-    @pytest.mark.asyncio
     async def test_round_trip_preserves_order(self, client):
         """Read an ordered map, clear it, re-insert via MapOperation — order preserved."""
         key = 6
@@ -214,7 +206,6 @@ class TestKOrderedMapOrdering:
 class TestKVOrderedMapOrdering:
     """KV-ordered maps return dict with keys in sorted iteration order."""
 
-    @pytest.mark.asyncio
     async def test_kv_ordered_string_keys_sorted(self, client):
         """KV-ordered map keys iterate in sorted order, same as K-ordered."""
         key = 7
@@ -235,7 +226,6 @@ class TestKVOrderedMapOrdering:
         assert isinstance(m, dict)
         assert list(m.keys()) == ["apple", "banana", "cherry"]
 
-    @pytest.mark.asyncio
     async def test_kv_ordered_integer_keys_sorted(self, client):
         """KV-ordered map with integer keys returns them in sorted order."""
         key = 8
@@ -260,7 +250,6 @@ class TestKVOrderedMapOrdering:
 class TestUnorderedMap:
     """Unordered maps return dict with no guaranteed key order."""
 
-    @pytest.mark.asyncio
     async def test_unordered_map_has_no_key_order(self, client):
         """Unordered maps return dict; key iteration order is not guaranteed."""
         key = 10
@@ -278,7 +267,6 @@ class TestUnorderedMap:
 class TestNestedOrderedMaps:
     """Nested K-ordered maps should preserve ordering at every level."""
 
-    @pytest.mark.asyncio
     async def test_nested_ordered_maps(self, client):
         """Outer K-ordered map preserves key order; inner maps are unordered
         unless explicitly created with K-ordered policy."""
@@ -311,7 +299,6 @@ class TestNestedOrderedMaps:
 class TestEdgeCases:
     """Edge cases for ordered map conversion through PythonValue::OrderedMap."""
 
-    @pytest.mark.asyncio
     async def test_mixed_key_types_sorted(self, client):
         """Aerospike sorts by type first (int before string), then by value."""
         key = 12
@@ -339,7 +326,6 @@ class TestEdgeCases:
         # Integers sort before strings in Aerospike's type ordering
         assert keys == int_keys + str_keys
 
-    @pytest.mark.asyncio
     async def test_bytes_keys_sorted(self, client):
         """Bytes keys in a K-ordered map preserve sorted order."""
         key = 13
@@ -359,7 +345,6 @@ class TestEdgeCases:
         m = record.bins[BIN]
         assert list(m.keys()) == [b"\x01", b"\x02", b"\x03"]
 
-    @pytest.mark.asyncio
     async def test_empty_ordered_map(self, client):
         """Empty K-ordered map returns an empty dict."""
         key = 15
@@ -381,7 +366,6 @@ class TestEdgeCases:
         assert isinstance(m, dict)
         assert len(m) == 0
 
-    @pytest.mark.asyncio
     async def test_get_by_rank_range_ordered(self, client):
         """get_by_rank_range on K-ordered map returns values in rank order."""
         key = 16
@@ -408,7 +392,6 @@ class TestEdgeCases:
 class TestFluentApiOrdering:
     """Verify ordering through the fluent BinBuilder path."""
 
-    @pytest.mark.asyncio
     async def test_set_to_ordered_bin(self, client):
         """set_to() on a K-ordered map bin, then read back sorted."""
         key = 17
@@ -434,7 +417,6 @@ class TestFluentApiOrdering:
         record = result.record
         assert isinstance(record.bins[BIN], dict)
 
-    @pytest.mark.asyncio
     async def test_get_by_key_range_ordered(self, client):
         """get_by_key_range on K-ordered map returns keys in sorted order."""
         key = 18
