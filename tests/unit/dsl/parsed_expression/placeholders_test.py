@@ -28,7 +28,6 @@ from aerospike_fluent import (
     IndexTypeEnum,
     parse_dsl,
     parse_dsl_with_index,
-    PlaceholderValues,
 )
 
 NAMESPACE = "test"
@@ -39,21 +38,17 @@ class TestPlaceholders:
 
     def test_int_placeholder(self):
         expected = Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(100))
-        result = parse_dsl("$.intBin1 > ?0", PlaceholderValues(100))
-        assert result == expected
+        assert parse_dsl("$.intBin1 > ?0", 100) == expected
 
     def test_string_placeholder(self):
         expected = Exp.gt(Exp.string_bin("strBin1"), Exp.string_val("str"))
-        result = parse_dsl("$.strBin1 > ?0", PlaceholderValues("str"))
-        assert result == expected
+        assert parse_dsl("$.strBin1 > ?0", "str") == expected
 
         expected_quoted = Exp.gt(Exp.string_bin("strBin1"), Exp.string_val("'str'"))
-        result = parse_dsl("$.strBin1 > ?0", PlaceholderValues("'str'"))
-        assert result == expected_quoted
+        assert parse_dsl("$.strBin1 > ?0", "'str'") == expected_quoted
 
         expected_double = Exp.gt(Exp.string_bin("strBin1"), Exp.string_val('"str"'))
-        result = parse_dsl("$.strBin1 > ?0", PlaceholderValues('"str"'))
-        assert result == expected_double
+        assert parse_dsl("$.strBin1 > ?0", '"str"') == expected_double
 
     def test_blob_placeholder(self):
         data = bytes([1, 2, 3])
@@ -61,39 +56,33 @@ class TestPlaceholders:
             Exp.blob_bin("blobBin1"),
             Exp.blob_val(list(data)),
         )
-        result = parse_dsl("$.blobBin1.get(type: BLOB) > ?0", PlaceholderValues(data))
-        assert result == expected
+        assert parse_dsl("$.blobBin1.get(type: BLOB) > ?0", data) == expected
 
     def test_float_placeholder(self):
         expected = Exp.gt(Exp.float_bin("floatBin"), Exp.float_val(3.14))
-        result = parse_dsl("$.floatBin > ?0", PlaceholderValues(3.14))
-        assert result == expected
+        assert parse_dsl("$.floatBin > ?0", 3.14) == expected
 
     def test_bool_placeholder(self):
         expected = Exp.eq(Exp.bool_bin("active"), Exp.bool_val(True))
-        result = parse_dsl("$.active == ?0", PlaceholderValues(True))
-        assert result == expected
+        assert parse_dsl("$.active == ?0", True) == expected
 
     def test_multiple_placeholders(self):
         expected = Exp.and_([
             Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(100)),
             Exp.gt(Exp.int_bin("intBin2"), Exp.int_val(200))
         ])
-        result = parse_dsl("$.intBin1 > ?0 and $.intBin2 > ?1", PlaceholderValues(100, 200))
-        assert result == expected
+        assert parse_dsl("$.intBin1 > ?0 and $.intBin2 > ?1", 100, 200) == expected
 
     def test_placeholder_in_arithmetic(self):
         expected = Exp.gt(
             Exp.num_add([Exp.int_bin("apples"), Exp.int_val(5)]),
             Exp.int_val(10)
         )
-        result = parse_dsl("($.apples + ?0) > ?1", PlaceholderValues(5, 10))
-        assert result == expected
+        assert parse_dsl("($.apples + ?0) > ?1", 5, 10) == expected
 
     def test_placeholder_with_metadata(self):
         expected = Exp.le(Exp.ttl(), Exp.int_val(86400))
-        result = parse_dsl("$.ttl() <= ?0", PlaceholderValues(86400))
-        assert result == expected
+        assert parse_dsl("$.ttl() <= ?0", 86400) == expected
 
     def test_placeholder_in_when(self):
         expected = Exp.cond([
@@ -103,38 +92,22 @@ class TestPlaceholders:
             Exp.string_val("fred"),
             Exp.string_val("other")
         ])
-        result = parse_dsl(
+        assert parse_dsl(
             "when ($.who == ?0 => ?1, $.who == ?2 => ?3, default => ?4)",
-            PlaceholderValues(1, "bob", 2, "fred", "other")
-        )
-        assert result == expected
-
-    def test_placeholder_of_factory(self):
-        values = PlaceholderValues.of(100, "hello", 3.14)
-        assert values.get(0) == 100
-        assert values.get(1) == "hello"
-        assert values.get(2) == 3.14
+            1, "bob", 2, "fred", "other",
+        ) == expected
 
     def test_missing_placeholder_value_raises_error(self):
-        with pytest.raises(DslParseException, match="Missing value for placeholder"):
-            parse_dsl("$.intBin1 > ?0", PlaceholderValues())
+        with pytest.raises(DslParseException, match="no placeholder values provided"):
+            parse_dsl("$.intBin1 > ?0")
 
     def test_missing_second_placeholder_raises_error(self):
         with pytest.raises(DslParseException, match="Missing value for placeholder \\?1"):
-            parse_dsl("$.intBin1 > ?0 and $.intBin2 > ?1", PlaceholderValues(100))
-
-    def test_placeholder_without_values_raises_error(self):
-        with pytest.raises(DslParseException, match="no PlaceholderValues provided"):
-            parse_dsl("$.intBin1 > ?0")
+            parse_dsl("$.intBin1 > ?0 and $.intBin2 > ?1", 100)
 
     def test_extra_placeholder_values_ignored(self):
         expected = Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(100))
-        result = parse_dsl("$.intBin1 > ?0", PlaceholderValues(100, 200))
-        assert result == expected
-
-    def test_placeholder_repr(self):
-        values = PlaceholderValues(100, "hello")
-        assert repr(values) == "PlaceholderValues(100, 'hello')"
+        assert parse_dsl("$.intBin1 > ?0", 100, 200) == expected
 
     def test_int_bin_gt_has_index(self):
         indexes = [
@@ -142,7 +115,7 @@ class TestPlaceholders:
             Index(bin="intBin2", index_type=IndexTypeEnum.NUMERIC, namespace=NAMESPACE, bin_values_ratio=1),
         ]
         ctx = IndexContext.of(NAMESPACE, indexes)
-        result = parse_dsl_with_index("$.intBin1 > ?0", ctx, PlaceholderValues(100))
+        result = parse_dsl_with_index("$.intBin1 > ?0", ctx, (100,))
         assert result.filter is not None
         assert str(result.filter) == str(Filter.range("intBin1", 101, 2**63 - 1))
         assert result.exp is None
@@ -156,7 +129,7 @@ class TestPlaceholders:
         result = parse_dsl_with_index(
             "$.intBin1 > ?0 and $.intBin2 > ?1",
             ctx,
-            PlaceholderValues(100, 100),
+            (100, 100),
         )
         assert result.filter is not None
         assert str(result.filter) == str(Filter.range("intBin2", 101, 2**63 - 1))
@@ -172,7 +145,7 @@ class TestPlaceholders:
         result = parse_dsl_with_index(
             "($.apples + ?0) > ?1",
             ctx,
-            PlaceholderValues(5, 10),
+            (5, 10),
         )
         assert result.filter is not None
         assert str(result.filter) == str(Filter.range("apples", 6, 2**63 - 1))
@@ -189,11 +162,11 @@ class TestPlaceholders:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.bb.bcc > ?0", PlaceholderValues(200))
+        result = parse_dsl("$.mapBin1.a.bb.bcc > ?0", 200)
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT) > ?0", PlaceholderValues(200))
+        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT) > ?0", 200)
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT, return: VALUE) > ?0", PlaceholderValues(200))
+        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT, return: VALUE) > ?0", 200)
         assert result == expected_int
 
         expected_str = Exp.eq(
@@ -206,13 +179,13 @@ class TestPlaceholders:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.mapBin1.a.bb.bcc == ?0', PlaceholderValues("stringVal"))
+        result = parse_dsl('$.mapBin1.a.bb.bcc == ?0', "stringVal")
         assert result == expected_str
-        result = parse_dsl('$.mapBin1.a.bb.bcc.get(type: STRING) == ?0', PlaceholderValues("stringVal"))
+        result = parse_dsl('$.mapBin1.a.bb.bcc.get(type: STRING) == ?0', "stringVal")
         assert result == expected_str
         result = parse_dsl(
             '$.mapBin1.a.bb.bcc.get(type: STRING, return: VALUE) == ?0',
-            PlaceholderValues("stringVal"),
+            "stringVal",
         )
         assert result == expected_str
 
@@ -227,9 +200,9 @@ class TestPlaceholders:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.listBin1.[5].[#-1] == ?0', PlaceholderValues("stringVal"))
+        result = parse_dsl('$.listBin1.[5].[#-1] == ?0', "stringVal")
         assert result == expected_rank
-        result = parse_dsl('$.listBin1.[5].[#-1].get(type: STRING) == ?0', PlaceholderValues("stringVal"))
+        result = parse_dsl('$.listBin1.[5].[#-1].get(type: STRING) == ?0', "stringVal")
         assert result == expected_rank
 
         expected_value = Exp.eq(
@@ -241,7 +214,7 @@ class TestPlaceholders:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.listBin1.[5].[#-1].[=100] == ?0", PlaceholderValues(200))
+        result = parse_dsl("$.listBin1.[5].[#-1].[=100] == ?0", 200)
         assert result == expected_value
 
     def test_fourth_degree_complicated_explicit_float(self):
@@ -255,7 +228,7 @@ class TestPlaceholders:
         result = parse_dsl(
             "(($.apples.get(type: FLOAT) + $.bananas.get(type: FLOAT))"
             " + ($.oranges.get(type: FLOAT) + $.acai.get(type: FLOAT))) > ?0",
-            PlaceholderValues(10.5),
+            10.5,
         )
         assert result == expected
 
@@ -275,7 +248,7 @@ class TestPlaceholders:
             " $.b == ?1 => $.a2.get(type: STRING),"
             " $.b == ?2 => $.a3.get(type: STRING),"
             " default => ?3))",
-            PlaceholderValues(1, 2, 3, "hello"),
+            1, 2, 3, "hello",
         )
         assert result == expected
 
@@ -286,6 +259,6 @@ class TestPlaceholders:
         ])
         result = parse_dsl(
             'exclusive($.hand == ?0, $.pun == ?1)',
-            PlaceholderValues("stand", "done"),
+            "stand", "done",
         )
         assert result == expected

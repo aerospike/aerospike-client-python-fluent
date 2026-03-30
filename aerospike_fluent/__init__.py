@@ -21,7 +21,7 @@ from aerospike_fluent.aio import FluentClient, Session, TransactionalSession, Cl
 from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.dsl.exceptions import DslParseException
 from aerospike_fluent.dsl.filter_gen import Index, IndexContext, IndexTypeEnum, ParseResult
-from aerospike_fluent.dsl.parser import PlaceholderValues, parse_ctx, parse_dsl, parse_dsl_with_index
+from aerospike_fluent.dsl.parser import parse_ctx, parse_dsl, parse_dsl_with_index
 from aerospike_fluent.exceptions import (
     AerospikeError,
     AuthenticationError,
@@ -76,7 +76,6 @@ __all__ = [
     "parse_dsl",
     "parse_dsl_with_index",
     "ParseResult",
-    "PlaceholderValues",
     "QueryTerminatedError",
     "QuotaError",
     "RecordResult",

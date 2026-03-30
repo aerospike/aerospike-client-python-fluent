@@ -21,7 +21,7 @@ This module provides parsing of text-based DSL expressions like:
 into Aerospike FilterExpression objects.
 
 Supports parameterized queries with placeholders:
-    parse_dsl("$.age > ?0", PlaceholderValues(30))
+    parse_dsl("$.age > ?0", 30)
 
 Also supports parsing paths into CTX arrays:
     parse_ctx("$.listBin.[0].[1]")  # Returns [CTX.list_index(0), CTX.list_index(1)]
@@ -66,70 +66,21 @@ from aerospike_fluent.dsl.exp_visitor import (
 
 
 class PlaceholderValues:
-    """Container for placeholder values used in parameterized DSL queries.
-    
-    Placeholders in DSL strings are written as ?0, ?1, ?2, etc.
-    The index corresponds to the position in the values list.
-    
-    Example:
-        # Using positional arguments
-        values = PlaceholderValues(100, "hello", 3.14)
-        parse_dsl("$.age > ?0 and $.name == ?1", values)
-        
-        # Using a list
-        values = PlaceholderValues.of([100, "hello"])
-        
-    Supported value types:
-        - int -> FilterExpression.int_val()
-        - float -> FilterExpression.float_val()
-        - str -> FilterExpression.string_val()
-        - bool -> FilterExpression.bool_val()
-        - bytes -> FilterExpression.blob_val()
-        - list -> FilterExpression.list_val()
-        - dict -> FilterExpression.map_val()
+    """Internal container for placeholder values (?0, ?1, ...) in DSL queries.
+
+    Not part of the public API — use parse_dsl() with *args instead.
     """
-    
+
     def __init__(self, *values: Any):
-        """Create PlaceholderValues from positional arguments.
-        
-        Args:
-            *values: Values for placeholders ?0, ?1, ?2, etc.
-        """
         self._values: list[Any] = list(values)
-    
-    @classmethod
-    def of(cls, *values: Any) -> "PlaceholderValues":
-        """Create PlaceholderValues (alternative factory).
-        
-        Args:
-            *values: Values for placeholders.
-            
-        Returns:
-            PlaceholderValues instance.
-        """
-        return cls(*values)
-    
+
     def get(self, index: int) -> Any:
-        """Get the value for a placeholder index.
-        
-        Args:
-            index: The placeholder index (e.g., 0 for ?0).
-            
-        Returns:
-            The value at the given index.
-            
-        Raises:
-            DslParseException: If the index is out of range.
-        """
         if index < 0 or index >= len(self._values):
             raise DslParseException(f"Missing value for placeholder ?{index}")
         return self._values[index]
-    
+
     def __len__(self) -> int:
         return len(self._values)
-    
-    def __repr__(self) -> str:
-        return f"PlaceholderValues({', '.join(repr(v) for v in self._values)})"
 
 
 class DSLParser:
@@ -156,16 +107,19 @@ class DSLParser:
             # 1. Create input stream from string
             input_stream = InputStream(dsl_string)
 
-            # 2. Create lexer
+            # 2. Create lexer with custom error listener
             lexer = ConditionLexer(input_stream)
+            lexer.removeErrorListeners()
+            error_listener = _DSLParseErrorListener()
+            lexer.addErrorListener(error_listener)
 
             # 3. Create token stream
             token_stream = CommonTokenStream(lexer)
 
-            # 4. Create parser and install error listener so syntax errors raise
+            # 4. Create parser with same error listener
             parser = ConditionParser(token_stream)
             parser.removeErrorListeners()
-            parser.addErrorListener(_DSLParseErrorListener())
+            parser.addErrorListener(error_listener)
 
             # 5. Parse to get parse tree
             parse_tree = parser.parse()
@@ -189,31 +143,26 @@ class DSLParser:
 _parser: Optional[DSLParser] = None
 
 
-def parse_dsl(
-    dsl_string: str,
-    placeholder_values: Optional[PlaceholderValues] = None
-) -> FilterExpression:
+def parse_dsl(dsl_string: str, *args: Any) -> FilterExpression:
     """Parse a DSL string into a FilterExpression.
 
     Convenience function that uses a global parser instance.
 
     Args:
         dsl_string: The DSL expression string.
-        placeholder_values: Optional values for placeholders (?0, ?1, etc.)
+        *args: Values for placeholders ?0, ?1, ?2, etc.
 
     Returns:
         A FilterExpression object.
 
     Example:
-        # Simple query
         expr = parse_dsl("$.age > 30")
-
-        # Parameterized query
-        expr = parse_dsl("$.age > ?0 and $.name == ?1", PlaceholderValues(30, "John"))
+        expr = parse_dsl("$.age > ?0 and $.name == ?1", 30, "John")
     """
     global _parser
     if _parser is None:
         _parser = DSLParser()
+    placeholder_values = PlaceholderValues(*args) if args else None
     return _parser.parse(dsl_string, placeholder_values)
 
 
@@ -245,10 +194,13 @@ def parse_ctx(path: str) -> List[CTX]:
     try:
         input_stream = InputStream(path)
         lexer = ConditionLexer(input_stream)
+        lexer.removeErrorListeners()
+        error_listener = _DSLParseErrorListener()
+        lexer.addErrorListener(error_listener)
         token_stream = CommonTokenStream(lexer)
         parser = ConditionParser(token_stream)
         parser.removeErrorListeners()
-        parser.addErrorListener(_DSLParseErrorListener())
+        parser.addErrorListener(error_listener)
         parse_tree = parser.parse()
 
         # Use visitor in ctx_only mode to preserve CDTPath without finalization
@@ -312,7 +264,7 @@ def parse_ctx(path: str) -> List[CTX]:
 def parse_dsl_with_index(
     dsl_string: str,
     index_context: Optional[IndexContext] = None,
-    placeholder_values: Optional[PlaceholderValues] = None,
+    placeholder_values: Optional[Sequence[Any]] = None,
 ) -> ParseResult:
     """Parse a DSL string and generate optimal Filter + Exp based on available indexes.
 
@@ -338,7 +290,7 @@ def parse_dsl_with_index(
     Args:
         dsl_string: The DSL expression string.
         index_context: IndexContext with available indexes. If None, only Exp is returned.
-        placeholder_values: Optional values for placeholders (?0, ?1, etc.)
+        placeholder_values: Optional sequence of values for placeholders (?0, ?1, etc.)
 
     Returns:
         ParseResult containing:
@@ -353,10 +305,11 @@ def parse_dsl_with_index(
         ctx = IndexContext.of("test", indexes)
 
         result = parse_dsl_with_index("$.intBin1 > 100 and $.intBin2 < 1000", ctx)
-        # result.filter = Filter.range("intBin2", MIN, 999)  # Higher cardinality chosen
-        # result.exp = Exp.gt(Exp.int_bin("intBin1"), Exp.val(100))  # Remaining part
+
+        result = parse_dsl_with_index("$.intBin1 > ?0", ctx, (100,))
     """
     from aerospike_fluent.dsl.filter_gen import FilterGenerator
     
     generator = FilterGenerator(index_context)
-    return generator.generate(dsl_string, placeholder_values)
+    pv = PlaceholderValues(*placeholder_values) if placeholder_values else None
+    return generator.generate(dsl_string, pv)

@@ -24,6 +24,8 @@ Coverage:
   - Query stacking
 """
 
+import asyncio
+
 import pytest
 
 from aerospike_async import Key
@@ -59,6 +61,9 @@ async def client(aerospike_host, client_policy):
                 "scores": scores,
                 "nested": nested,
             }).execute()
+
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
 
         yield client
 

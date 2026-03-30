@@ -240,7 +240,7 @@ class FilterGenerator:
         Returns:
             ParseResult with Filter and/or Exp.
         """
-        from aerospike_fluent.dsl.parser import parse_dsl
+        from aerospike_fluent.dsl.parser import DSLParser
         from aerospike_fluent.dsl.filter_visitor import build_filter_tree_from_parse_tree
         from antlr4 import InputStream, CommonTokenStream
         from aerospike_fluent.dsl.antlr4.generated.ConditionLexer import ConditionLexer
@@ -250,10 +250,13 @@ class FilterGenerator:
             from aerospike_fluent.dsl.parser import _DSLParseErrorListener
             input_stream = InputStream(dsl_string)
             lexer = ConditionLexer(input_stream)
+            lexer.removeErrorListeners()
+            error_listener = _DSLParseErrorListener()
+            lexer.addErrorListener(error_listener)
             token_stream = CommonTokenStream(lexer)
             parser = ConditionParser(token_stream)
             parser.removeErrorListeners()
-            parser.addErrorListener(_DSLParseErrorListener())
+            parser.addErrorListener(error_listener)
             parse_tree = parser.parse()
         except DslParseException:
             raise
@@ -262,15 +265,17 @@ class FilterGenerator:
 
         tree = build_filter_tree_from_parse_tree(parse_tree, dsl_string, placeholder_values)
 
+        _dsl_parser = DSLParser()
+
         def _safe_exp():
             try:
-                return parse_dsl(dsl_string, placeholder_values)
+                return _dsl_parser.parse(dsl_string, placeholder_values)
             except DslParseException:
                 return None
 
         if tree is None:
             try:
-                exp = parse_dsl(dsl_string, placeholder_values)
+                exp = _dsl_parser.parse(dsl_string, placeholder_values)
                 return ParseResult(filter=None, exp=exp)
             except DslParseException as e:
                 msg = str(e)
@@ -452,20 +457,19 @@ class FilterGenerator:
     
     def _generate_exp(self, tree: ExpressionNode, placeholder_values) -> Optional[FilterExpression]:
         """Generate complementary Exp, skipping part used for Filter."""
-        from aerospike_fluent.dsl.parser import parse_dsl
-        
-        # Collect remaining DSL fragments
+        from aerospike_fluent.dsl.parser import DSLParser
+
         remaining_parts = self._collect_remaining_parts(tree)
-        
+
         if not remaining_parts:
             return None
-        
+
+        dsl_parser = DSLParser()
         if len(remaining_parts) == 1:
-            return parse_dsl(remaining_parts[0], placeholder_values)
-        
-        # Join with AND
+            return dsl_parser.parse(remaining_parts[0], placeholder_values)
+
         remaining_dsl = " and ".join(remaining_parts)
-        return parse_dsl(remaining_dsl, placeholder_values)
+        return dsl_parser.parse(remaining_dsl, placeholder_values)
     
     def _collect_remaining_parts(self, node: Optional[ExpressionNode]) -> List[str]:
         """Collect DSL fragments not used for Filter."""

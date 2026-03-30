@@ -18,6 +18,8 @@
 Tests expression building and usage with actual database operations.
 """
 
+import asyncio
+
 import pytest
 from aerospike_async import FilterExpression
 
@@ -393,6 +395,9 @@ async def client_with_data(aerospike_host, client_policy):
         await session.upsert(ds.id("B")).put({"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2}).execute()
         await session.upsert(ds.id("C")).put({"A": 0, "B": -1.0, "C": "1", "D": 0, "E": 0}).execute()
 
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
+
         yield client
 
         for key in ["A", "B", "C"]:
@@ -676,10 +681,10 @@ class TestExpWithDsl:
         assert len(records) == 3
 
     async def test_where_explicit_cast_still_works(self, client_with_data):
-        """Test that explicit casts still work when needed."""
+        """Test that asInt() casts a float bin to int for comparison."""
         stream = await (
             client_with_data.query("test", "exp_test")
-            .where("$.A.asInt() == 1")
+            .where("$.B.asInt() == 1")
             .execute()
         )
         records = []
@@ -688,7 +693,7 @@ class TestExpWithDsl:
         stream.close()
 
         assert len(records) == 1
-        assert records[0].bins["A"] == 1
+        assert records[0].bins["B"] == 1.1
 
     async def test_where_float_comparison(self, client_with_data):
         """Test DSL float comparison with automatic float inference."""
@@ -749,6 +754,9 @@ async def client_with_cdt_data(aerospike_host, client_policy):
             "info": {"name": "Charlie", "age": 40, "city": "NYC"},
             "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
         }).execute()
+
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
 
         yield client
 
@@ -1057,6 +1065,9 @@ async def client_with_list_data(aerospike_host, client_policy):
             "tags": ["zeta"],
         }).execute()
 
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
+
         yield client
 
         for key in ["rec1", "rec2", "rec3", "rec4"]:
@@ -1234,6 +1245,9 @@ async def client_with_map_data(aerospike_host, client_policy):
             "metadata": {"type": "premium", "level": 2},
         }).execute()
 
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
+
         yield client
 
         for key in ["rec1", "rec2", "rec3"]:
@@ -1345,6 +1359,9 @@ async def client_with_nested_data(aerospike_host, client_policy):
             },
             "simple_list": [10, 20, 30],
         }).execute()
+
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
 
         yield client
 
@@ -1498,6 +1515,9 @@ async def client_with_relative_range_data(aerospike_host, client_policy):
             "numbers": [2, 6, 10, 14, 18],
             "scores": {"alice": 55, "bob": 65, "charlie": 95, "dave": 105},
         }).execute()
+
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
 
         yield client
 
@@ -1695,6 +1715,9 @@ async def filter_session(aerospike_host, client_policy):
         await session.upsert(ds.id("A")).put({"A": 1, "B": 1.1, "C": "abcde", "D": 1, "E": -1}).execute()
         await session.upsert(ds.id("B")).put({"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2}).execute()
         await session.upsert(ds.id("C")).put({"A": 0, "B": -1.0, "C": "1"}).execute()
+
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
 
         yield session, ds
 

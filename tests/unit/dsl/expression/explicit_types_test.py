@@ -191,6 +191,40 @@ class TestExplicitTypes:
         with pytest.raises(DslParseException):
             parse_dsl("[yes, of course] == $.listBin1.get(type: LIST)")
 
+    # List comparison tests - negative values in constants
+    def test_list_with_negative_ints(self):
+        expected = Exp.eq(Exp.list_bin("listBin1"), Exp.list_val([-1, 2]))
+        assert parse_dsl("$.listBin1.get(type: LIST) == [-1, 2]") == expected
+
+    def test_list_with_negative_ints_left(self):
+        expected = Exp.eq(Exp.list_val([-1, 2]), Exp.list_bin("listBin1"))
+        assert parse_dsl("[-1, 2] == $.listBin1.get(type: LIST)") == expected
+
+    def test_list_with_all_negative_ints(self):
+        expected = Exp.eq(Exp.list_bin("bin"), Exp.list_val([-1, -2, -3]))
+        assert parse_dsl("$.bin.get(type: LIST) == [-1, -2, -3]") == expected
+
+    def test_list_with_negative_floats(self):
+        expected = Exp.eq(Exp.list_bin("bin"), Exp.list_val([-1.5, 0.0, 1.5]))
+        assert parse_dsl("$.bin.get(type: LIST) == [-1.5, 0.0, 1.5]") == expected
+
+    def test_list_with_unary_plus(self):
+        expected = Exp.eq(Exp.list_bin("bin"), Exp.list_val([5, -3]))
+        assert parse_dsl("$.bin.get(type: LIST) == [+5, -3]") == expected
+
+    # Map comparison tests - negative values in constants
+    def test_map_with_negative_value(self):
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"a": -5}))
+        assert parse_dsl('$.mapBin1.get(type: MAP) == {"a": -5}') == expected
+
+    def test_map_with_negative_float_value(self):
+        expected = Exp.eq(Exp.map_bin("mapBin1"), Exp.map_val({"x": -3.14}))
+        assert parse_dsl('$.mapBin1.get(type: MAP) == {"x": -3.14}') == expected
+
+    def test_map_with_mixed_sign_values(self):
+        expected = Exp.eq(Exp.map_bin("bin"), Exp.map_val({"a": -1, "b": 2}))
+        assert parse_dsl('$.bin.get(type: MAP) == {"a": -1, "b": 2}') == expected
+
     # Map comparison tests - constant on right side
     def test_map_comparison_single_pair(self):
         """Test $.mapBin1.get(type: MAP) == {100:100}."""

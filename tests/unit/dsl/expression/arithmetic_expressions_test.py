@@ -381,6 +381,10 @@ class TestArithmeticFunctions:
         result = parse_dsl("abs(-3.14) == 3.14")
         assert result == expected
 
+    def test_abs_zero(self):
+        expected = Exp.eq(Exp.num_abs(Exp.int_val(0)), Exp.int_val(0))
+        assert parse_dsl("abs(0) == 0") == expected
+
     # --- ceil ---
     def test_ceil_literal(self):
         expected = Exp.eq(Exp.num_ceil(Exp.float_val(12.34)), Exp.float_val(13.0))
@@ -395,6 +399,14 @@ class TestArithmeticFunctions:
         result = parse_dsl("ceil($.price) == 100.0")
         assert result == expected
 
+    def test_ceil_already_whole(self):
+        expected = Exp.eq(Exp.num_ceil(Exp.float_val(5.0)), Exp.float_val(5.0))
+        assert parse_dsl("ceil(5.0) == 5.0") == expected
+
+    def test_ceil_negative_float(self):
+        expected = Exp.eq(Exp.num_ceil(Exp.float_val(-2.7)), Exp.float_val(-2.0))
+        assert parse_dsl("ceil(-2.7) == -2.0") == expected
+
     # --- floor ---
     def test_floor_literal(self):
         expected = Exp.eq(Exp.num_floor(Exp.float_val(12.99)), Exp.float_val(12.0))
@@ -408,6 +420,14 @@ class TestArithmeticFunctions:
         )
         result = parse_dsl("floor($.score) < 50.0")
         assert result == expected
+
+    def test_floor_already_whole(self):
+        expected = Exp.eq(Exp.num_floor(Exp.float_val(5.0)), Exp.float_val(5.0))
+        assert parse_dsl("floor(5.0) == 5.0") == expected
+
+    def test_floor_negative_float(self):
+        expected = Exp.eq(Exp.num_floor(Exp.float_val(-2.7)), Exp.float_val(-3.0))
+        assert parse_dsl("floor(-2.7) == -3.0") == expected
 
     # --- log ---
     def test_log_literals(self):
@@ -425,6 +445,13 @@ class TestArithmeticFunctions:
         )
         result = parse_dsl("log($.val, 10.0) > 3.0")
         assert result == expected
+
+    def test_log_base_case(self):
+        expected = Exp.eq(
+            Exp.num_log(Exp.float_val(1.0), Exp.float_val(10.0)),
+            Exp.float_val(0.0),
+        )
+        assert parse_dsl("log(1.0, 10.0) == 0.0") == expected
 
     # --- pow ---
     def test_pow_literals(self):
@@ -656,6 +683,73 @@ class TestNumberLiterals:
         assert result == expected
 
 
+class TestGenericFunctionDispatch:
+    """Test generic function call dispatch: unknown functions, arity validation."""
+
+    def test_unknown_function_raises(self):
+        with pytest.raises(DslParseException, match="Unknown function"):
+            parse_dsl("unknown($.a) == 5")
+
+    def test_abs_wrong_arg_count(self):
+        with pytest.raises(DslParseException, match="expects 1 argument"):
+            parse_dsl("abs($.a, $.b) == 5")
+
+    def test_log_wrong_arg_count(self):
+        with pytest.raises(DslParseException, match="expects 2 argument"):
+            parse_dsl("log(2.0) == 0.0")
+
+    def test_min_too_few_args(self):
+        with pytest.raises(DslParseException, match="at least 2 arguments"):
+            parse_dsl("min(5) == 5")
+
+    def test_max_too_few_args(self):
+        with pytest.raises(DslParseException, match="at least 2 arguments"):
+            parse_dsl("max(3) == 3")
+
+    def test_nested_function_calls(self):
+        expected = Exp.eq(
+            Exp.num_abs(Exp.num_ceil(Exp.float_val(12.34))),
+            Exp.float_val(13.0),
+        )
+        assert parse_dsl("abs(ceil(12.34)) == 13.0") == expected
+
+    def test_function_with_expression_arg(self):
+        expected = Exp.gt(
+            Exp.num_abs(Exp.num_sub([Exp.int_bin("a"), Exp.int_bin("b")])),
+            Exp.int_val(0),
+        )
+        assert parse_dsl("abs($.a - $.b) > 0") == expected
+
+    def test_functions_in_arithmetic(self):
+        expected = Exp.gt(
+            Exp.num_add([Exp.num_abs(Exp.int_bin("a")), Exp.num_abs(Exp.int_bin("b"))]),
+            Exp.int_val(10),
+        )
+        assert parse_dsl("(abs($.a) + abs($.b)) > 10") == expected
+
+    def test_function_combination(self):
+        expected = Exp.gt(
+            Exp.min([Exp.int_bin("a"), Exp.int_bin("b")]),
+            Exp.max([Exp.int_bin("c"), Exp.int_bin("d")]),
+        )
+        assert parse_dsl("min($.a, $.b) > max($.c, $.d)") == expected
+
+    def test_bitwise_in_function_arg(self):
+        expected = Exp.gt(
+            Exp.int_count(Exp.int_and([Exp.int_bin("a"), Exp.int_bin("b")])),
+            Exp.int_val(3),
+        )
+        assert parse_dsl("countOneBits($.a & $.b) > 3") == expected
+
+    def test_max_with_many_args(self):
+        expected = Exp.eq(
+            Exp.max([Exp.int_val(1), Exp.int_val(2), Exp.int_val(3),
+                     Exp.int_val(4), Exp.int_val(5), Exp.int_val(6)]),
+            Exp.int_val(6),
+        )
+        assert parse_dsl("max(1, 2, 3, 4, 5, 6) == 6") == expected
+
+
 class TestBitScanFunctions:
     """Test countOneBits, findBitLeft, findBitRight DSL functions."""
 
@@ -676,6 +770,10 @@ class TestBitScanFunctions:
         )
         result = parse_dsl("countOneBits($.A) == 1")
         assert result == expected
+
+    def test_count_one_bits_zero(self):
+        expected = Exp.eq(Exp.int_count(Exp.int_val(0)), Exp.int_val(0))
+        assert parse_dsl("countOneBits(0) == 0") == expected
 
     def test_count_one_bits_in_comparison(self):
         expected = Exp.gt(

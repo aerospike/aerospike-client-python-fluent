@@ -64,7 +64,7 @@ class FilterTreeVisitor(ConditionVisitor):
     """Builds ExpressionNode tree from parse tree for filter generation.
 
     Only handles AND, OR, NOT, and simple comparisons (bin op constant / constant op bin).
-    Returns None for unsupported expressions (exclusive, with, when, arithmetic, etc.).
+    Returns None for unsupported expressions (exclusive, let, when, arithmetic, etc.).
     When placeholder_values is provided, placeholder operands (?0, ?1, ...) are resolved
     to constants so filter generation can use them.
     """
@@ -97,7 +97,7 @@ class FilterTreeVisitor(ConditionVisitor):
         return result
 
     def visitAndExpression(self, ctx: ConditionParser.AndExpressionContext) -> Optional[ExpressionNode]:
-        basic_list = ctx.basicExpression()
+        basic_list = ctx.comparisonExpression()
         if not basic_list:
             return None
         nodes: List[ExpressionNode] = []
@@ -124,16 +124,11 @@ class FilterTreeVisitor(ConditionVisitor):
     def visitExclusiveExpression(self, ctx: ConditionParser.ExclusiveExpressionContext) -> Optional[ExpressionNode]:
         return None
 
-    def visitWithExpression(self, ctx: ConditionParser.WithExpressionContext) -> Optional[ExpressionNode]:
+    def visitLetExpression(self, ctx: ConditionParser.LetExpressionContext) -> Optional[ExpressionNode]:
         return None
 
     def visitWhenExpression(self, ctx: ConditionParser.WhenExpressionContext) -> Optional[ExpressionNode]:
         return None
-
-    def visitComparisonExpressionWrapper(
-        self, ctx: ConditionParser.ComparisonExpressionWrapperContext
-    ) -> Optional[ExpressionNode]:
-        return self.visit(ctx.comparisonExpression()) if ctx.comparisonExpression() else None
 
     def visitEqualityExpression(self, ctx: ConditionParser.EqualityExpressionContext) -> Optional[ExpressionNode]:
         return self._visit_comparison(ctx, OperationType.EQ)
@@ -157,10 +152,9 @@ class FilterTreeVisitor(ConditionVisitor):
     ) -> Optional[ExpressionNode]:
         return self._visit_comparison(ctx, OperationType.LE)
 
-    def visitAdditiveExpressionWrapper(
-        self, ctx: ConditionParser.AdditiveExpressionWrapperContext
+    def visitBitwiseExpressionWrapper(
+        self, ctx: ConditionParser.BitwiseExpressionWrapperContext
     ) -> Optional[ExpressionNode]:
-        # Delegate to child so parenthesized expressions (e.g. (a or b)) are visited
         return self.visitChildren(ctx)
 
     def visitOperand(self, ctx: ConditionParser.OperandContext) -> Optional[ExpressionNode]:
@@ -174,10 +168,10 @@ class FilterTreeVisitor(ConditionVisitor):
         ctx: Any,
         op: OperationType,
     ) -> Optional[ExpressionNode]:
-        add_left = ctx.additiveExpression(0)
-        add_right = ctx.additiveExpression(1)
-        left_op = self._try_simple_operand(add_left)
-        right_op = self._try_simple_operand(add_right)
+        bw_left = ctx.bitwiseExpression(0)
+        bw_right = ctx.bitwiseExpression(1)
+        left_op = self._try_simple_operand(bw_left)
+        right_op = self._try_simple_operand(bw_right)
         if left_op is not None and right_op is not None:
             bin_ref: Optional[_BinRef] = None
             const: Optional[_Constant] = None
@@ -200,8 +194,8 @@ class FilterTreeVisitor(ConditionVisitor):
                 )
         if op == OperationType.NE:
             return None
-        left_arith = self._try_arithmetic_operand(add_left)
-        right_simple = self._try_simple_operand(add_right)
+        left_arith = self._try_arithmetic_operand(bw_left)
+        right_simple = self._try_simple_operand(bw_right)
         if left_arith is not None and right_simple is not None and isinstance(right_simple, _Constant):
             if isinstance(right_simple.value, int) and not isinstance(right_simple.value, bool):
                 bin_ref, arith_op, arith_const, bin_on_left = left_arith
@@ -217,8 +211,8 @@ class FilterTreeVisitor(ConditionVisitor):
                     arith_constant=arith_const,
                     bin_on_left=bin_on_left,
                 )
-        right_arith = self._try_arithmetic_operand(add_right)
-        left_simple = self._try_simple_operand(add_left)
+        right_arith = self._try_arithmetic_operand(bw_right)
+        left_simple = self._try_simple_operand(bw_left)
         if right_arith is not None and left_simple is not None and isinstance(left_simple, _Constant):
             if isinstance(left_simple.value, int) and not isinstance(left_simple.value, bool):
                 bin_ref, arith_op, arith_const, bin_on_left = right_arith
@@ -248,20 +242,22 @@ class FilterTreeVisitor(ConditionVisitor):
             return OperationType.LE
         return op
 
-    def _get_operand_from_shift(self, shift_ctx: Any) -> Optional[_SimpleOperand]:
-        if shift_ctx.getChildCount() != 1:
-            return None
-        return self._try_simple_operand_from_operand(shift_ctx.getChild(0))
-
-    def _get_operand_from_bitwise(self, bitwise_ctx: Any) -> Optional[_SimpleOperand]:
-        if bitwise_ctx.getChildCount() != 1:
-            return None
-        return self._get_operand_from_shift(bitwise_ctx.getChild(0))
+    def _get_operand_from_unary(self, unary_ctx: Any) -> Optional[_SimpleOperand]:
+        if unary_ctx.getChildCount() == 1:
+            return self._try_simple_operand_from_operand(unary_ctx.getChild(0))
+        # Handle unary minus on a number literal: -(number)
+        if unary_ctx.getChildCount() == 2 and unary_ctx.getChild(0).getText() == '-':
+            inner_unary = unary_ctx.getChild(1)
+            if inner_unary.getChildCount() == 1:
+                result = self._try_simple_operand_from_operand(inner_unary.getChild(0))
+                if isinstance(result, _Constant) and isinstance(result.value, (int, float)):
+                    return _Constant(-result.value, result.value_type)
+        return None
 
     def _get_operand_from_power(self, power_ctx: Any) -> Optional[_SimpleOperand]:
         if power_ctx.getChildCount() != 1:
             return None
-        return self._get_operand_from_bitwise(power_ctx.getChild(0))
+        return self._get_operand_from_unary(power_ctx.getChild(0))
 
     def _get_operand_from_multiplicative(self, mult_ctx: Any) -> Optional[_SimpleOperand]:
         if mult_ctx.getChildCount() != 1:
@@ -273,8 +269,24 @@ class FilterTreeVisitor(ConditionVisitor):
             return None
         return self._get_operand_from_multiplicative(add_ctx.getChild(0))
 
-    def _unwrap_parenthesized_additive(self, add_ctx: Any) -> Optional[Any]:
-        """If add_ctx is ( expr ) where expr is additive, return the inner additiveExpression context."""
+    def _get_operand_from_shift(self, shift_ctx: Any) -> Optional[_SimpleOperand]:
+        if shift_ctx.getChildCount() != 1:
+            return None
+        return self._get_operand_from_additive(shift_ctx.getChild(0))
+
+    def _get_operand_from_bitwise(self, bitwise_ctx: Any) -> Optional[_SimpleOperand]:
+        if bitwise_ctx.getChildCount() != 1:
+            return None
+        return self._get_operand_from_shift(bitwise_ctx.getChild(0))
+
+    def _unwrap_parenthesized_bitwise(self, bw_ctx: Any) -> Optional[Any]:
+        """If bw_ctx wraps a parenthesized expression, return the inner bitwiseExpression context."""
+        if bw_ctx.getChildCount() != 1:
+            return None
+        shift_ctx = bw_ctx.getChild(0)
+        if shift_ctx.getChildCount() != 1:
+            return None
+        add_ctx = shift_ctx.getChild(0)
         if add_ctx.getChildCount() != 1:
             return None
         mult_ctx = add_ctx.getChild(0)
@@ -283,13 +295,10 @@ class FilterTreeVisitor(ConditionVisitor):
         power_ctx = mult_ctx.getChild(0)
         if power_ctx.getChildCount() != 1:
             return None
-        bitwise_ctx = power_ctx.getChild(0)
-        if bitwise_ctx.getChildCount() != 1:
+        unary_ctx = power_ctx.getChild(0)
+        if unary_ctx.getChildCount() != 1:
             return None
-        shift_ctx = bitwise_ctx.getChild(0)
-        if shift_ctx.getChildCount() != 1:
-            return None
-        oper_ctx = shift_ctx.getChild(0)
+        oper_ctx = unary_ctx.getChild(0)
         try:
             inner_expr = oper_ctx.expression()
         except AttributeError:
@@ -299,19 +308,25 @@ class FilterTreeVisitor(ConditionVisitor):
         try:
             lor = inner_expr.logicalOrExpression()
             land = lor.logicalAndExpression(0)
-            basic = land.basicExpression(0)
-            comp = basic.comparisonExpression()
+            comp = land.comparisonExpression(0)
             if comp.getChildCount() >= 1:
                 return comp.getChild(0)
             return None
-        except (AttributeError, IndexError, TypeError) as e:
+        except (AttributeError, IndexError, TypeError):
             return None
 
-    def _try_arithmetic_operand(self, add_ctx: Any) -> Optional[Tuple[_BinRef, str, int, bool]]:
-        """If additiveExpression is (bin op int) or (int op bin) with op in +-*/, return (bin_ref, op, int_const, bin_on_left)."""
-        inner = self._unwrap_parenthesized_additive(add_ctx)
+    def _try_arithmetic_operand(self, bw_ctx: Any) -> Optional[Tuple[_BinRef, str, int, bool]]:
+        """If bitwiseExpression wraps (bin op int) or (int op bin) with op in +-*/, return (bin_ref, op, int_const, bin_on_left)."""
+        inner = self._unwrap_parenthesized_bitwise(bw_ctx)
         if inner is not None:
             return self._try_arithmetic_operand(inner)
+        # Unwrap bitwise → shift → additive
+        if bw_ctx.getChildCount() != 1:
+            return None
+        shift_ctx = bw_ctx.getChild(0)
+        if shift_ctx.getChildCount() != 1:
+            return None
+        add_ctx = shift_ctx.getChild(0)
         if add_ctx.getChildCount() == 3:
             op_text = add_ctx.getChild(1).getText()
             if op_text in "+-":
@@ -336,27 +351,14 @@ class FilterTreeVisitor(ConditionVisitor):
                             return (right, op_text, int(left.value), False)
         return None
 
-    def _try_simple_operand(self, add_ctx: Any) -> Optional[_SimpleOperand]:
-        """If additiveExpression is a single operand (no + - * / etc), return BinRef or Constant."""
-        if add_ctx.getChildCount() != 1:
-            return None
-        mult_ctx = add_ctx.getChild(0)
-        if mult_ctx.getChildCount() != 1:
-            return None
-        power_ctx = mult_ctx.getChild(0)
-        if power_ctx.getChildCount() != 1:
-            return None
-        bitwise_ctx = power_ctx.getChild(0)
-        if bitwise_ctx.getChildCount() != 1:
-            return None
-        shift_ctx = bitwise_ctx.getChild(0)
-        if shift_ctx.getChildCount() != 1:
-            return None
-        oper_ctx = shift_ctx.getChild(0)
-        return self._try_simple_operand_from_operand(oper_ctx)
+    def _try_simple_operand(self, bw_ctx: Any) -> Optional[_SimpleOperand]:
+        """If bitwiseExpression is a single operand (no arithmetic), return BinRef or Constant."""
+        return self._get_operand_from_bitwise(bw_ctx)
 
     def _try_simple_operand_from_operand(self, oper_ctx: Any) -> Optional[_SimpleOperand]:
         """Extract BinRef or Constant from operand context."""
+        if oper_ctx.operandCast() is not None:
+            return self._constant_from_operand_cast(oper_ctx.operandCast())
         if oper_ctx.pathOrMetadata() is not None:
             return self._try_bin_ref_from_path_or_metadata(oper_ctx.pathOrMetadata())
         if oper_ctx.numberOperand() is not None:
@@ -423,6 +425,16 @@ class FilterTreeVisitor(ConditionVisitor):
             explicit_type=explicit_type,
             ctx=ctx_list if ctx_list else None,
         )
+
+    @staticmethod
+    def _constant_from_operand_cast(cast_ctx: Any) -> _Constant:
+        num = cast_ctx.numberOperand()
+        text = num.getText()
+        raw = int(text, 0) if num.intOperand() is not None else float(text)
+        cast_fn = cast_ctx.pathFunctionCast().PATH_FUNCTION_CAST().getText()
+        if cast_fn == "asInt()":
+            return _Constant(int(raw), IndexTypeEnum.NUMERIC)
+        return _Constant(float(raw), IndexTypeEnum.NUMERIC)
 
     def _constant_from_number(self, num_ctx: Any) -> _Constant:
         text = num_ctx.getText()

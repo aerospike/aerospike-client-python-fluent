@@ -40,8 +40,6 @@ class TestMapExpressions:
         assert result == expected_int
         result = parse_dsl("$.mapBin1.a.get(type: INT, return: VALUE) == 200")
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.a.asInt() == 200")
-        assert result == expected_int
 
         expected_str = Exp.eq(
             Exp.map_get_by_key(
@@ -228,8 +226,6 @@ class TestMapExpressions:
         assert result == expected_int
         result = parse_dsl("$.mapBin1.{0}.get(type: INT, return: VALUE) == 100")
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.{0}.asInt() == 100")
-        assert result == expected_int
 
         expected_str = Exp.eq(
             Exp.map_get_by_index(
@@ -264,8 +260,6 @@ class TestMapExpressions:
         result = parse_dsl("$.mapBin1.{=100}.get(type: INT) == 100")
         assert result == expected
         result = parse_dsl("$.mapBin1.{=100}.get(type: INT, return: VALUE) == 100")
-        assert result == expected
-        result = parse_dsl("$.mapBin1.{=100}.asInt() == 100")
         assert result == expected
 
     def test_map_by_value_count(self):
@@ -302,8 +296,6 @@ class TestMapExpressions:
         assert result == expected
         result = parse_dsl("$.mapBin1.{#-1}.get(type: INT, return: VALUE) == 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.{#-1}.asInt() == 100")
-        assert result == expected
 
     def test_map_by_rank_with_nesting(self):
         """$.mapBin1.a.{#-1} with get(type)/asInt()."""
@@ -322,8 +314,6 @@ class TestMapExpressions:
         result = parse_dsl("$.mapBin1.a.{#-1}.get(type: INT) == 100")
         assert result == expected
         result = parse_dsl("$.mapBin1.a.{#-1}.get(type: INT, return: VALUE) == 100")
-        assert result == expected
-        result = parse_dsl("$.mapBin1.a.{#-1}.asInt() == 100")
         assert result == expected
 
     def test_nested_lists_with_different_context_types(self):
