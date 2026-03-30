@@ -1,6 +1,6 @@
 grammar Condition;
 
-parse: expression;
+parse: expression EOF;
 
 expression
     : logicalOrExpression
@@ -11,29 +11,34 @@ logicalOrExpression
     ;
 
 logicalAndExpression
-    : basicExpression ('and' basicExpression)*                                  # AndExpression
-    ;
-
-basicExpression
-    : 'not' '(' expression ')'                                                  # NotExpression
-    | 'exclusive' '(' expression (',' expression)+ ')'                          # ExclusiveExpression
-    | 'with' '(' variableDefinition (',' variableDefinition)* ')' 'do' '(' expression ')'       # WithExpression
-    | 'when' '(' expressionMapping (',' expressionMapping)* ',' 'default' '=>' expression ')'   # WhenExpression
-    | comparisonExpression                                                      # ComparisonExpressionWrapper
+    : comparisonExpression ('and' comparisonExpression)*                        # AndExpression
     ;
 
 comparisonExpression
-    : additiveExpression '>' additiveExpression                                 # GreaterThanExpression
-    | additiveExpression '>=' additiveExpression                                # GreaterThanOrEqualExpression
-    | additiveExpression '<' additiveExpression                                 # LessThanExpression
-    | additiveExpression '<=' additiveExpression                                # LessThanOrEqualExpression
-    | additiveExpression '==' additiveExpression                                # EqualityExpression
-    | additiveExpression '!=' additiveExpression                                # InequalityExpression
-    | additiveExpression 'in' additiveExpression                                # InExpression
-    | additiveExpression                                                        # AdditiveExpressionWrapper
+    : bitwiseExpression '>' bitwiseExpression                                   # GreaterThanExpression
+    | bitwiseExpression '>=' bitwiseExpression                                  # GreaterThanOrEqualExpression
+    | bitwiseExpression '<' bitwiseExpression                                   # LessThanExpression
+    | bitwiseExpression '<=' bitwiseExpression                                  # LessThanOrEqualExpression
+    | bitwiseExpression '==' bitwiseExpression                                  # EqualityExpression
+    | bitwiseExpression '!=' bitwiseExpression                                  # InequalityExpression
+    | bitwiseExpression IN bitwiseExpression                                    # InExpression
+    | bitwiseExpression                                                         # BitwiseExpressionWrapper
     ;
 
-// Rest of the grammar rules remain the same
+bitwiseExpression
+    : shiftExpression                                                           # ShiftExpressionWrapper
+    | bitwiseExpression '&' shiftExpression                                     # IntAndExpression
+    | bitwiseExpression '|' shiftExpression                                     # IntOrExpression
+    | bitwiseExpression '^' shiftExpression                                     # IntXorExpression
+    ;
+
+shiftExpression
+    : additiveExpression                                                        # AdditiveExpressionWrapper
+    | shiftExpression '<<' additiveExpression                                   # IntLShiftExpression
+    | shiftExpression '>>>' additiveExpression                                  # IntLogicalRShiftExpression
+    | shiftExpression '>>' additiveExpression                                   # IntArithmeticRShiftExpression
+    ;
+
 additiveExpression
     : multiplicativeExpression                                                  # MultiplicativeExpressionWrapper
     | additiveExpression '+' multiplicativeExpression                           # AddExpression
@@ -48,27 +53,19 @@ multiplicativeExpression
     ;
 
 powerExpression
-    : bitwiseExpression                                                          # BitwiseExpressionWrapper
-    | bitwiseExpression '**' powerExpression                                     # PowInfixExpression
+    : unaryExpression                                                            # UnaryExpressionWrapper
+    | <assoc=right> powerExpression '**' powerExpression                         # PowExpression
     ;
 
-bitwiseExpression
-    : shiftExpression                                                           # ShiftExpressionWrapper
-    | bitwiseExpression '&' shiftExpression                                     # IntAndExpression
-    | bitwiseExpression '|' shiftExpression                                     # IntOrExpression
-    | bitwiseExpression '^' shiftExpression                                     # IntXorExpression
-    | '~' shiftExpression                                                       # IntNotExpression
-    ;
-
-shiftExpression
+unaryExpression
     : operand                                                                   # OperandExpression
-    | shiftExpression '<<' operand                                              # IntLShiftExpression
-    | shiftExpression '>>>' operand                                             # IntLogicalRShiftExpression
-    | shiftExpression '>>' operand                                              # IntArithmeticRShiftExpression
+    | '-' unaryExpression                                                       # UnaryMinusExpression
+    | '+' unaryExpression                                                       # UnaryPlusExpression
+    | '~' unaryExpression                                                       # IntNotExpression
     ;
 
 variableDefinition
-    : stringOperand '=' expression
+    : NAME_IDENTIFIER '=' expression
     ;
 
 expressionMapping
@@ -76,7 +73,9 @@ expressionMapping
     ;
 
 operand
-    : numberOperand
+    : operandCast
+    | functionCall
+    | numberOperand
     | booleanOperand
     | stringOperand
     | listConstant
@@ -85,29 +84,39 @@ operand
     | placeholder
     | '$.' pathOrMetadata
     | '(' expression ')'
-    | functionCall
+    | notExpression
+    | exclusiveExpression
+    | letExpression
+    | whenExpression
     ;
 
+notExpression: 'not' '(' expression ')';
+
+exclusiveExpression: 'exclusive' '(' expression (',' expression)+ ')';
+
+letExpression: 'let' '(' variableDefinition (',' variableDefinition)* ')' 'then' '(' expression ')';
+
+whenExpression: 'when' '(' expressionMapping (',' expressionMapping)* ',' 'default' '=>' expression ')';
+
 functionCall
-    : 'abs' '(' expression ')'                                                  # AbsFunction
-    | 'ceil' '(' expression ')'                                                 # CeilFunction
-    | 'floor' '(' expression ')'                                                # FloorFunction
-    | 'log' '(' expression ',' expression ')'                                   # LogFunction
-    | 'pow' '(' expression ',' expression ')'                                   # PowFunction
-    | 'max' '(' expression (',' expression)+ ')'                                # MaxFunction
-    | 'min' '(' expression (',' expression)+ ')'                                # MinFunction
-    | 'countOneBits' '(' expression ')'                                          # CountOneBitsFunction
-    | 'findBitLeft' '(' expression ',' expression ')'                            # FindBitLeftFunction
-    | 'findBitRight' '(' expression ',' expression ')'                           # FindBitRightFunction
+    : NAME_IDENTIFIER '(' expression (',' expression)* ')'
+    ;
+
+operandCast
+    : numberOperand '.' pathFunctionCast
     ;
 
 numberOperand: intOperand | floatOperand;
 
 intOperand: INT;
-floatOperand: FLOAT;
+floatOperand: FLOAT | LEADING_DOT_FLOAT;
 
-INT: '-'? ('0x' [0-9a-fA-F]+ | '0b' [01]+ | [0-9]+);
-FLOAT: '-'? [0-9]+ '.' [0-9]+;
+INT: ('0' [xX] [0-9a-fA-F]+ | '0' [bB] [01]+ | [0-9]+);
+FLOAT: [0-9]+ '.' [0-9]+;
+
+LEADING_DOT_FLOAT_HEX_OR_BINARY: '.' '0' ([xX] [0-9a-fA-F]+ | [bB] [01]+);
+
+LEADING_DOT_FLOAT: '.' [0-9]+;
 
 booleanOperand: TRUE | FALSE;
 
@@ -118,11 +127,11 @@ stringOperand: QUOTED_STRING;
 
 QUOTED_STRING: ('\'' (~'\'')* '\'') | ('"' (~'"')* '"');
 
-listConstant: LIST_TYPE_DESIGNATOR | '[' operand (',' operand)* ']';
+listConstant: '[' unaryExpression? (',' unaryExpression)* ']' | LIST_TYPE_DESIGNATOR;
 
-orderedMapConstant: MAP_TYPE_DESIGNATOR | '{' mapPairConstant (',' mapPairConstant)* '}';
+orderedMapConstant: '{' mapPairConstant? (',' mapPairConstant)* '}' | MAP_TYPE_DESIGNATOR;
 
-mapPairConstant: mapKeyOperand ':' operand;
+mapPairConstant: mapKeyOperand ':' unaryExpression;
 
 mapKeyOperand: intOperand | stringOperand;
 
@@ -204,7 +213,7 @@ PATH_FUNCTION_CDT_RETURN_TYPE
     | 'REVERSE_RANK'
     ;
 
-binPart: NAME_IDENTIFIER;
+binPart: NAME_IDENTIFIER | IN;
 
 mapPart
     : MAP_TYPE_DESIGNATOR
@@ -227,14 +236,14 @@ MAP_TYPE_DESIGNATOR: '{}';
 mapKey
     : NAME_IDENTIFIER
     | QUOTED_STRING
-    | 'in'
+    | IN
     ;
 
 mapValue: '{=' valueIdentifier '}';
 
-mapRank: '{#' INT '}';
+mapRank: '{#' signedInt '}';
 
-mapIndex: '{' INT '}';
+mapIndex: '{' signedInt '}';
 
 mapKeyRange
     : standardMapKeyRange
@@ -289,8 +298,10 @@ indexRangeIdentifier
     | start ':'
     ;
 
-start: INT | '-' INT;
-end: INT | '-' INT;
+signedInt: '-'? INT;
+
+start: signedInt;
+end: signedInt;
 
 mapValueList
     : standardMapValueList
@@ -403,11 +414,11 @@ listPart
 
 LIST_TYPE_DESIGNATOR: '[]';
 
-listIndex: '[' INT ']';
+listIndex: '[' signedInt ']';
 
 listValue: '[=' valueIdentifier ']';
 
-listRank: '[#' INT ']';
+listRank: '[#' signedInt ']';
 
 listIndexRange
     : standardListIndexRange
@@ -477,8 +488,8 @@ invertedListRankRangeRelative
 valueIdentifier
     : NAME_IDENTIFIER
     | QUOTED_STRING
-    | INT
-    | '-' INT
+    | signedInt
+    | IN
     ;
 
 valueListIdentifier: valueIdentifier ',' valueIdentifier (',' valueIdentifier)*;
@@ -520,6 +531,8 @@ pathFunctionGet
 pathFunctionParams: pathFunctionParam (',' pathFunctionParam)*?;
 
 pathFunctionParam: pathFunctionParamName ':' pathFunctionParamValue;
+
+IN: [iI][nN];
 
 NAME_IDENTIFIER: [a-zA-Z0-9_]+;
 

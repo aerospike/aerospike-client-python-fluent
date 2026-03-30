@@ -42,8 +42,6 @@ class TestListExpressions:
         assert result == expected
         result = parse_dsl("$.listBin1.[0].get(type: INT, return: VALUE) == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[0].asInt() == 100")
-        assert result == expected
 
     def test_list_by_index_other_types(self):
         """$.listBin1.[0] with STRING and BOOL."""
@@ -98,8 +96,6 @@ class TestListExpressions:
         assert result == expected
         result = parse_dsl("$.listBin1.[=100].get(type: INT, return: VALUE) == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[=100].asInt() == 100")
-        assert result == expected
 
     def test_list_by_value_count(self):
         """$.listBin1.[=100].count() > 0."""
@@ -134,8 +130,6 @@ class TestListExpressions:
         result = parse_dsl("$.listBin1.[#-1].get(type: INT) == 100")
         assert result == expected
         result = parse_dsl("$.listBin1.[#-1].get(type: INT, return: VALUE) == 100")
-        assert result == expected
-        result = parse_dsl("$.listBin1.[#-1].asInt() == 100")
         assert result == expected
 
     def test_list_bin_element_equals_nested(self):

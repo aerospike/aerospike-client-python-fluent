@@ -139,6 +139,6 @@ class TestLogicalExpressions:
         """exclusive() with one expression raises DslParseException (grammar or visitor)."""
         with pytest.raises(
             DslParseException,
-            match=r"at least 2 expressions|mismatched input.*expecting ','",
+            match=r"at least 2 expressions|mismatched input.*expecting ','|no viable alternative",
         ):
             parse_dsl('exclusive($.hand == "hook")')
