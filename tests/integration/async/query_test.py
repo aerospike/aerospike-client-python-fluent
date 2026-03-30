@@ -37,6 +37,9 @@ async def client(aerospike_host, client_policy):
         for i in range(10):
             await session.upsert(ds.id(i)).put({"id": i, "age": 20 + i, "name": f"User{i}"}).execute()
 
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
+
         yield client
 
 async def test_query_basic(client):

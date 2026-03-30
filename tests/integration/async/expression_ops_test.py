@@ -27,6 +27,8 @@ Coverage:
   - Multiple select_from in same execute
 """
 
+import asyncio
+
 import pytest
 
 from aerospike_async import Key
@@ -59,6 +61,9 @@ async def client(aerospike_host, client_policy):
         # Seed: keyA has A=1, D=2; keyB has B=2, D=2
         await session.upsert(_key(KEY_A)).put({"A": 1, "D": 2}).execute()
         await session.upsert(_key(KEY_B)).put({"B": 2, "D": 2}).execute()
+
+        # Brief pause so the query scan index reflects the committed writes under CI load
+        await asyncio.sleep(0.1)
 
         yield c
 
