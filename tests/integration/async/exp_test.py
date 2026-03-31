@@ -724,7 +724,7 @@ class TestExpWithDsl:
 # CDT Path Access Tests
 
 @pytest.fixture
-async def client_with_cdt_data(aerospike_host, client_policy):
+async def client_with_cdt_data(aerospike_host, client_policy, enterprise):
     """Setup test data with lists and maps for CDT path tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
@@ -755,8 +755,7 @@ async def client_with_cdt_data(aerospike_host, client_policy):
             "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
         }).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
 
         yield client
 

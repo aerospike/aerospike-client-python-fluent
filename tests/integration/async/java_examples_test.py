@@ -597,7 +597,6 @@ async def test_java_example_query_operations(session, customer_dataset, enterpri
         record = result.record
         count += 1
         assert record is not None
-        # Should only have name and age bins
         assert "name" in record.bins or "age" in record.bins
     assert count > 0
     stream.close()
