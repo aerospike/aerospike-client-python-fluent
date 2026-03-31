@@ -22,18 +22,16 @@ from typing import Awaitable, Dict, List, Optional, overload, Union
 
 from aerospike_async import Key
 
+from aerospike_fluent.aio.background import BackgroundTaskSession
 from aerospike_fluent.aio.client import FluentClient
+from aerospike_fluent.aio.info import InfoCommands
+from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
+from aerospike_fluent.aio.operations.index import IndexBuilder
+from aerospike_fluent.aio.operations.query import QueryBuilder, WriteSegmentBuilder
+from aerospike_fluent.aio.operations.udf import UdfFunctionBuilder
+from aerospike_fluent.aio.transactional_session import TransactionalSession
 from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.policy.behavior import Behavior
-
-if typing.TYPE_CHECKING:
-    from aerospike_fluent.aio.background import BackgroundTaskSession
-    from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
-    from aerospike_fluent.aio.operations.query import QueryBuilder, WriteSegmentBuilder
-    from aerospike_fluent.aio.operations.udf import UdfFunctionBuilder
-    from aerospike_fluent.aio.operations.index import IndexBuilder
-    from aerospike_fluent.aio.transactional_session import TransactionalSession
-    from aerospike_fluent.aio.info import InfoCommands
 
 
 class Session:
@@ -123,8 +121,6 @@ class Session:
         See Also:
             :meth:`upsert`: Single-record writes without batching.
         """
-        from aerospike_fluent.aio.operations.batch import BatchOperationBuilder
-
         if self._client._client is None:
             raise RuntimeError("Client is not connected")
 
@@ -156,8 +152,6 @@ class Session:
         See Also:
             :meth:`execute_udf`: Foreground UDF on explicit keys.
         """
-        from aerospike_fluent.aio.background import BackgroundTaskSession
-
         if self._client._client is None:
             raise RuntimeError("Client is not connected")
 
@@ -198,9 +192,6 @@ class Session:
             :meth:`query`: Read bins without UDF.
             :meth:`background_task`: Dataset-scoped background UDF.
         """
-        from aerospike_fluent.aio.operations.query import QueryBuilder
-        from aerospike_fluent.aio.operations.udf import UdfFunctionBuilder
-
         if not keys:
             raise ValueError("At least one key is required")
         if self._client._client is None:
@@ -212,6 +203,7 @@ class Session:
             first.namespace,
             first.set_name,
             self._behavior,
+            indexes_monitor=self._client._indexes_monitor,
         )
         qb._set_current_keys_from_varargs(keys)
         return UdfFunctionBuilder(qb)
@@ -273,8 +265,6 @@ class Session:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> WriteSegmentBuilder:
         """Resolve keys and create a :class:`WriteSegmentBuilder`."""
-        from aerospike_fluent.aio.operations.query import QueryBuilder
-
         all_keys = self._resolve_keys(
             arg1, arg2, *more_keys,
             key=key, dataset=dataset,
@@ -286,6 +276,7 @@ class Session:
             namespace=first.namespace,
             set_name=first.set_name,
             behavior=self._behavior,
+            indexes_monitor=self._client._indexes_monitor,
         )
         target: Union[Key, List[Key]] = all_keys[0] if len(all_keys) == 1 else all_keys
         return qb._start_write_verb(op_type, target)
@@ -542,7 +533,6 @@ class Session:
         """
         if command is not None:
             return self._client._async_client.info(command)
-        from aerospike_fluent.aio.info import InfoCommands
         return InfoCommands(self)
 
     async def is_namespace_sc(self, namespace: str) -> bool:

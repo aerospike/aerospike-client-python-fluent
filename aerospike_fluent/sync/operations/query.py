@@ -51,8 +51,10 @@ from aerospike_fluent.aio.operations.cdt_write import (
 from aerospike_fluent.aio.operations.query import (
     QueryBinBuilder,
     QueryBuilder,
+    QueryHint,
     WriteSegmentBuilder,
 )
+from aerospike_fluent.dsl.filter_gen import IndexContext
 from aerospike_fluent.error_strategy import OnError
 from aerospike_fluent.sync.client import _EventLoopManager
 from aerospike_fluent.sync.record_stream import SyncRecordStream
@@ -256,6 +258,38 @@ class SyncQueryBuilder(_SyncWriteVerbs):
     def expected_duration(self, duration: QueryDuration) -> SyncQueryBuilder:
         """Set the expected duration of the query."""
         self._qb.expected_duration(duration)
+        return self
+
+    def with_hint(self, hint: QueryHint) -> SyncQueryBuilder:
+        """Attach a query hint for secondary index selection or scheduling.
+
+        Forwards to :meth:`~aerospike_fluent.aio.operations.query.QueryBuilder.with_hint`.
+
+        Args:
+            hint: A :class:`QueryHint` instance.
+
+        Returns:
+            This builder for method chaining.
+
+        See Also:
+            :class:`~aerospike_fluent.aio.operations.query.QueryHint`
+        """
+        self._qb.with_hint(hint)
+        return self
+
+    def with_index_context(self, index_context: IndexContext) -> SyncQueryBuilder:
+        """Explicitly override the secondary index metadata used for filter generation.
+
+        Most applications do **not** need this method. The client automatically
+        discovers and caches secondary index metadata in the background.
+
+        Args:
+            index_context: Index metadata for the query's namespace.
+
+        Returns:
+            This builder for method chaining.
+        """
+        self._qb.with_index_context(index_context)
         return self
 
     def replica(self, replica: Replica) -> SyncQueryBuilder:

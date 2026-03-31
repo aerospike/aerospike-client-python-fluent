@@ -18,6 +18,7 @@
 from aerospike_async import AuthMode
 
 from aerospike_fluent.aio import FluentClient, Session, TransactionalSession, ClusterDefinition, Host
+from aerospike_fluent.aio.operations.query import QueryHint
 from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.dsl.exceptions import DslParseException
 from aerospike_fluent.dsl.filter_gen import Index, IndexContext, IndexTypeEnum, ParseResult
@@ -76,6 +77,7 @@ __all__ = [
     "parse_dsl",
     "parse_dsl_with_index",
     "ParseResult",
+    "QueryHint",
     "QueryTerminatedError",
     "QuotaError",
     "RecordResult",

@@ -45,7 +45,7 @@ from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.policy.behavior import Behavior
 
 # Set up debug logging
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 # Enable debug output via environment variable or set to True directly
 DEBUG_SYNC_CLIENT = os.environ.get("DEBUG_SYNC_CLIENT", "false").lower() == "true"
 if DEBUG_SYNC_CLIENT:
@@ -94,10 +94,10 @@ class _EventLoopManager:
                     self._loop = None
                     self._thread_id = None
                     if DEBUG_SYNC_CLIENT:
-                        logger.debug(f"[release] Thread {threading.get_ident()}: Closing loop (refcount=0) to free file descriptors")
+                        log.debug(f"[release] Thread {threading.get_ident()}: Closing loop (refcount=0) to free file descriptors")
             else:
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[release] Thread {threading.get_ident()}: Released reference (refcount={self._refcount})")
+                    log.debug(f"[release] Thread {threading.get_ident()}: Released reference (refcount={self._refcount})")
         
         # Close the loop outside the lock to avoid potential deadlocks
         if loop_to_close is not None:
@@ -105,7 +105,7 @@ class _EventLoopManager:
                 if not loop_to_close.is_closed():
                     if loop_to_close.is_running():
                         if DEBUG_SYNC_CLIENT:
-                            logger.warning(f"[release] Thread {threading.get_ident()}: Loop is running, cannot close safely")
+                            log.warning(f"[release] Thread {threading.get_ident()}: Loop is running, cannot close safely")
                     else:
                         try:
                             # Close the selector first (this releases file descriptors immediately)
@@ -118,13 +118,13 @@ class _EventLoopManager:
                             loop_to_close.close()
                             if loop_to_close.is_closed():
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.debug(f"[release] Thread {threading.get_ident()}: Closed selector and loop successfully")
+                                    log.debug(f"[release] Thread {threading.get_ident()}: Closed selector and loop successfully")
                             else:
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.warning(f"[release] Thread {threading.get_ident()}: Loop close() did not close the loop")
+                                    log.warning(f"[release] Thread {threading.get_ident()}: Loop close() did not close the loop")
                         except Exception as e:
                             if DEBUG_SYNC_CLIENT:
-                                logger.warning(f"[release] Thread {threading.get_ident()}: Error closing loop: {e}")
+                                log.warning(f"[release] Thread {threading.get_ident()}: Error closing loop: {e}")
                             try:
                                 if hasattr(loop_to_close, '_closed'):
                                     loop_to_close._closed = True
@@ -132,7 +132,7 @@ class _EventLoopManager:
                                 pass
             except Exception as e:
                 if DEBUG_SYNC_CLIENT:
-                    logger.warning(f"[release] Thread {threading.get_ident()}: Exception during loop cleanup: {e}")
+                    log.warning(f"[release] Thread {threading.get_ident()}: Exception during loop cleanup: {e}")
     
     def _reset_loop(self) -> None:
         """Reset the loop if it's in a bad state. Creates a new loop for the next use."""
@@ -149,7 +149,7 @@ class _EventLoopManager:
                 if not loop_to_close.is_closed():
                     if loop_to_close.is_running():
                         if DEBUG_SYNC_CLIENT:
-                            logger.warning(f"[_reset_loop] Thread {threading.get_ident()}: Loop is running, cannot close safely")
+                            log.warning(f"[_reset_loop] Thread {threading.get_ident()}: Loop is running, cannot close safely")
                     else:
                         try:
                             # Close the selector first (this releases file descriptors immediately)
@@ -162,13 +162,13 @@ class _EventLoopManager:
                             loop_to_close.close()
                             if loop_to_close.is_closed():
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.debug(f"[_reset_loop] Thread {threading.get_ident()}: Closed selector and loop successfully")
+                                    log.debug(f"[_reset_loop] Thread {threading.get_ident()}: Closed selector and loop successfully")
                             else:
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.warning(f"[_reset_loop] Thread {threading.get_ident()}: Loop close() did not close the loop")
+                                    log.warning(f"[_reset_loop] Thread {threading.get_ident()}: Loop close() did not close the loop")
                         except Exception as e:
                             if DEBUG_SYNC_CLIENT:
-                                logger.warning(f"[_reset_loop] Thread {threading.get_ident()}: Error closing loop: {e}")
+                                log.warning(f"[_reset_loop] Thread {threading.get_ident()}: Error closing loop: {e}")
                             try:
                                 if hasattr(loop_to_close, '_closed'):
                                     loop_to_close._closed = True
@@ -176,13 +176,13 @@ class _EventLoopManager:
                                 pass
             except Exception as e:
                 if DEBUG_SYNC_CLIENT:
-                    logger.warning(f"[_reset_loop] Thread {threading.get_ident()}: Exception during loop cleanup: {e}")
+                    log.warning(f"[_reset_loop] Thread {threading.get_ident()}: Exception during loop cleanup: {e}")
 
     def _get_or_create_loop(self) -> asyncio.AbstractEventLoop:
         """Get or create an event loop for the current thread."""
         current_thread_id = threading.get_ident()
         if DEBUG_SYNC_CLIENT:
-            logger.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Starting, stored_thread_id={self._thread_id}, has_loop={self._loop is not None}")
+            log.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Starting, stored_thread_id={self._thread_id}, has_loop={self._loop is not None}")
 
         with self._lock:
             # If we're in the same thread and have a loop, reuse it
@@ -192,14 +192,14 @@ class _EventLoopManager:
                     if self._loop.is_closed():
                         # Loop is closed, create a new one
                         if DEBUG_SYNC_CLIENT:
-                            logger.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop is closed, creating new one")
+                            log.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop is closed, creating new one")
                         self._loop = None
                     else:
                         # Try to verify the loop is actually usable
                         # Check if it's running (can't use a running loop)
                         if self._loop.is_running():
                             if DEBUG_SYNC_CLIENT:
-                                logger.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop is running, creating new one")
+                                log.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop is running, creating new one")
                             self._loop = None
                         else:
                             # Try to verify the loop is actually usable
@@ -207,38 +207,38 @@ class _EventLoopManager:
                             try:
                                 _ = self._loop._default_executor
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Reusing existing loop")
+                                    log.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Reusing existing loop")
                                 return self._loop
                             except (RuntimeError, AttributeError) as e:
                                 # Loop is in a bad state, create a new one
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop validation failed: {e}, creating new one")
+                                    log.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop validation failed: {e}, creating new one")
                                 self._loop = None
                 except (RuntimeError, AttributeError) as e:
                     # Loop is invalid, create a new one
                     if DEBUG_SYNC_CLIENT:
-                        logger.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop check exception: {e}, creating new one")
+                        log.warning(f"[_get_or_create_loop] Thread {current_thread_id}: Loop check exception: {e}, creating new one")
                     self._loop = None
 
             # Create a new loop
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Creating new loop")
+                log.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Creating new loop")
             self._loop = self._create_new_loop()
             self._thread_id = current_thread_id
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Created new loop: {self._loop}, closed: {self._loop.is_closed()}")
+                log.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Created new loop: {self._loop}, closed: {self._loop.is_closed()}")
             return self._loop
 
     def _create_new_loop(self) -> asyncio.AbstractEventLoop:
         """Create a new event loop."""
         if DEBUG_SYNC_CLIENT:
-            logger.debug(f"[_create_new_loop] Thread {threading.get_ident()}: Starting")
+            log.debug(f"[_create_new_loop] Thread {threading.get_ident()}: Starting")
         try:
             loop = asyncio.get_running_loop()
             # If we're in an async context, we can't use the sync client
             # The sync client manages its own loop and cannot coexist with a running loop
             if DEBUG_SYNC_CLIENT:
-                logger.error(f"[_create_new_loop] Thread {threading.get_ident()}: Found running loop: {loop}")
+                log.error(f"[_create_new_loop] Thread {threading.get_ident()}: Found running loop: {loop}")
             raise RuntimeError(
                 "Cannot use SyncFluentClient from within an async context. "
                 "Use FluentClient (async) instead, or ensure you're not in an async context."
@@ -250,38 +250,38 @@ class _EventLoopManager:
             # No running loop, create a new one
             # Don't use get_event_loop() as it may create a loop we don't manage
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[_create_new_loop] Thread {threading.get_ident()}: No running loop ({e}), creating new one")
+                log.debug(f"[_create_new_loop] Thread {threading.get_ident()}: No running loop ({e}), creating new one")
             loop = asyncio.new_event_loop()
             # Don't set it as the default loop - we'll manage it ourselves
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[_create_new_loop] Thread {threading.get_ident()}: Created new loop: {loop}")
+                log.debug(f"[_create_new_loop] Thread {threading.get_ident()}: Created new loop: {loop}")
             return loop
 
     def run_async(self, coro) -> any:
         """Run an async coroutine synchronously."""
         if DEBUG_SYNC_CLIENT:
-            logger.debug(f"[run_async] Thread {threading.get_ident()}: Starting")
+            log.debug(f"[run_async] Thread {threading.get_ident()}: Starting")
         # Always use our managed loop for sync operations
         # This avoids complications with nest_asyncio and ensures consistent behavior
         # We create our own loop which is safe even if we're in an async context
         if DEBUG_SYNC_CLIENT:
-            logger.debug(f"[run_async] Thread {threading.get_ident()}: Using managed loop")
+            log.debug(f"[run_async] Thread {threading.get_ident()}: Using managed loop")
         # Track if we're creating a new loop or reusing an existing one
         loop_was_reused = self._loop is not None and self._thread_id == threading.get_ident()
         loop = self._get_or_create_loop()
         loop_is_fresh = not loop_was_reused
         if DEBUG_SYNC_CLIENT:
-            logger.debug(f"[run_async] Thread {threading.get_ident()}: Got loop: {loop}, closed: {loop.is_closed()}, fresh: {loop_is_fresh}")
+            log.debug(f"[run_async] Thread {threading.get_ident()}: Got loop: {loop}, closed: {loop.is_closed()}, fresh: {loop_is_fresh}")
         try:
             # Check if loop is running - if so, we can't use run_until_complete
             if loop.is_running():
                 if DEBUG_SYNC_CLIENT:
-                    logger.warning(f"[run_async] Thread {threading.get_ident()}: Loop is running, resetting")
+                    log.warning(f"[run_async] Thread {threading.get_ident()}: Loop is running, resetting")
                 self._reset_loop()
                 loop = self._get_or_create_loop()
                 loop_is_fresh = True  # After reset, it's definitely fresh
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[run_async] Thread {threading.get_ident()}: Got fresh loop after reset")
+                    log.debug(f"[run_async] Thread {threading.get_ident()}: Got fresh loop after reset")
             
             # Ensure the loop is set as the current event loop for this thread
             # Some asyncio operations need the current loop to be set
@@ -316,12 +316,12 @@ class _EventLoopManager:
             asyncio.set_event_loop(loop)
             
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[run_async] Thread {threading.get_ident()}: Set loop as current event loop")
+                log.debug(f"[run_async] Thread {threading.get_ident()}: Set loop as current event loop")
             
             try:
                 result = loop.run_until_complete(coro)
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[run_async] Thread {threading.get_ident()}: Completed successfully (managed loop)")
+                    log.debug(f"[run_async] Thread {threading.get_ident()}: Completed successfully (managed loop)")
                 return result
             finally:
                 # Restore the old loop if there was one and it's different from ours
@@ -342,15 +342,15 @@ class _EventLoopManager:
             error_msg = str(runtime_err).lower()
             if "no running event loop" in error_msg or "this event loop is already running" in error_msg:
                 if DEBUG_SYNC_CLIENT:
-                    logger.warning(f"[run_async] Thread {threading.get_ident()}: Loop runtime error: {runtime_err}, resetting loop")
+                    log.warning(f"[run_async] Thread {threading.get_ident()}: Loop runtime error: {runtime_err}, resetting loop")
                 self._reset_loop()
                 # Try once more with a fresh loop
                 loop = self._get_or_create_loop()
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[run_async] Thread {threading.get_ident()}: Retrying with fresh loop")
+                    log.debug(f"[run_async] Thread {threading.get_ident()}: Retrying with fresh loop")
                 result = loop.run_until_complete(coro)
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[run_async] Thread {threading.get_ident()}: Completed successfully after retry")
+                    log.debug(f"[run_async] Thread {threading.get_ident()}: Completed successfully after retry")
                 return result
             # If it's a different RuntimeError, let it fall through to the general exception handler
             raise
@@ -364,18 +364,18 @@ class _EventLoopManager:
             # Always clear the loop reference to prevent reuse, but only close it if it was reused (has bad state)
             # Fresh loops that fail are likely due to external issues - closing them won't help and wastes resources
             if DEBUG_SYNC_CLIENT:
-                logger.error(f"[run_async] Thread {threading.get_ident()}: ConnectionError occurred: {e}")
+                log.error(f"[run_async] Thread {threading.get_ident()}: ConnectionError occurred: {e}")
             if not loop_is_fresh:
                 # Reset reused loops that fail - they might have bad state
                 if DEBUG_SYNC_CLIENT:
-                    logger.warning(f"[run_async] Thread {threading.get_ident()}: Resetting reused loop after ConnectionError to ensure clean state")
+                    log.warning(f"[run_async] Thread {threading.get_ident()}: Resetting reused loop after ConnectionError to ensure clean state")
                 self._reset_loop()
             else:
                 # Fresh loop failed - likely external issue, just clear the reference
                 # Don't close it immediately - let the loop manager handle cleanup when refcount reaches 0
                 # This prevents unnecessary resource churn
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[run_async] Thread {threading.get_ident()}: ConnectionError on fresh loop - clearing reference (likely external issue)")
+                    log.debug(f"[run_async] Thread {threading.get_ident()}: ConnectionError on fresh loop - clearing reference (likely external issue)")
             with self._lock:
                 self._loop = None
                 self._thread_id = None
@@ -384,15 +384,15 @@ class _EventLoopManager:
             # If an exception occurs, check if the loop is still valid
             # Only reset if the loop is actually closed or in a bad state
             if DEBUG_SYNC_CLIENT:
-                logger.error(f"[run_async] Thread {threading.get_ident()}: Exception occurred: {type(e).__name__}: {e}")
+                log.error(f"[run_async] Thread {threading.get_ident()}: Exception occurred: {type(e).__name__}: {e}")
             try:
                 is_closed = loop.is_closed()
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[run_async] Thread {threading.get_ident()}: Loop closed: {is_closed}")
+                    log.debug(f"[run_async] Thread {threading.get_ident()}: Loop closed: {is_closed}")
                 if is_closed:
                     # Loop is closed, clear it so a new one will be created
                     if DEBUG_SYNC_CLIENT:
-                        logger.warning(f"[run_async] Thread {threading.get_ident()}: Loop is closed, clearing it")
+                        log.warning(f"[run_async] Thread {threading.get_ident()}: Loop is closed, clearing it")
                     with self._lock:
                         if self._loop is loop:
                             self._loop = None
@@ -400,13 +400,13 @@ class _EventLoopManager:
             except (RuntimeError, AttributeError) as loop_check_error:
                 # Loop is in a bad state, clear it
                 if DEBUG_SYNC_CLIENT:
-                    logger.warning(f"[run_async] Thread {threading.get_ident()}: Loop check failed: {loop_check_error}, clearing loop")
+                    log.warning(f"[run_async] Thread {threading.get_ident()}: Loop check failed: {loop_check_error}, clearing loop")
                 with self._lock:
                     if self._loop is loop:
                         self._loop = None
                         self._thread_id = None
             if DEBUG_SYNC_CLIENT:
-                logger.error(f"[run_async] Thread {threading.get_ident()}: Re-raising exception: {type(e).__name__}: {e}")
+                log.error(f"[run_async] Thread {threading.get_ident()}: Re-raising exception: {type(e).__name__}: {e}")
             raise
 
     def close(self) -> None:
@@ -424,7 +424,7 @@ class _EventLoopManager:
                 if not loop_to_close.is_closed():
                     if loop_to_close.is_running():
                         if DEBUG_SYNC_CLIENT:
-                            logger.warning(f"[close] Thread {threading.get_ident()}: Loop is running, cannot close safely")
+                            log.warning(f"[close] Thread {threading.get_ident()}: Loop is running, cannot close safely")
                     else:
                         try:
                             # Close the selector first (this releases file descriptors immediately)
@@ -437,13 +437,13 @@ class _EventLoopManager:
                             loop_to_close.close()
                             if loop_to_close.is_closed():
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.debug(f"[close] Thread {threading.get_ident()}: Closed selector and loop successfully")
+                                    log.debug(f"[close] Thread {threading.get_ident()}: Closed selector and loop successfully")
                             else:
                                 if DEBUG_SYNC_CLIENT:
-                                    logger.warning(f"[close] Thread {threading.get_ident()}: Loop close() did not close the loop")
+                                    log.warning(f"[close] Thread {threading.get_ident()}: Loop close() did not close the loop")
                         except Exception as e:
                             if DEBUG_SYNC_CLIENT:
-                                logger.warning(f"[close] Thread {threading.get_ident()}: Error closing loop: {e}")
+                                log.warning(f"[close] Thread {threading.get_ident()}: Error closing loop: {e}")
                             try:
                                 if hasattr(loop_to_close, '_closed'):
                                     loop_to_close._closed = True
@@ -451,7 +451,7 @@ class _EventLoopManager:
                                 pass
             except Exception as e:
                 if DEBUG_SYNC_CLIENT:
-                    logger.warning(f"[close] Thread {threading.get_ident()}: Exception during loop cleanup: {e}")
+                    log.warning(f"[close] Thread {threading.get_ident()}: Exception during loop cleanup: {e}")
 
 
 class SyncFluentClient:
@@ -507,20 +507,20 @@ class SyncFluentClient:
     def connect(self) -> None:
         """Connect to the Aerospike cluster synchronously."""
         if DEBUG_SYNC_CLIENT:
-            logger.debug(f"[connect] Thread {threading.get_ident()}: Starting, connected={self._connected}")
+            log.debug(f"[connect] Thread {threading.get_ident()}: Starting, connected={self._connected}")
         if self._connected and self._async_client is not None:
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[connect] Thread {threading.get_ident()}: Already connected, returning")
+                log.debug(f"[connect] Thread {threading.get_ident()}: Already connected, returning")
             return
 
         async def _connect():
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[_connect] Thread {threading.get_ident()}: Creating FluentClient for {self._seeds}")
+                log.debug(f"[_connect] Thread {threading.get_ident()}: Creating FluentClient for {self._seeds}")
             client = FluentClient(self._seeds, self._policy)
             try:
                 await client.connect()
                 if DEBUG_SYNC_CLIENT:
-                    logger.debug(f"[_connect] Thread {threading.get_ident()}: FluentClient connected")
+                    log.debug(f"[_connect] Thread {threading.get_ident()}: FluentClient connected")
                 return client
             except Exception:
                 # If connection fails, ensure the client is closed to prevent resource leaks
@@ -532,16 +532,16 @@ class SyncFluentClient:
 
         try:
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[connect] Thread {threading.get_ident()}: Calling run_async to connect")
+                log.debug(f"[connect] Thread {threading.get_ident()}: Calling run_async to connect")
             self._async_client = self._loop_manager.run_async(_connect())
             self._connected = True
             if DEBUG_SYNC_CLIENT:
-                logger.debug(f"[connect] Thread {threading.get_ident()}: Connection successful")
+                log.debug(f"[connect] Thread {threading.get_ident()}: Connection successful")
         except Exception as e:
             # If connection fails, ensure we're in a clean state
             self._connected = False
             if DEBUG_SYNC_CLIENT:
-                logger.error(f"[connect] Thread {threading.get_ident()}: Connection failed: {type(e).__name__}: {e}")
+                log.error(f"[connect] Thread {threading.get_ident()}: Connection failed: {type(e).__name__}: {e}")
             # Don't reset the loop on connection errors - they can happen for many reasons
             # The loop reset in run_async() will handle bad loop states
             raise

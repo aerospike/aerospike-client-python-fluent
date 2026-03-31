@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 
-import typing
 from typing import Dict, List, Optional, overload, Union
 
 from aerospike_async import Key
@@ -26,14 +25,12 @@ from aerospike_fluent.aio.client import FluentClient
 from aerospike_fluent.aio.session import Session as AsyncSession
 from aerospike_fluent.dataset import DataSet
 from aerospike_fluent.policy.behavior import Behavior
+from aerospike_fluent.sync.background import SyncBackgroundTaskSession
 from aerospike_fluent.sync.client import _EventLoopManager
-
-if typing.TYPE_CHECKING:
-    from aerospike_fluent.sync.background import SyncBackgroundTaskSession
-    from aerospike_fluent.sync.operations.query import SyncQueryBuilder, SyncWriteSegmentBuilder
-    from aerospike_fluent.sync.operations.udf import SyncUdfFunctionBuilder
-    from aerospike_fluent.sync.operations.index import SyncIndexBuilder
-    from aerospike_fluent.sync.info import SyncInfoCommands
+from aerospike_fluent.sync.info import SyncInfoCommands
+from aerospike_fluent.sync.operations.index import SyncIndexBuilder
+from aerospike_fluent.sync.operations.query import SyncQueryBuilder, SyncWriteSegmentBuilder
+from aerospike_fluent.sync.operations.udf import SyncUdfFunctionBuilder
 
 
 class SyncSession:
@@ -85,8 +82,6 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Delegate to async session's write segment builder and wrap in sync."""
-        from aerospike_fluent.sync.operations.query import SyncWriteSegmentBuilder
-
         wsb = self._async_session._build_write_segment(
             op_type, arg1, arg2, *more_keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -126,8 +121,6 @@ class SyncSession:
         Returns:
             A :class:`~aerospike_fluent.sync.operations.query.SyncQueryBuilder`.
         """
-        from aerospike_fluent.sync.operations.query import SyncQueryBuilder
-
         # Delegate to async session.query() - pass positional args as positional, keyword args as keyword
         if arg1 is not None or arg2 is not None or keys:
             # Has positional arguments - pass them positionally
@@ -158,8 +151,6 @@ class SyncSession:
         See Also:
             :meth:`~aerospike_fluent.aio.session.Session.background_task`.
         """
-        from aerospike_fluent.sync.background import SyncBackgroundTaskSession
-
         inner = self._async_session.background_task()
         return SyncBackgroundTaskSession(inner, self._loop_manager)
 
@@ -172,8 +163,6 @@ class SyncSession:
         See Also:
             :meth:`~aerospike_fluent.aio.session.Session.execute_udf`.
         """
-        from aerospike_fluent.sync.operations.udf import SyncUdfFunctionBuilder
-
         inner = self._async_session.execute_udf(*keys)
         return SyncUdfFunctionBuilder(
             inner, self._loop_manager, self._async_session.client)
@@ -197,8 +186,6 @@ class SyncSession:
         See Also:
             :meth:`~aerospike_fluent.aio.session.Session.index`.
         """
-        from aerospike_fluent.sync.operations.index import SyncIndexBuilder
-
         # Resolve namespace and set_name from dataset if provided
         if dataset:
             namespace = dataset.namespace
@@ -248,7 +235,6 @@ class SyncSession:
             async def _info():
                 return await self._async_session.info(command)
             return self._loop_manager.run_async(_info())
-        from aerospike_fluent.sync.info import SyncInfoCommands
         return SyncInfoCommands(self._async_session.info(), self._loop_manager)
 
     def upsert(

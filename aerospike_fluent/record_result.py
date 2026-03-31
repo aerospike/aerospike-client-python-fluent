@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING, Any
 from aerospike_async import Key, Record
 from aerospike_async.exceptions import ResultCode
 
+from aerospike_fluent.exceptions import _result_code_to_exception
+
 if TYPE_CHECKING:
     from aerospike_async import BatchRecord
     from aerospike_fluent.exceptions import AerospikeError
@@ -104,7 +106,6 @@ class RecordResult:
         if not self.is_ok:
             if self.exception is not None:
                 raise self.exception
-            from aerospike_fluent.exceptions import _result_code_to_exception
             raise _result_code_to_exception(
                 self.result_code, str(self.result_code), self.in_doubt
             )

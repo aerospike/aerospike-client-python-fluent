@@ -41,6 +41,11 @@ from aerospike_async import (
     IndexType,
 )
 
+from antlr4 import CommonTokenStream, InputStream
+
+from aerospike_fluent.dsl.antlr4.generated.ConditionLexer import ConditionLexer
+from aerospike_fluent.dsl.antlr4.generated.ConditionParser import ConditionParser
+from aerospike_fluent.dsl.arithmetic_filter import filter_from_arithmetic_node
 from aerospike_fluent.dsl.exceptions import DslParseException
 
 
@@ -230,24 +235,31 @@ class FilterGenerator:
                 self._indexes_by_bin[index.bin] = []
             self._indexes_by_bin[index.bin].append(index)
 
-    def generate(self, dsl_string: str, placeholder_values=None) -> ParseResult:
+    def generate(
+        self,
+        dsl_string: str,
+        placeholder_values=None,
+        *,
+        hint_index_name: Optional[str] = None,
+        hint_bin_name: Optional[str] = None,
+    ) -> ParseResult:
         """Generate Filter and Exp from DSL string.
-        
+
         Args:
             dsl_string: The DSL expression string.
             placeholder_values: Optional placeholder values.
-            
+            hint_index_name: If set, the generated Filter uses a ``_by_index``
+                variant keyed to this index name instead of the bin name.
+            hint_bin_name: If set, the generated Filter addresses this bin
+                name instead of the one found in the DSL expression.
+
         Returns:
             ParseResult with Filter and/or Exp.
         """
-        from aerospike_fluent.dsl.parser import DSLParser
         from aerospike_fluent.dsl.filter_visitor import build_filter_tree_from_parse_tree
-        from antlr4 import InputStream, CommonTokenStream
-        from aerospike_fluent.dsl.antlr4.generated.ConditionLexer import ConditionLexer
-        from aerospike_fluent.dsl.antlr4.generated.ConditionParser import ConditionParser
+        from aerospike_fluent.dsl.parser import DSLParser, _DSLParseErrorListener
 
         try:
-            from aerospike_fluent.dsl.parser import _DSLParseErrorListener
             input_stream = InputStream(dsl_string)
             lexer = ConditionLexer(input_stream)
             lexer.removeErrorListeners()
@@ -307,8 +319,11 @@ class FilterGenerator:
         candidates.sort(key=lambda n: n.bin_name or "")
         chosen = candidates[0]
 
-        # Create Filter
-        filter_obj = self._create_filter(chosen)
+        filter_obj = self._create_filter(
+            chosen,
+            index_name=hint_index_name,
+            bin_name=hint_bin_name,
+        )
         if filter_obj is None:
             return ParseResult(filter=None, exp=_safe_exp())
 
@@ -415,17 +430,32 @@ class FilterGenerator:
             getattr(a, "ctx", a) == getattr(b, "ctx", b) for a, b in zip(index_ctx, node_ctx)
         )
     
-    def _create_filter(self, node: ExpressionNode) -> Optional[Filter]:
-        """Create Filter from expression node."""
+    def _create_filter(
+        self,
+        node: ExpressionNode,
+        *,
+        index_name: Optional[str] = None,
+        bin_name: Optional[str] = None,
+    ) -> Optional[Filter]:
+        """Create Filter from expression node.
+
+        Args:
+            node: The chosen leaf node from the expression tree.
+            index_name: Override — use ``Filter.*_by_index(index_name, ...)``
+                instead of ``Filter.*(bin, ...)``.
+            bin_name: Override — substitute this bin name for the one
+                found in the DSL expression.
+        """
         if node.bin_name is None or node.value is None:
             return None
 
+        effective_bin = bin_name if bin_name is not None else node.bin_name
+
         if node.arith_op is not None and node.arith_constant is not None and node.bin_on_left is not None:
-            from aerospike_fluent.dsl.arithmetic_filter import filter_from_arithmetic_node
             if not isinstance(node.value, int):
                 return None
             return filter_from_arithmetic_node(
-                node.bin_name,
+                effective_bin,
                 node.arith_op,
                 node.arith_constant,
                 node.bin_on_left,
@@ -440,19 +470,48 @@ class FilterGenerator:
             if any(idx.index_type == IndexTypeEnum.BLOB for idx in indexes_for_bin):
                 value = base64.b64decode(value)
 
-        if node.op == OperationType.EQ:
-            if node.ctx:
-                return Filter.equal(node.bin_name, value).context(node.ctx)
-            return Filter.equal(node.bin_name, value)
-        elif node.op == OperationType.GT:
-            return Filter.range(node.bin_name, int(node.value) + 1, 2**63 - 1)
-        elif node.op == OperationType.GE:
-            return Filter.range(node.bin_name, int(node.value), 2**63 - 1)
-        elif node.op == OperationType.LT:
-            return Filter.range(node.bin_name, -(2**63), int(node.value) - 1)
-        elif node.op == OperationType.LE:
-            return Filter.range(node.bin_name, -(2**63), int(node.value))
+        if index_name is not None:
+            return self._create_filter_by_index(
+                index_name, node.op, value, node.ctx,
+            )
 
+        if node.op == OperationType.EQ:
+            f = Filter.equal(effective_bin, value)
+            if node.ctx:
+                f = f.context(node.ctx)
+            return f
+        elif node.op == OperationType.GT:
+            return Filter.range(effective_bin, int(node.value) + 1, 2**63 - 1)
+        elif node.op == OperationType.GE:
+            return Filter.range(effective_bin, int(node.value), 2**63 - 1)
+        elif node.op == OperationType.LT:
+            return Filter.range(effective_bin, -(2**63), int(node.value) - 1)
+        elif node.op == OperationType.LE:
+            return Filter.range(effective_bin, -(2**63), int(node.value))
+
+        return None
+
+    @staticmethod
+    def _create_filter_by_index(
+        index_name: str,
+        op: OperationType,
+        value: Any,
+        ctx: Optional[List[CTX]] = None,
+    ) -> Optional[Filter]:
+        """Create a Filter using a ``_by_index`` variant keyed to *index_name*."""
+        if op == OperationType.EQ:
+            f = Filter.equal_by_index(index_name, value)
+            if ctx:
+                f = f.context(ctx)
+            return f
+        elif op == OperationType.GT:
+            return Filter.range_by_index(index_name, int(value) + 1, 2**63 - 1)
+        elif op == OperationType.GE:
+            return Filter.range_by_index(index_name, int(value), 2**63 - 1)
+        elif op == OperationType.LT:
+            return Filter.range_by_index(index_name, -(2**63), int(value) - 1)
+        elif op == OperationType.LE:
+            return Filter.range_by_index(index_name, -(2**63), int(value))
         return None
     
     def _generate_exp(self, tree: ExpressionNode, placeholder_values) -> Optional[FilterExpression]:
