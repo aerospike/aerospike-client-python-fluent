@@ -18,6 +18,8 @@
 These tests provide simple, focused examples for documentation.
 """
 
+import asyncio
+
 import pytest
 from aerospike_async import Key
 from aerospike_fluent import ClusterDefinition, DataSet, Behavior
@@ -574,7 +576,7 @@ async def test_java_example_key_value_operations_direct_client(session, customer
     await session.delete(key).execute()
 
 
-async def test_java_example_query_operations(session, customer_dataset):
+async def test_java_example_query_operations(session, customer_dataset, enterprise):
     """Java: RecordSet rs = session.query(customerDataSet).execute();
               RecordSet rs2 = session.query(customerDataSet).readingOnlyBins("name", "age").execute();
     """
@@ -586,6 +588,8 @@ async def test_java_example_query_operations(session, customer_dataset):
         assert record is not None
     assert count > 0
     stream.close()
+    if not enterprise:
+        await asyncio.sleep(0.1)
 
     stream = await session.query(customer_dataset).bins(["name", "age"]).execute()
     count = 0
@@ -593,7 +597,6 @@ async def test_java_example_query_operations(session, customer_dataset):
         record = result.record
         count += 1
         assert record is not None
-        # Should only have name and age bins
         assert "name" in record.bins or "age" in record.bins
     assert count > 0
     stream.close()

@@ -32,6 +32,11 @@ dev = [
     "mypy>=1.0.0",
     "antlr4-python3-runtime>=4.13.0",
 ]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.0,<10",
+    "mkdocstrings[python]>=0.27",
+]
 
 [tool.setuptools]
 packages = ["aerospike_fluent"]

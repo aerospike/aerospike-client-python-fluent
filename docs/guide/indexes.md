@@ -1,0 +1,116 @@
+# Secondary Indexes
+
+Secondary indexes enable efficient queries on bin values. The fluent client
+provides both manual index management and automatic index discovery.
+
+## Creating Indexes
+
+```python
+users = DataSet.of("test", "users")
+
+# Numeric index
+await (
+    session.index(users)
+    .on_bin("age")
+    .named("users_age_idx")
+    .numeric()
+    .create()
+)
+
+# String index
+await (
+    session.index(users)
+    .on_bin("city")
+    .named("users_city_idx")
+    .string()
+    .create()
+)
+
+# Collection index (list elements)
+from aerospike_async import CollectionIndexType
+
+await (
+    session.index(users)
+    .on_bin("tags")
+    .named("users_tags_idx")
+    .collection(CollectionIndexType.LIST)
+    .create()
+)
+```
+
+## Dropping Indexes
+
+```python
+await session.index(users).named("users_age_idx").drop()
+```
+
+## Auto-Index Discovery
+
+The [`IndexesMonitor`](../api/indexes-monitor.md) runs as a background task,
+periodically fetching secondary index metadata from the cluster. When you use
+`.where()` with a DSL expression, the client automatically generates an optimal
+secondary index `Filter` if a matching index exists.
+
+This is transparent — no code changes needed:
+
+```python
+# If "users_age_idx" exists on the "age" bin, this query
+# automatically uses it as a secondary index filter
+stream = await (
+    session.query(users)
+    .where("$.age > 25")
+    .execute()
+)
+```
+
+### Configuration
+
+The refresh interval defaults to 5 seconds:
+
+```python
+client = FluentClient("localhost", 3000, index_refresh_interval=2.0)
+```
+
+### Explicit Override
+
+Use [`with_index_context()`](../api/query.md) to explicitly provide index
+metadata, bypassing auto-discovery:
+
+```python
+from aerospike_fluent import IndexContext, Index, IndexTypeEnum
+
+ctx = IndexContext(indexes=[
+    Index(name="age_idx", bin_name="age", index_type=IndexTypeEnum.NUMERIC)
+])
+
+stream = await (
+    session.query(users)
+    .with_index_context(ctx)
+    .where("$.age > 25")
+    .execute()
+)
+```
+
+## Query Hints
+
+Influence which index the server uses with [`QueryHint`](../api/query-hint.md):
+
+```python
+from aerospike_fluent import QueryHint
+
+# Force a specific index
+stream = await (
+    session.query(users)
+    .where("$.age > 25 and $.city == 'NYC'")
+    .with_hint(QueryHint(index_name="users_city_idx"))
+    .execute()
+)
+
+# Hint by bin name
+stream = await (
+    session.query(users)
+    .where("$.age > 25 and $.city == 'NYC'")
+    .with_hint(QueryHint(bin_name="city"))
+    .execute()
+)
+```

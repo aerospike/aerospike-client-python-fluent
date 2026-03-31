@@ -63,8 +63,7 @@ async def client(aerospike_host, client_policy, enterprise):
         except Exception:
             pass
 
-        # Wait for the monitor to pick up the newly created index (min = refresh interval + indexing time)
-        await asyncio.sleep(.4)
+        await asyncio.sleep(0.75 if not enterprise else 0.4)
 
         yield client
 
@@ -158,8 +157,7 @@ class TestIndexLifecycle:
         except Exception:
             pass
 
-        # Wait for the monitor to pick up the newly created index (min = refresh interval + indexing time)
-        await asyncio.sleep(.4)
+        await asyncio.sleep(0.75 if not enterprise else 0.4)
 
         ctx = client._indexes_monitor.get_index_context(NAMESPACE)
         assert ctx is not None
@@ -185,8 +183,7 @@ class TestIndexLifecycle:
         except Exception:
             pass
 
-        # Wait for the monitor to pick up the newly created index (min = refresh interval + indexing time)
-        await asyncio.sleep(.4)
+        await asyncio.sleep(0.75 if not enterprise else 0.4)
 
         ctx = client._indexes_monitor.get_index_context(NAMESPACE)
         assert ctx is not None
@@ -197,7 +194,7 @@ class TestIndexLifecycle:
         except Exception:
             pass
 
-        await asyncio.sleep(.4)
+        await asyncio.sleep(0.75 if not enterprise else 0.4)
 
         ctx = client._indexes_monitor.get_index_context(NAMESPACE)
         if ctx is not None:

@@ -1,0 +1,114 @@
+site_name: Aerospike Python Fluent Client
+site_description: Fluent API for the Aerospike Python Async Client
+repo_url: https://github.com/aerospike/aerospike-client-python-fluent
+repo_name: aerospike-client-python-fluent
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - content.tabs.link
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            signature_crossrefs: true
+            separate_signature: true
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Guide:
+    - Connecting: guide/connecting.md
+    - Reading Data: guide/reads.md
+    - Writing Data: guide/writes.md
+    - CDT Operations: guide/cdt-operations.md
+    - Expression DSL: guide/expression-dsl.md
+    - Error Handling: guide/error-handling.md
+    - Background Tasks & UDF: guide/background-udf.md
+    - Secondary Indexes: guide/indexes.md
+  - API Reference:
+    - Overview: api/index.md
+    - Async:
+      - FluentClient: api/client.md
+      - Session: api/session.md
+      - QueryBuilder: api/query.md
+      - WriteSegmentBuilder: api/write-segment.md
+      - CDT Read: api/cdt-read.md
+      - CDT Write: api/cdt-write.md
+      - BatchOperationBuilder: api/batch.md
+      - IndexBuilder: api/index-builder.md
+      - BackgroundTaskSession: api/background.md
+      - UDF Builders: api/udf.md
+      - InfoCommands: api/info.md
+      - TransactionalSession: api/transactional-session.md
+    - Sync:
+      - SyncFluentClient: api/sync/client.md
+      - SyncSession: api/sync/session.md
+      - SyncQueryBuilder: api/sync/query.md
+    - Core:
+      - DataSet: api/dataset.md
+      - RecordResult: api/record-result.md
+      - RecordStream: api/record-stream.md
+      - Behavior: api/behavior.md
+      - ClusterDefinition: api/cluster-definition.md
+      - ErrorStrategy: api/error-strategy.md
+      - Exceptions: api/exceptions.md
+      - QueryHint: api/query-hint.md
+      - IndexesMonitor: api/indexes-monitor.md
+    - DSL:
+      - Parser: api/dsl-parser.md
+      - Filter Generation: api/dsl-filter-gen.md
+      - Expression Builder: api/exp.md

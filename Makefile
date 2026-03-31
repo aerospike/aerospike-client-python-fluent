@@ -1,4 +1,4 @@
-.PHONY: antlr generate-dsl test dev
+.PHONY: antlr generate-dsl test dev docs docs-serve
 
 # ANTLR JAR location - download if not present
 ANTLR_JAR ?= antlr-4.13.0-complete.jar
@@ -40,3 +40,9 @@ test-unit:
 
 test-int:
 	pytest tests/integration
+
+docs:
+	mkdocs build --strict
+
+docs-serve:
+	mkdocs serve

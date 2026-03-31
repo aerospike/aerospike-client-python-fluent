@@ -1,0 +1,124 @@
+# Error Handling
+
+## Exception Hierarchy
+
+All Aerospike errors extend `AerospikeError`:
+
+```
+AerospikeError
+├── TimeoutError
+├── ConnectionError
+├── SerializationError
+├── AuthenticationError
+├── AuthorizationError
+├── SecurityError
+├── GenerationError
+├── InvalidNamespaceError
+├── InvalidNodeError
+├── BackoffError
+├── CommitError
+├── QuotaError
+└── QueryTerminatedError
+```
+
+Import from the top-level package:
+
+```python
+from aerospike_fluent import AerospikeError, TimeoutError, GenerationError
+```
+
+## Default Behavior
+
+The default error handling depends on the operation type:
+
+| Operation | Default | Behavior |
+|-----------|---------|----------|
+| Single-key (1 key) | **Raise** | Exception raised immediately |
+| Multi-key (batch) | **In-stream** | Errors embedded in `RecordResult` |
+| Set query / scan | **In-stream** | Errors embedded in `RecordResult` |
+
+## Checking Results
+
+```python
+stream = await session.query(*users.ids(1, 2, 3)).execute()
+
+async for result in stream:
+    if result.is_ok:
+        print(result.record.bins)
+    else:
+        print(f"Key failed: {result.result_code}")
+```
+
+Or raise on any failure:
+
+```python
+async for result in stream:
+    record = result.record_or_raise()  # raises AerospikeError on failure
+```
+
+## ErrorStrategy
+
+Override the default with `on_error` at execute time:
+
+```python
+from aerospike_fluent import ErrorStrategy
+
+# Force in-stream errors for single-key operations
+stream = await (
+    session.query(users.id(1))
+    .execute(on_error=ErrorStrategy.IN_STREAM)
+)
+# result.is_ok will be False instead of raising
+```
+
+## ErrorHandler (Callback)
+
+Route errors to a custom callback:
+
+```python
+from aerospike_fluent import ErrorHandler
+
+def my_handler(result):
+    log.warning(f"Record error: {result.result_code} for {result.record.key}")
+
+stream = await (
+    session.query(*users.ids(1, 2, 3))
+    .execute(on_error=ErrorHandler(my_handler))
+)
+# Errors go to my_handler; only successes appear in the stream
+```
+
+## Common Patterns
+
+### Optimistic Locking
+
+```python
+try:
+    await (
+        session.update(users.id(1))
+        .ensure_generation_is(expected_gen)
+        .bin("balance").set_to(new_balance)
+        .execute()
+    )
+except GenerationError:
+    # Record was modified since we read it — retry
+    pass
+```
+
+### Conditional Write with Filter
+
+```python
+from aerospike_fluent import AerospikeError
+
+stream = await (
+    session.update(users.id(1))
+    .where("$.balance >= 100")
+    .fail_on_filtered_out()
+    .bin("balance").increment_by(-100)
+    .execute()
+)
+try:
+    result = await stream.first_or_raise()
+except AerospikeError:
+    print("Insufficient balance or record filtered out")
+```

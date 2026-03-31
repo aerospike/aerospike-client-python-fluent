@@ -51,13 +51,10 @@ class ErrorStrategy(Enum):
 
 
 ErrorHandler = Callable[["Key", int, "AerospikeError"], None]
-"""Callback signature for per-record error handling.
+"""Callback ``(key, index, exception) -> None`` for per-record error handling.
 
-Args:
-    key: The key of the record that failed.
-    index: Position in the batch (0-based), 0 for single-key, -1 for queries.
-    exception: The typed exception describing the failure.
-
+The callback receives the failed record's key, its position in the batch
+(0-based; 0 for single-key, -1 for queries), and the typed exception.
 Errors dispatched to the handler are excluded from the returned stream.
 """
 
