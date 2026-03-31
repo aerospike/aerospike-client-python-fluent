@@ -82,9 +82,9 @@ class SyncRecordStream:
         """Return the first row or raise if the stream is empty or not OK.
 
         Raises:
-            Same as :meth:`~aerospike_fluent.record_stream.RecordStream.first_or_raise`
-            (for example :class:`~aerospike_fluent.exceptions.AerospikeError` on a
-            failed row, empty-stream error from the async layer).
+            AerospikeError: On a failed row or empty-stream error from the
+                async layer. See
+                :meth:`~aerospike_fluent.record_stream.RecordStream.first_or_raise`.
         """
         return self._loop_manager.run_async(self._stream.first_or_raise())
 

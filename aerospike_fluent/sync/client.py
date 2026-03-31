@@ -28,7 +28,11 @@ import logging
 import os
 import sys
 import threading
-from typing import List, Optional, Union, overload
+from typing import TYPE_CHECKING, List, Optional, Union, overload
+
+if TYPE_CHECKING:
+    from aerospike_fluent.sync.operations.index import SyncIndexBuilder
+    from aerospike_fluent.sync.operations.query import SyncQueryBuilder
 
 from aerospike_async import (
     AdminPolicy,
@@ -642,7 +646,7 @@ class SyncFluentClient:
         key: Optional[Key] = None,
         keys_list: Optional[List[Key]] = None,
         behavior: Optional[Behavior] = None,
-    ):
+    ) -> SyncQueryBuilder:
         """
         Create a query builder (synchronous).
 
@@ -665,7 +669,8 @@ class SyncFluentClient:
                 for this builder (same semantics as ``FluentClient.query``).
 
         Returns:
-            A :class:`~aerospike_fluent.sync.operations.query.SyncQueryBuilder`.
+            SyncQueryBuilder: Configured for the requested namespace, set,
+                and/or keys.
         """
         from aerospike_fluent.sync.operations.query import SyncQueryBuilder
 
@@ -752,7 +757,7 @@ class SyncFluentClient:
         set_name: Optional[str] = None,
         *,
         dataset: Optional[DataSet] = None,
-    ):
+    ) -> SyncIndexBuilder:
         """
         Create a secondary-index builder (synchronous).
 
@@ -760,7 +765,7 @@ class SyncFluentClient:
         ``create()`` / ``drop()`` run on the client's event loop.
 
         Returns:
-            :class:`~aerospike_fluent.sync.operations.index.SyncIndexBuilder`.
+            SyncIndexBuilder: Configured for the requested namespace and set.
 
         See Also:
             :class:`~aerospike_fluent.aio.operations.index.IndexBuilder`: Async

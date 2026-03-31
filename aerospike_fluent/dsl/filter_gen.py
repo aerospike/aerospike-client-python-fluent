@@ -238,7 +238,7 @@ class FilterGenerator:
     def generate(
         self,
         dsl_string: str,
-        placeholder_values=None,
+        placeholder_values: Any = None,
         *,
         hint_index_name: Optional[str] = None,
         hint_bin_name: Optional[str] = None,
