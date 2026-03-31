@@ -20,7 +20,7 @@ import logging
 import pytest
 from datetime import timedelta
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 from aerospike_fluent import Behavior, DataSet, FluentClient
 
@@ -334,7 +334,7 @@ async def test_session_truncate(session):
             and (r3 is None or not r3.as_bool())
         )
         if gone:
-            logger.debug("truncate propagated after %d retries", attempt)
+            log.debug("truncate propagated after %d retries", attempt)
             break
         await asyncio.sleep(0.1)
 

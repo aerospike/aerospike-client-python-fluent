@@ -32,12 +32,13 @@ from aerospike_async import (
 )
 
 from aerospike_fluent.dataset import DataSet
+from aerospike_fluent.aio.operations.index import IndexBuilder
+from aerospike_fluent.aio.operations.query import QueryBuilder
+from aerospike_fluent.aio.transactional_session import TransactionalSession
+from aerospike_fluent.index_monitor import IndexesMonitor
 from aerospike_fluent.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
-    from aerospike_fluent.aio.operations.query import QueryBuilder
-    from aerospike_fluent.aio.operations.index import IndexBuilder
-    from aerospike_fluent.aio.transactional_session import TransactionalSession
     from aerospike_fluent.aio.session import Session
 
 
@@ -67,6 +68,7 @@ class FluentClient:
         self,
         seeds: str,
         policy: Optional[ClientPolicy] = None,
+        index_refresh_interval: float = 5.0,
     ) -> None:
         """Store cluster seeds and policy; connection starts in :meth:`connect` or ``async with``.
 
@@ -75,6 +77,10 @@ class FluentClient:
                 ``"127.0.0.1:3000"`` or a comma-separated host list if supported).
             policy: Optional :class:`~aerospike_async.ClientPolicy`; defaults to a
                 new client policy when omitted.
+            index_refresh_interval: Seconds between secondary index cache refreshes
+                (default 5.0). The monitor periodically fetches index metadata from
+                the cluster so that DSL-based ``where()`` calls can transparently
+                generate secondary index filters.
 
         Note:
             No network I/O occurs here. The client connects when you ``await
@@ -86,6 +92,7 @@ class FluentClient:
         self._policy = policy
         self._client: Optional[AsyncClient] = None
         self._connected = False
+        self._indexes_monitor = IndexesMonitor(refresh_interval=index_refresh_interval)
 
     async def connect(self) -> None:
         """Open a connection to the cluster using the configured seeds and policy.
@@ -108,6 +115,7 @@ class FluentClient:
 
         self._client = await new_client(self._policy, self._seeds)
         self._connected = True
+        await self._indexes_monitor.start(self._client)
 
     async def close(self) -> None:
         """Close the underlying async client and clear connection state.
@@ -117,6 +125,7 @@ class FluentClient:
         See Also:
             :meth:`connect`.
         """
+        await self._indexes_monitor.stop()
         if self._client is not None:
             await self._client.close()
             self._client = None
@@ -302,8 +311,6 @@ class FluentClient:
             :meth:`~aerospike_fluent.aio.session.Session.query`: Same builder with
                 session-scoped behavior.
         """
-        from aerospike_fluent.aio.operations.query import QueryBuilder
-
         # Handle positional arguments
         # Check if arg1 and arg2 are both strings (namespace, set_name pattern)
         if isinstance(arg1, str) and set_name is not None:
@@ -332,6 +339,7 @@ class FluentClient:
                 namespace=namespace,
                 set_name=set_name,
                 behavior=behavior,
+                indexes_monitor=self._indexes_monitor,
             )
             builder._single_key = key
             return builder
@@ -347,6 +355,7 @@ class FluentClient:
                 namespace=namespace,
                 set_name=set_name,
                 behavior=behavior,
+                indexes_monitor=self._indexes_monitor,
             )
             builder._keys = keys
             return builder
@@ -372,6 +381,7 @@ class FluentClient:
             namespace=namespace,
             set_name=set_name,
             behavior=behavior,
+            indexes_monitor=self._indexes_monitor,
         )
 
     @overload
@@ -426,8 +436,6 @@ class FluentClient:
         Returns:
             An IndexBuilder for chaining index operations.
         """
-        from aerospike_fluent.aio.operations.index import IndexBuilder
-
         # Handle DataSet
         if dataset is not None:
             namespace = dataset.namespace
@@ -471,8 +479,6 @@ class FluentClient:
                 # Transaction auto-committed on exit
             ```
         """
-        from aerospike_fluent.aio.transactional_session import TransactionalSession
-
         return TransactionalSession(client=self._async_client)
 
     def create_session(self, behavior: Optional[Behavior] = None) -> Session:

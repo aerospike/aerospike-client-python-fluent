@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -48,6 +49,7 @@ from aerospike_async import (
     ExpWriteFlags,
     Filter,
     FilterExpression,
+    GenerationPolicy,
     Key,
     ListOperation,
     ListOrderType,
@@ -84,6 +86,8 @@ from aerospike_fluent.aio.operations.cdt_write import (
     CdtWriteInvertableBuilder,
 )
 
+log = logging.getLogger("aerospike_fluent.query")
+
 _EXP_WRITE_DEFAULT = int(ExpWriteFlags.DEFAULT)
 _EXP_WRITE_CREATE_ONLY = int(ExpWriteFlags.CREATE_ONLY)
 _EXP_WRITE_UPDATE_ONLY = int(ExpWriteFlags.UPDATE_ONLY)
@@ -117,7 +121,7 @@ from aerospike_fluent.background_shared import (
     make_background_write_policy,
     reject_unsupported_background_write_ops,
 )
-from aerospike_fluent.dsl.parser import parse_dsl
+from aerospike_fluent.dsl.parser import parse_dsl, parse_dsl_with_index
 from aerospike_fluent.error_strategy import (
     ErrorHandler,
     ErrorStrategy,
@@ -137,7 +141,84 @@ from aerospike_fluent.record_stream import RecordStream
 _EXP_READ_DEFAULT = int(ExpReadFlags.DEFAULT)
 _EXP_READ_EVAL_NO_FAIL = int(ExpReadFlags.EVAL_NO_FAIL)
 
+
+@dataclass(frozen=True)
+class QueryHint:
+    """Hint for influencing secondary index selection and query scheduling.
+
+    Provide ``index_name`` to force a specific named secondary index, or
+    ``bin_name`` to redirect the filter to a different bin's index.  These two
+    are mutually exclusive.  ``query_duration`` overrides the policy's
+    ``expected_duration`` for this query only.
+
+    Example:
+        >>> hint = QueryHint(index_name="age_idx",
+        ...                  query_duration=QueryDuration.SHORT)
+        >>> stream = await (
+        ...     session.query(dataset)
+        ...         .filter(Filter.equal("age", 30))
+        ...         .with_hint(hint)
+        ...         .execute()
+        ... )
+
+    Args:
+        index_name: Force the query to use the named secondary index.
+        bin_name: Redirect the filter to use a different bin's index.
+        query_duration: Override ``expected_duration`` on the query policy.
+
+    Raises:
+        ValueError: If both ``index_name`` and ``bin_name`` are provided.
+
+    See Also:
+        :meth:`QueryBuilder.with_hint`
+    """
+
+    index_name: Optional[str] = None
+    bin_name: Optional[str] = None
+    query_duration: Optional[QueryDuration] = None
+
+    def __post_init__(self) -> None:
+        if self.index_name is not None and self.bin_name is not None:
+            raise ValueError(
+                "index_name and bin_name are mutually exclusive; "
+                "provide one or neither, not both"
+            )
+
+
+@dataclass
+class _FilterRecord:
+    """Internal: wraps a Filter with optional creation metadata for hint reconstruction."""
+
+    filter: Filter
+    method: Optional[str] = None
+    identifier: Optional[str] = None
+    args: Optional[tuple] = None
+    ctx: Optional[List[CTX]] = None
+
+    def rebuild_for_hint(self, hint: QueryHint) -> Filter:
+        """Reconstruct this filter with the hint's index_name or bin_name override."""
+        if self.method is None or self.args is None:
+            raise ValueError(
+                "Cannot apply index_name/bin_name hint to a pre-built Filter. "
+                "Use Filter.*_by_index() directly or let the PFC generate the "
+                "filter via parse_dsl_with_index()."
+            )
+        if hint.index_name is not None:
+            factory = getattr(Filter, f"{self.method}_by_index")
+            f = factory(hint.index_name, *self.args)
+        elif hint.bin_name is not None:
+            factory = getattr(Filter, self.method)
+            f = factory(hint.bin_name, *self.args)
+        else:
+            return self.filter
+        if self.ctx:
+            f = f.context(self.ctx)
+        return f
+
+
 if TYPE_CHECKING:
+    from aerospike_fluent.dsl.filter_gen import IndexContext
+    from aerospike_fluent.index_monitor import IndexesMonitor
     from aerospike_fluent.policy.behavior import Behavior
 
 
@@ -361,6 +442,7 @@ class QueryBuilder(_WriteVerbs):
         namespace: str,
         set_name: str,
         behavior: Optional[Behavior] = None,
+        indexes_monitor: Optional["IndexesMonitor"] = None,
     ) -> None:
         """
         Initialize a QueryBuilder.
@@ -370,15 +452,21 @@ class QueryBuilder(_WriteVerbs):
             namespace: The namespace name.
             set_name: The set name.
             behavior: Optional Behavior for deriving policies.
+            indexes_monitor: Optional monitor providing cached index metadata
+                for transparent filter generation from DSL expressions.
         """
         self._client = client
         self._namespace = namespace
         self._set_name = set_name
         self._behavior = behavior
+        self._indexes_monitor = indexes_monitor
         self._bins: Optional[List[str]] = None
         self._with_no_bins: bool = False
-        self._filters: List[Filter] = []
+        self._filter_records: List[_FilterRecord] = []
         self._filter_expression: Optional[FilterExpression] = None
+        self._query_hint: Optional[QueryHint] = None
+        self._where_dsl: Optional[str] = None
+        self._index_context: Optional["IndexContext"] = None
         self._policy: Optional[QueryPolicy] = None
         self._partition_filter: Optional[PartitionFilter] = None
         self._chunk_size: Optional[int] = None
@@ -499,16 +587,15 @@ class QueryBuilder(_WriteVerbs):
         return self
 
     def filter(self, filter_obj: Filter) -> QueryBuilder:
-        """
-        Add a filter to the query.
-        
+        """Add a secondary index filter to the query.
+
         Args:
             filter_obj: The filter to add.
-        
+
         Returns:
-            self for method chaining.
+            This builder for method chaining.
         """
-        self._filters.append(filter_obj)
+        self._filter_records.append(_FilterRecord(filter=filter_obj))
         return self
 
     def filter_expression(self, expression: FilterExpression) -> QueryBuilder:
@@ -573,9 +660,31 @@ class QueryBuilder(_WriteVerbs):
             :meth:`filter_expression`: Attach an expression without DSL parsing.
         """
         if isinstance(expression, str):
+            self._where_dsl = expression
             self._filter_expression = parse_dsl(expression)
         else:
+            self._where_dsl = None
             self._filter_expression = expression
+        return self
+
+    def with_index_context(self, index_context: "IndexContext") -> QueryBuilder:
+        """Explicitly override the secondary index metadata used for filter generation.
+
+        Most applications do **not** need this method. The client automatically
+        discovers and caches secondary index metadata from the cluster in the
+        background. Use this only when you need to force a specific index
+        context that differs from the live cluster state.
+
+        Args:
+            index_context: Index metadata for the query's namespace.
+
+        Returns:
+            This builder for method chaining.
+
+        See Also:
+            :class:`~aerospike_fluent.dsl.filter_gen.IndexContext`
+        """
+        self._index_context = index_context
         return self
 
     def with_policy(self, policy: QueryPolicy) -> QueryBuilder:
@@ -826,6 +935,39 @@ class QueryBuilder(_WriteVerbs):
         self._ensure_policy().expected_duration = duration
         return self
 
+    def with_hint(self, hint: QueryHint) -> QueryBuilder:
+        """Attach a query hint for secondary index selection or scheduling.
+
+        A hint can redirect which secondary index is used (``index_name``),
+        remap the filter to a different bin (``bin_name``), or override the
+        expected query duration (``query_duration``).  Only one call to
+        ``with_hint`` is allowed per builder.
+
+        Example:
+            >>> stream = await (
+            ...     session.query(dataset)
+            ...         .filter(Filter.equal("age", 30))
+            ...         .with_hint(QueryHint(index_name="age_idx"))
+            ...         .execute()
+            ... )
+
+        Args:
+            hint: A :class:`QueryHint` instance.
+
+        Returns:
+            This builder for method chaining.
+
+        Raises:
+            ValueError: If ``with_hint`` has already been called on this builder.
+
+        See Also:
+            :class:`QueryHint`
+        """
+        if self._query_hint is not None:
+            raise ValueError("with_hint() can only be called once per query builder")
+        self._query_hint = hint
+        return self
+
     def replica(self, replica: "Replica") -> QueryBuilder:
         """
         Set the replica preference for the query.
@@ -1044,14 +1186,21 @@ class QueryBuilder(_WriteVerbs):
 
     def _build_statement(self) -> Statement:
         """Build a Statement object from the builder configuration."""
-        # If bins is None, pass None to Statement (which means all bins)
-        # If bins is an empty list, pass [] (which means no bins)
-        # If bins is a non-empty list, pass it as-is (which means specific bins)
-        bins = self._bins  # None means all bins, [] means no bins, [names] means specific bins
+        bins = self._bins
         statement = Statement(self._namespace, self._set_name, bins)
-        if self._filters:
-            statement.filters = self._filters
-        # Note: filter_expression is set on the policy, not the statement
+        if self._filter_records:
+            hint = self._query_hint
+            needs_rebuild = (
+                hint is not None
+                and (hint.index_name is not None or hint.bin_name is not None)
+            )
+            filters = []
+            for rec in self._filter_records:
+                if needs_rebuild and hint is not None and rec.method is not None:
+                    filters.append(rec.rebuild_for_hint(hint))
+                else:
+                    filters.append(rec.filter)
+            statement.filters = filters
         return statement
 
     async def execute(
@@ -1688,7 +1837,6 @@ class QueryBuilder(_WriteVerbs):
         if spec.filter_expression is not None:
             wp.filter_expression = spec.filter_expression
         if spec.generation is not None:
-            from aerospike_async import GenerationPolicy
             wp.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
             wp.generation = spec.generation
         if spec.ttl_seconds is not None:
@@ -1964,7 +2112,6 @@ class QueryBuilder(_WriteVerbs):
         if spec.filter_expression is not None:
             bwp.filter_expression = spec.filter_expression
         if spec.generation is not None:
-            from aerospike_async import GenerationPolicy
             bwp.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
             bwp.generation = spec.generation
         if spec.ttl_seconds is not None:
@@ -1985,7 +2132,18 @@ class QueryBuilder(_WriteVerbs):
             policy.max_records = self._chunk_size
         if self._filter_expression is not None:
             policy.filter_expression = self._filter_expression
+
+        hint = self._query_hint
+        if hint is not None and hint.query_duration is not None:
+            policy.expected_duration = hint.query_duration
+
+        self._resolve_index_context()
+
         partition_filter = self._partition_filter or PartitionFilter.all()
+
+        if self._where_dsl is not None and self._index_context is not None:
+            self._auto_generate_filters(hint, policy)
+
         statement = self._build_statement()
 
         try:
@@ -1994,6 +2152,48 @@ class QueryBuilder(_WriteVerbs):
         except Exception as e:
             raise _convert_pac_exception(e) from e
         return RecordStream.from_recordset(recordset)
+
+    def _resolve_index_context(self) -> None:
+        """Auto-populate ``_index_context`` from the monitor when not set."""
+        if self._index_context is not None:
+            return
+        if self._indexes_monitor is None:
+            return
+        ctx = self._indexes_monitor.get_index_context(self._namespace)
+        if ctx is not None:
+            self._index_context = ctx
+
+    def _auto_generate_filters(
+        self,
+        hint: Optional[QueryHint],
+        policy: QueryPolicy,
+    ) -> None:
+        """Parse DSL with index context to generate Filter + Exp.
+
+        When a hint provides ``index_name`` or ``bin_name``, those overrides
+        are forwarded to the filter generation pipeline.
+        """
+        if self._where_dsl is None or self._index_context is None:
+            return
+
+        hint_index = hint.index_name if hint is not None else None
+        hint_bin = hint.bin_name if hint is not None else None
+
+        result = parse_dsl_with_index(
+            self._where_dsl,
+            self._index_context,
+            hint_index_name=hint_index,
+            hint_bin_name=hint_bin,
+        )
+        if result.filter is not None:
+            self._filter_records.append(_FilterRecord(filter=result.filter))
+            log.debug(
+                "Auto-selected secondary index filter for query on %s.%s",
+                self._namespace,
+                self._set_name,
+            )
+        if result.exp is not None:
+            policy.filter_expression = result.exp
 
 
 class WriteSegmentBuilder(_WriteVerbs):

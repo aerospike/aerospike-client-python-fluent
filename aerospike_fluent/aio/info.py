@@ -155,47 +155,43 @@ class InfoCommands:
         Returns:
             A list of dictionaries containing secondary index information.
         """
-        # Get info from all nodes and merge the results
         all_responses = await self._session._client._client.info_on_all_nodes("sindex-list")
 
-        # Parse sindex-list response format: "ns:set:bin:name:type:state:sync_state:update_state"
-        # Multiple indexes are separated by semicolons
         index_map: Dict[str, Dict[str, str]] = {}
 
         for node_response in all_responses.values():
-            # Response format is typically {"sindex-list": "ns:set:bin:name:type:state;..."}
             for value in node_response.values():
                 if isinstance(value, str) and value:
-                    # Split by semicolon to get individual index entries
                     for entry in value.split(";"):
                         entry = entry.strip()
                         if not entry:
                             continue
 
-                        # Parse index entry: ns:set:bin:name:type:state:sync_state:update_state
-                        parts = entry.split(":")
-                        if len(parts) >= 4:
-                            ns = parts[0]
-                            set_name = parts[1]
-                            bin_name = parts[2]
-                            index_name = parts[3]
+                        fields: Dict[str, str] = {}
+                        for token in entry.split(":"):
+                            if "=" in token:
+                                k, v = token.split("=", 1)
+                                fields[k] = v
 
-                            # Apply namespace filter if provided
-                            if namespace and ns != namespace:
-                                continue
+                        index_name = fields.get("indexname", "")
+                        ns = fields.get("ns", "")
+                        if not index_name or not ns:
+                            continue
 
-                            # Use index name as key to deduplicate across nodes
-                            if index_name not in index_map:
-                                index_map[index_name] = {
-                                    "namespace": ns,
-                                    "set": set_name,
-                                    "bin": bin_name,
-                                    "name": index_name,
-                                }
-                                if len(parts) >= 5:
-                                    index_map[index_name]["type"] = parts[4]
-                                if len(parts) >= 6:
-                                    index_map[index_name]["state"] = parts[5]
+                        if namespace and ns != namespace:
+                            continue
+
+                        if index_name not in index_map:
+                            index_map[index_name] = {
+                                "namespace": ns,
+                                "set": fields.get("set", ""),
+                                "bin": fields.get("bin", ""),
+                                "name": index_name,
+                            }
+                            if "type" in fields:
+                                index_map[index_name]["type"] = fields["type"]
+                            if "state" in fields:
+                                index_map[index_name]["state"] = fields["state"]
 
         return list(index_map.values())
 

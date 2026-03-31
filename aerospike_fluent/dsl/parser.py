@@ -37,7 +37,8 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 from aerospike_async import CTX, Filter, FilterExpression
 
-from aerospike_fluent.dsl.filter_gen import Index, IndexContext, IndexTypeEnum, ParseResult
+from aerospike_fluent.dsl.exp_visitor import DeferredBin
+from aerospike_fluent.dsl.filter_gen import FilterGenerator, Index, IndexContext, IndexTypeEnum, ParseResult
 
 from antlr4 import InputStream, CommonTokenStream
 from antlr4.error.ErrorListener import ErrorListener
@@ -215,7 +216,6 @@ def parse_ctx(path: str) -> List[CTX]:
             )
 
         # Handle DeferredBin (bare bin name like $.listBin)
-        from aerospike_fluent.dsl.exp_visitor import DeferredBin
         if isinstance(result, DeferredBin):
             raise DslParseException("CDT context is not provided")
 
@@ -265,6 +265,9 @@ def parse_dsl_with_index(
     dsl_string: str,
     index_context: Optional[IndexContext] = None,
     placeholder_values: Optional[Sequence[Any]] = None,
+    *,
+    hint_index_name: Optional[str] = None,
+    hint_bin_name: Optional[str] = None,
 ) -> ParseResult:
     """Parse a DSL string and generate optimal Filter + Exp based on available indexes.
 
@@ -291,6 +294,9 @@ def parse_dsl_with_index(
         dsl_string: The DSL expression string.
         index_context: IndexContext with available indexes. If None, only Exp is returned.
         placeholder_values: Optional sequence of values for placeholders (?0, ?1, etc.)
+        hint_index_name: Force the generated Filter to target this named
+            secondary index via ``Filter.*_by_index()``.
+        hint_bin_name: Override the bin name used for the generated Filter.
 
     Returns:
         ParseResult containing:
@@ -308,8 +314,11 @@ def parse_dsl_with_index(
 
         result = parse_dsl_with_index("$.intBin1 > ?0", ctx, (100,))
     """
-    from aerospike_fluent.dsl.filter_gen import FilterGenerator
-    
     generator = FilterGenerator(index_context)
     pv = PlaceholderValues(*placeholder_values) if placeholder_values else None
-    return generator.generate(dsl_string, pv)
+    return generator.generate(
+        dsl_string,
+        pv,
+        hint_index_name=hint_index_name,
+        hint_bin_name=hint_bin_name,
+    )
