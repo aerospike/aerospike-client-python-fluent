@@ -17,15 +17,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, AsyncIterator, Sequence
+import logging
+from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable, Sequence
 
-from aerospike_async import Key, Record
+from aerospike_async import Key, PartitionFilter, Record
 from aerospike_async.exceptions import ResultCode
 
 from aerospike_fluent.record_result import RecordResult, batch_records_to_results
 
 if TYPE_CHECKING:
     from aerospike_fluent.exceptions import AerospikeError
+
+log = logging.getLogger(__name__)
 
 
 class RecordStream:
@@ -51,6 +54,14 @@ class RecordStream:
     def __init__(self, source: AsyncIterator[RecordResult]) -> None:
         self._source = source
         self._closed = False
+        self._chunked = False
+        self._chunk_first = True
+        self._chunk_recordset: Any = None
+        self._chunk_reexecute: Callable[
+            [PartitionFilter], Awaitable[Any]
+        ] | None = None
+        self._chunk_limit: int = 0
+        self._chunk_count: int = 0
 
     # -- factory constructors ------------------------------------------------
 
@@ -108,6 +119,57 @@ class RecordStream:
                     result_code=ResultCode.OK,
                 )
         return cls(_iter())
+
+    @classmethod
+    def from_chunked_recordset(
+        cls,
+        recordset: Any,
+        reexecute: Callable[[PartitionFilter], Awaitable[Any]],
+        limit: int = 0,
+    ) -> RecordStream:
+        """Wrap a ``Recordset`` for chunked iteration.
+
+        The stream yields records from the current chunk.  Call
+        :meth:`has_more_chunks` to advance to the next server chunk.
+
+        Args:
+            recordset: The PAC ``Recordset`` from the first query call.
+            reexecute: An async callable that accepts an updated
+                ``PartitionFilter`` and returns a new ``Recordset``.
+            limit: Optional overall record limit (0 = unlimited).
+        """
+        stream = cls._make_chunk_iter(recordset, limit, 0)
+        stream._chunked = True
+        stream._chunk_recordset = recordset
+        stream._chunk_reexecute = reexecute
+        stream._chunk_limit = limit
+        return stream
+
+    @classmethod
+    def _make_chunk_iter(
+        cls, recordset: Any, limit: int, already_counted: int,
+    ) -> RecordStream:
+        """Build a RecordStream that counts records against *limit*."""
+        counter = [already_counted]
+
+        async def _iter() -> AsyncIterator[RecordResult]:
+            async for record in recordset:
+                if 0 < limit <= counter[0]:
+                    break
+                key = (
+                    record.key
+                    if hasattr(record, "key") and record.key is not None
+                    else Key("", "", 0)
+                )
+                counter[0] += 1
+                yield RecordResult(
+                    key=key, record=record, result_code=ResultCode.OK,
+                )
+
+        inst = cls(_iter())
+        inst._chunk_count = already_counted
+        inst._counter_ref = counter
+        return inst
 
     @classmethod
     def from_single(cls, key: Key, record: Record | None) -> RecordStream:
@@ -170,6 +232,62 @@ class RecordStream:
         if self._closed:
             raise StopAsyncIteration
         return await self._source.__anext__()
+
+    # -- chunked iteration ---------------------------------------------------
+
+    async def has_more_chunks(self) -> bool:
+        """Check whether more server-side chunks remain.
+
+        On the first call this returns ``True`` so the caller enters the
+        iteration loop for the already-loaded first chunk.  Subsequent calls
+        inspect the server's ``PartitionFilter`` cursor: if more partitions
+        remain, a new query round-trip is issued transparently and ``True``
+        is returned.
+
+        Returns ``False`` when:
+        * the server cursor is done (all partitions scanned), or
+        * the overall ``limit`` has been reached, or
+        * the stream was not created with :meth:`from_chunked_recordset`.
+
+        Example::
+
+            stream = await session.query(SET).chunk_size(10).execute()
+            chunk = 0
+            while await stream.has_more_chunks():
+                chunk += 1
+                print(f"Chunk: {chunk}")
+                async for rr in stream:
+                    print(rr.record.bins)
+        """
+        if not self._chunked:
+            if self._chunk_first:
+                self._chunk_first = False
+                return True
+            return False
+
+        if self._chunk_first:
+            self._chunk_first = False
+            return True
+
+        if self._chunk_limit > 0 and self._chunk_count >= self._chunk_limit:
+            return False
+
+        pf = await self._chunk_recordset.partition_filter()
+        if pf is None or pf.done():
+            return False
+
+        recordset = await self._chunk_reexecute(pf)
+        self._chunk_recordset = recordset
+        counted_so_far = getattr(self, "_counter_ref", [0])[0]
+        self._chunk_count = counted_so_far
+
+        new_stream = self._make_chunk_iter(
+            recordset, self._chunk_limit, counted_so_far,
+        )
+        self._source = new_stream._source
+        self._counter_ref = new_stream._counter_ref
+        self._closed = False
+        return True
 
     # -- convenience methods -------------------------------------------------
 

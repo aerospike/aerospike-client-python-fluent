@@ -144,28 +144,39 @@ class TestMapExpressions:
         assert result == expected_spaces
 
     def test_map_size(self):
-        """$.mapBin1.{}.count() and $.mapBin1.count() (default list).
-        Note: {} designator currently does not add a CDT part, so {}.count() is
-        parsed like bare count() and yields list_size(list_bin(...)).
-        """
+        """$.mapBin1.{}.count() uses map_size; $.mapBin1.count() defaults to list_size."""
         result = parse_dsl("$.mapBin1.{}.count() > 200")
-        expected_list_for_both = Exp.gt(
-            Exp.list_size(Exp.list_bin("mapBin1"), []),
+        expected_map = Exp.gt(
+            Exp.map_size(Exp.map_bin("mapBin1"), []),
             Exp.int_val(200),
         )
-        assert result == expected_list_for_both
+        assert result == expected_map
 
+        result = parse_dsl("$.mapBin1.count() > 200")
         expected_list = Exp.gt(
             Exp.list_size(Exp.list_bin("mapBin1"), []),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.count() > 200")
         assert result == expected_list
 
     def test_nested_map_size(self):
-        """$.mapBin1.a.{}.count() and $.mapBin1.a.count() (default list).
-        Note: {} does not add a part, so a.{}.count() is parsed like a.count().
-        """
+        """$.mapBin1.a.{}.count() uses map_size; $.mapBin1.a.count() defaults to list_size."""
+        expected_map = Exp.eq(
+            Exp.map_size(
+                Exp.map_get_by_key(
+                    MapReturnType.VALUE,
+                    ExpType.MAP,
+                    Exp.string_val("a"),
+                    Exp.map_bin("mapBin1"),
+                    [],
+                ),
+                [],
+            ),
+            Exp.int_val(200),
+        )
+        result = parse_dsl("$.mapBin1.a.{}.count() == 200")
+        assert result == expected_map
+
         expected_list = Exp.eq(
             Exp.list_size(
                 Exp.map_get_by_key(
@@ -179,16 +190,27 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.{}.count() == 200")
-        assert result == expected_list
-
         result = parse_dsl("$.mapBin1.a.count() == 200")
         assert result == expected_list
 
     def test_nested_map_size_with_context(self):
-        """$.mapBin1.a.b.{}.count() and $.mapBin1.a.b.count().
-        Note: {} does not add a part, so both parse to list_size(map_get_by_key(..., LIST, ...)).
-        """
+        """$.mapBin1.a.b.{}.count() uses map_size; $.mapBin1.a.b.count() defaults to list_size."""
+        expected_map = Exp.eq(
+            Exp.map_size(
+                Exp.map_get_by_key(
+                    MapReturnType.VALUE,
+                    ExpType.MAP,
+                    Exp.string_val("b"),
+                    Exp.map_bin("mapBin1"),
+                    [CTX.map_key("a")],
+                ),
+                [],
+            ),
+            Exp.int_val(200),
+        )
+        result = parse_dsl("$.mapBin1.a.b.{}.count() == 200")
+        assert result == expected_map
+
         expected_list = Exp.eq(
             Exp.list_size(
                 Exp.map_get_by_key(
@@ -202,9 +224,6 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.b.{}.count() == 200")
-        assert result == expected_list
-
         result = parse_dsl("$.mapBin1.a.b.count() == 200")
         assert result == expected_list
 

@@ -521,3 +521,137 @@ async def test_replace_if_exists_fails_if_record_not_exists(client):
     with pytest.raises(AerospikeError) as exc_info:
         await session.replace_if_exists(k).put({"name": "Bob"}).execute()
     assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
+
+
+async def test_upsert_updates_existing_record(client):
+    """Upsert on an existing record overwrites the specified bins."""
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(1)
+
+    await session.upsert(k).bin("name").set_to("original").execute()
+    await session.upsert(k).bin("name").set_to("updated").execute()
+
+    result = await session.query(k).execute()
+    first = await result.first_or_raise()
+    assert first.record_or_raise().bins["name"] == "updated"
+
+
+async def test_update_preserves_other_bins(client):
+    """Update modifies specified bins but preserves unspecified ones."""
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(1)
+
+    await session.upsert(k).put({"name": "Alice", "counter": 10}).execute()
+    await session.update(k).bin("name").set_to("Bob").execute()
+
+    result = await session.query(k).execute()
+    first = await result.first_or_raise()
+    bins = first.record_or_raise().bins
+    assert bins["name"] == "Bob"
+    assert bins["counter"] == 10
+
+
+async def test_get_header(client):
+    """Query with no bins returns header (generation, TTL) without bin data."""
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(1)
+
+    await session.upsert(k).bin("mybin").set_to("myvalue").execute()
+
+    result = await session.query(k).with_no_bins().execute()
+    first = await result.first_or_raise()
+    rec = first.record_or_raise()
+
+    assert rec.bins.get("mybin") is None
+    assert rec.generation > 0
+
+
+async def test_touch_updates_generation(client):
+    """Touch increments the record's generation without modifying data."""
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(1)
+
+    await session.upsert(k).bin("name").set_to("touchable").execute()
+
+    result = await session.query(k).with_no_bins().execute()
+    initial_rec = (await result.first_or_raise()).record_or_raise()
+    initial_gen = initial_rec.generation
+
+    await session.touch(k).execute()
+
+    result = await session.query(k).with_no_bins().execute()
+    touched_rec = (await result.first_or_raise()).record_or_raise()
+    assert touched_rec.generation == initial_gen + 1
+
+
+async def test_touch_nonexistent_record(client):
+    """Touch on a non-existent record yields a not-OK result."""
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(77777)
+
+    try:
+        await session.delete(k).execute()
+    except Exception:
+        pass
+
+    stream = await session.touch(k).respond_all_keys().execute()
+    first = await stream.first()
+    assert first is not None
+    assert not first.is_ok
+
+
+async def test_touch_with_ttl(client):
+    """Touch with expire_record_after_seconds sets the TTL."""
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(1)
+
+    await session.upsert(k).bin("name").set_to("ttl_test").execute()
+
+    await session.touch(k).expire_record_after_seconds(300).execute()
+
+    result = await session.query(k).with_no_bins().execute()
+    rec = (await result.first_or_raise()).record_or_raise()
+    assert rec.ttl is not None
+    assert rec.ttl > 0
+
+
+async def test_expire_record_after_seconds(client):
+    """Record with a short TTL expires and becomes unreadable."""
+    import asyncio
+
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(1)
+
+    await (
+        session.upsert(k)
+            .expire_record_after_seconds(2)
+            .bin("data").set_to("ephemeral")
+            .execute()
+    )
+
+    result = await session.query(k).execute()
+    first = await result.first_or_raise()
+    assert first.record_or_raise().bins["data"] == "ephemeral"
+
+    await asyncio.sleep(4)
+
+    result = await session.query(k).execute()
+    first = await result.first()
+    assert first is None or not first.is_ok
+
+
+async def test_never_expire(client):
+    """Record with never_expire() persists indefinitely."""
+    session = client.create_session()
+    k = DataSet.of("test", "test").id(1)
+
+    await (
+        session.upsert(k)
+            .never_expire()
+            .bin("data").set_to("persistent")
+            .execute()
+    )
+
+    result = await session.query(k).execute()
+    first = await result.first_or_raise()
+    assert first.record_or_raise().bins["data"] == "persistent"

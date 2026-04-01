@@ -58,6 +58,17 @@ class InferredType(Enum):
     UNKNOWN = auto()
 
 
+_INFERRED_TO_EXP_TYPE: dict[InferredType, ExpType] = {
+    InferredType.INT: ExpType.INT,
+    InferredType.FLOAT: ExpType.FLOAT,
+    InferredType.STRING: ExpType.STRING,
+    InferredType.BOOL: ExpType.BOOL,
+    InferredType.LIST: ExpType.LIST,
+    InferredType.MAP: ExpType.MAP,
+    InferredType.BLOB: ExpType.BLOB,
+}
+
+
 @dataclass
 class DeferredBin:
     """Represents a bin reference that hasn't been typed yet.
@@ -132,12 +143,20 @@ class DeferredArithmetic:
 
     def to_expression(self, inferred_type: InferredType = InferredType.INT) -> FilterExpression:
         """Convert to FilterExpression with the given type."""
+        # Promote to FLOAT if any resolved child is already FLOAT-typed,
+        # so that deferred bins are read with float_bin instead of int_bin.
+        effective_type = inferred_type
+        for operand in self.operands:
+            if isinstance(operand, TypedExpr) and operand.type_hint == InferredType.FLOAT:
+                effective_type = InferredType.FLOAT
+                break
+
         resolved_operands = []
         for operand in self.operands:
             if isinstance(operand, DeferredBin):
-                resolved_operands.append(operand.to_expression(inferred_type))
+                resolved_operands.append(operand.to_expression(effective_type))
             elif isinstance(operand, DeferredArithmetic):
-                resolved_operands.append(operand.to_expression(inferred_type))
+                resolved_operands.append(operand.to_expression(effective_type))
             elif isinstance(operand, TypedExpr):
                 resolved_operands.append(operand.expr)
             else:
@@ -981,16 +1000,7 @@ class CDTPath:
             exp_type = self.value_type
         else:
             type_to_use = self.explicit_type if self.explicit_type else inferred_type
-            if type_to_use == InferredType.INT:
-                exp_type = ExpType.INT
-            elif type_to_use == InferredType.FLOAT:
-                exp_type = ExpType.FLOAT
-            elif type_to_use == InferredType.STRING:
-                exp_type = ExpType.STRING
-            elif type_to_use == InferredType.BOOL:
-                exp_type = ExpType.BOOL
-            else:
-                exp_type = self.value_type
+            exp_type = _INFERRED_TO_EXP_TYPE.get(type_to_use, self.value_type)
         
         # Determine bin type from FIRST part (not last)
         # If first part is a map access, base bin is map_bin; if list, base bin is list_bin
@@ -1102,18 +1112,7 @@ def _resolve_for_comparison(left: ExprOrDeferred, right: ExprOrDeferred) -> tupl
 
     # Reject incompatible type pairs for comparison
     if left_hint != InferredType.UNKNOWN and right_hint != InferredType.UNKNOWN:
-        if (left_hint == InferredType.STRING and right_hint == InferredType.FLOAT) or (
-            left_hint == InferredType.FLOAT and right_hint == InferredType.STRING
-        ):
-            raise DslParseException("Cannot compare STRING to FLOAT")
-        if (left_hint == InferredType.LIST and right_hint == InferredType.MAP) or (
-            left_hint == InferredType.MAP and right_hint == InferredType.LIST
-        ):
-            raise DslParseException("Cannot compare MAP to LIST")
-        if (left_hint == InferredType.BOOL and right_hint == InferredType.INT) or (
-            left_hint == InferredType.INT and right_hint == InferredType.BOOL
-        ):
-            raise DslParseException("Cannot compare BOOL to INT")
+        _validate_comparison_types(left_hint, right_hint)
 
     # Resolve left side
     if isinstance(left, (DeferredBin, CDTPath, DeferredArithmetic)):
@@ -1231,6 +1230,8 @@ def _resolve_for_in_list(expr: ExprOrDeferred) -> FilterExpression:
                 f"IN operation requires a List as the right operand, "
                 f"got {expr.explicit_type.name}"
             )
+        if isinstance(expr, CDTPath) and expr.parts:
+            return expr.to_expression(InferredType.STRING)
         return expr.to_expression(InferredType.LIST)
     if isinstance(expr, TypedExpr):
         if expr.type_hint not in (InferredType.LIST, InferredType.UNKNOWN):
@@ -1245,6 +1246,25 @@ def _resolve_for_in_list(expr: ExprOrDeferred) -> FilterExpression:
 
 
 _NUMERIC_TYPES = frozenset({InferredType.INT, InferredType.FLOAT})
+
+
+_BLOB_STRING_PAIR = frozenset({InferredType.BLOB, InferredType.STRING})
+
+
+def _validate_comparison_types(left: InferredType, right: InferredType) -> None:
+    """Reject incompatible type pairs in a comparison expression.
+
+    Same types are always compatible. INT and FLOAT are numeric-compatible.
+    BLOB and STRING are compatible (string is base64-decoded).
+    All other cross-type pairs are rejected.
+    """
+    if left == right:
+        return
+    if left in _NUMERIC_TYPES and right in _NUMERIC_TYPES:
+        return
+    if {left, right} == _BLOB_STRING_PAIR:
+        return
+    raise DslParseException(f"Cannot compare {left.name} to {right.name}")
 
 
 def _validate_in_type_compatibility(
@@ -1332,21 +1352,23 @@ def _build_arithmetic(op: ArithOp, left: ExprOrDeferred, right: ExprOrDeferred) 
 
     has_float = (_get_type_hint(left) == InferredType.FLOAT or
                  _get_type_hint(right) == InferredType.FLOAT)
+    result_type = InferredType.FLOAT if has_float else InferredType.INT
     resolved_left = _resolve_for_arithmetic(left, has_float)
     resolved_right = _resolve_for_arithmetic(right, has_float)
 
     if op == ArithOp.ADD:
-        return FilterExpression.num_add([resolved_left, resolved_right])
+        result = FilterExpression.num_add([resolved_left, resolved_right])
     elif op == ArithOp.SUB:
-        return FilterExpression.num_sub([resolved_left, resolved_right])
+        result = FilterExpression.num_sub([resolved_left, resolved_right])
     elif op == ArithOp.MUL:
-        return FilterExpression.num_mul([resolved_left, resolved_right])
+        result = FilterExpression.num_mul([resolved_left, resolved_right])
     elif op == ArithOp.DIV:
-        return FilterExpression.num_div([resolved_left, resolved_right])
+        result = FilterExpression.num_div([resolved_left, resolved_right])
     elif op == ArithOp.MOD:
-        return FilterExpression.num_mod(resolved_left, resolved_right)
+        result = FilterExpression.num_mod(resolved_left, resolved_right)
     else:
         raise DslParseException(f"Unknown arithmetic operation: {op}")
+    return TypedExpr(result, result_type)
 
 
 def _finalize_result(result: ExprOrDeferred, default_type: InferredType = InferredType.INT) -> Optional[FilterExpression]:
@@ -1389,6 +1411,22 @@ class ExpressionConditionVisitor(ConditionVisitor):
         super().__init__()
         self._placeholder_values = placeholder_values
         self._ctx_only = ctx_only
+        self._var_types: list[dict[str, InferredType]] = [{}]
+
+    def _push_var_scope(self) -> None:
+        self._var_types.append({})
+
+    def _pop_var_scope(self) -> None:
+        self._var_types.pop()
+
+    def _set_var_type(self, name: str, var_type: InferredType) -> None:
+        self._var_types[-1][name] = var_type
+
+    def _get_var_type(self, name: str) -> InferredType:
+        for scope in reversed(self._var_types):
+            if name in scope:
+                return scope[name]
+        return InferredType.UNKNOWN
 
     def visitParse(self, ctx: ConditionParser.ParseContext) -> ExprOrDeferred:
         """Visit the root parse node."""
@@ -1634,124 +1672,113 @@ class ExpressionConditionVisitor(ConditionVisitor):
             
             # Check for count()
             if hasattr(path_func_ctx, 'pathFunctionCount') and path_func_ctx.pathFunctionCount() is not None:
-                # count() returns the size/count of the list/map or result set
-                if isinstance(base_path, CDTPath) and base_path.parts:
-                    last_part = base_path.parts[-1]
-
-                    # For list value/range parts, use COUNT return type
-                    if isinstance(last_part, (ListValuePart, ListIndexRangePart,
-                                              ListValueRangePart, ListValueListPart, ListRankRangePart,
-                                              ListRankRangeRelativePart)):
-                        ctx_list: List[CTX] = []
-                        for p in base_path.parts[:-1]:
-                            try:
-                                ctx_list.append(p.get_context())
-                            except NotImplementedError:
-                                pass
-                        return last_part.construct_expr(
-                            base_path.bin_name,
-                            ExpType.INT,
-                            ListReturnType.COUNT,
-                            ctx_list,
-                        )
-
-                    # For map value/range parts, use COUNT return type
-                    if isinstance(last_part, (MapValuePart, MapKeyRangePart, MapKeyListPart,
-                                              MapIndexRangePart, MapValueRangePart,
-                                              MapValueListPart, MapRankRangePart,
-                                              MapRankRangeRelativePart, MapIndexRangeRelativePart)):
-                        ctx_list = []
-                        for p in base_path.parts[:-1]:
-                            try:
-                                ctx_list.append(p.get_context())
-                            except NotImplementedError:
-                                pass
-                        return last_part.construct_expr(
-                            base_path.bin_name,
-                            ExpType.INT,
-                            MapReturnType.COUNT,
-                            ctx_list,
-                        )
-
-                    # For simple index/rank parts, get element as LIST and then size it
-                    # Build context from all parts except the last
-                    ctx_list: List[CTX] = []
-                    for p in base_path.parts[:-1]:
-                        try:
-                            ctx_list.append(p.get_context())
-                        except NotImplementedError:
-                            pass
-
-                    # Determine bin type from first part
-                    first_part = base_path.parts[0]
-                    is_map_base = isinstance(first_part, (MapKeyPart, MapIndexPart, MapRankPart,
-                                                           MapValuePart, MapKeyRangePart, MapKeyListPart,
-                                                           MapIndexRangePart, MapValueRangePart, MapValueListPart,
-                                                           MapRankRangePart, MapRankRangeRelativePart,
-                                                           MapIndexRangeRelativePart))
-                    bin_expr = FilterExpression.map_bin(base_path.bin_name) if is_map_base else FilterExpression.list_bin(base_path.bin_name)
-
-                    if isinstance(last_part, ListIndexPart):
-                        # Get the element as LIST type, then get its size
-                        inner_expr = FilterExpression.list_get_by_index(
-                            ListReturnType.VALUE,
-                            ExpType.LIST,
-                            FilterExpression.int_val(last_part.index),
-                            bin_expr,
-                            ctx_list,
-                        )
-                        return FilterExpression.list_size(inner_expr, [])
-                    elif isinstance(last_part, ListRankPart):
-                        inner_expr = FilterExpression.list_get_by_rank(
-                            ListReturnType.VALUE,
-                            ExpType.LIST,
-                            FilterExpression.int_val(last_part.rank),
-                            bin_expr,
-                            ctx_list,
-                        )
-                        return FilterExpression.list_size(inner_expr, [])
-                    elif isinstance(last_part, MapKeyPart):
-                        inner_expr = FilterExpression.map_get_by_key(
-                            MapReturnType.VALUE,
-                            ExpType.LIST,
-                            FilterExpression.string_val(last_part.key),
-                            bin_expr,
-                            ctx_list,
-                        )
-                        return FilterExpression.list_size(inner_expr, [])
-                    elif isinstance(last_part, MapIndexPart):
-                        inner_expr = FilterExpression.map_get_by_index(
-                            MapReturnType.VALUE,
-                            ExpType.LIST,
-                            FilterExpression.int_val(last_part.index),
-                            bin_expr,
-                            ctx_list,
-                        )
-                        return FilterExpression.list_size(inner_expr, [])
-                    elif isinstance(last_part, MapRankPart):
-                        inner_expr = FilterExpression.map_get_by_rank(
-                            MapReturnType.VALUE,
-                            ExpType.LIST,
-                            FilterExpression.int_val(last_part.rank),
-                            bin_expr,
-                            ctx_list,
-                        )
-                        return FilterExpression.list_size(inner_expr, [])
-                elif isinstance(base_path, CDTPath):
-                    # No parts - just bin.count()
-                    return FilterExpression.list_size(
-                        FilterExpression.list_bin(base_path.bin_name),
-                        [],
-                    )
-                elif isinstance(base_path, DeferredBin):
-                    # Assume list for bare bin.count()
-                    return FilterExpression.list_size(
-                        FilterExpression.list_bin(base_path.name),
-                        [],
-                    )
+                count_expr = self._build_count(base_path)
+                if count_expr is not None:
+                    return TypedExpr(count_expr, InferredType.INT)
         
         return base_path
     
+    def _build_count(self, base_path: ExprOrDeferred) -> Optional[FilterExpression]:
+        """Build a count/size expression for a path with .count()."""
+        if isinstance(base_path, CDTPath) and base_path.parts:
+            last_part = base_path.parts[-1]
+
+            if isinstance(last_part, (ListValuePart, ListIndexRangePart,
+                                      ListValueRangePart, ListValueListPart, ListRankRangePart,
+                                      ListRankRangeRelativePart)):
+                ctx_list: List[CTX] = []
+                for p in base_path.parts[:-1]:
+                    try:
+                        ctx_list.append(p.get_context())
+                    except NotImplementedError:
+                        pass
+                return last_part.construct_expr(
+                    base_path.bin_name, ExpType.INT, ListReturnType.COUNT, ctx_list,
+                )
+
+            if isinstance(last_part, (MapValuePart, MapKeyRangePart, MapKeyListPart,
+                                      MapIndexRangePart, MapValueRangePart,
+                                      MapValueListPart, MapRankRangePart,
+                                      MapRankRangeRelativePart, MapIndexRangeRelativePart)):
+                ctx_list: List[CTX] = []
+                for p in base_path.parts[:-1]:
+                    try:
+                        ctx_list.append(p.get_context())
+                    except NotImplementedError:
+                        pass
+                return last_part.construct_expr(
+                    base_path.bin_name, ExpType.INT, MapReturnType.COUNT, ctx_list,
+                )
+
+            ctx_list: List[CTX] = []
+            for p in base_path.parts[:-1]:
+                try:
+                    ctx_list.append(p.get_context())
+                except NotImplementedError:
+                    pass
+
+            first_part = base_path.parts[0]
+            is_map_base = isinstance(first_part, (MapKeyPart, MapIndexPart, MapRankPart,
+                                                   MapValuePart, MapKeyRangePart, MapKeyListPart,
+                                                   MapIndexRangePart, MapValueRangePart, MapValueListPart,
+                                                   MapRankRangePart, MapRankRangeRelativePart,
+                                                   MapIndexRangeRelativePart))
+            bin_expr = (FilterExpression.map_bin(base_path.bin_name)
+                        if is_map_base else FilterExpression.list_bin(base_path.bin_name))
+
+            is_map_result = (hasattr(base_path, 'explicit_type')
+                            and base_path.explicit_type == InferredType.MAP)
+            inner_type = ExpType.MAP if is_map_result else ExpType.LIST
+            size_fn = FilterExpression.map_size if is_map_result else FilterExpression.list_size
+
+            if isinstance(last_part, ListIndexPart):
+                inner = FilterExpression.list_get_by_index(
+                    ListReturnType.VALUE, inner_type,
+                    FilterExpression.int_val(last_part.index), bin_expr, ctx_list,
+                )
+                return size_fn(inner, [])
+            elif isinstance(last_part, ListRankPart):
+                inner = FilterExpression.list_get_by_rank(
+                    ListReturnType.VALUE, inner_type,
+                    FilterExpression.int_val(last_part.rank), bin_expr, ctx_list,
+                )
+                return size_fn(inner, [])
+            elif isinstance(last_part, MapKeyPart):
+                inner = FilterExpression.map_get_by_key(
+                    MapReturnType.VALUE, inner_type,
+                    FilterExpression.string_val(last_part.key), bin_expr, ctx_list,
+                )
+                return size_fn(inner, [])
+            elif isinstance(last_part, MapIndexPart):
+                inner = FilterExpression.map_get_by_index(
+                    MapReturnType.VALUE, inner_type,
+                    FilterExpression.int_val(last_part.index), bin_expr, ctx_list,
+                )
+                return size_fn(inner, [])
+            elif isinstance(last_part, MapRankPart):
+                inner = FilterExpression.map_get_by_rank(
+                    MapReturnType.VALUE, inner_type,
+                    FilterExpression.int_val(last_part.rank), bin_expr, ctx_list,
+                )
+                return size_fn(inner, [])
+        elif isinstance(base_path, CDTPath):
+            if base_path.explicit_type == InferredType.MAP:
+                return FilterExpression.map_size(
+                    FilterExpression.map_bin(base_path.bin_name), [],
+                )
+            return FilterExpression.list_size(
+                FilterExpression.list_bin(base_path.bin_name), [],
+            )
+        elif isinstance(base_path, DeferredBin):
+            if base_path.explicit_type == InferredType.MAP:
+                return FilterExpression.map_size(
+                    FilterExpression.map_bin(base_path.name), [],
+                )
+            return FilterExpression.list_size(
+                FilterExpression.list_bin(base_path.name), [],
+            )
+        return None
+
     def _apply_get_params(self, cdt_path: CDTPath, get_ctx) -> None:
         """Apply get() function parameters to a CDTPath."""
         if hasattr(get_ctx, 'pathFunctionParams') and get_ctx.pathFunctionParams() is not None:
@@ -1856,36 +1883,51 @@ class ExpressionConditionVisitor(ConditionVisitor):
 
     def visitBasePath(self, ctx: ConditionParser.BasePathContext) -> ExprOrDeferred:
         """Visit base path: binPart with optional CDT parts (list/map access)."""
-        # Find the bin part (should be first child)
         bin_name: Optional[str] = None
         cdt_parts: List[CDTPart] = []
-        
+        designator_type: Optional[InferredType] = None
+
         for child in ctx.children:
             if (hasattr(child, 'getRuleIndex')
                     and child.getRuleIndex() == ConditionParser.RULE_binPart):
                 bin_name = child.getText()
             elif hasattr(child, 'getRuleIndex'):
                 rule_index = child.getRuleIndex()
-                # listPart
                 if rule_index == ConditionParser.RULE_listPart:
-                    part = self._parse_list_part(child)
-                    if part:
-                        cdt_parts.append(part)
-                # mapPart
+                    if self._is_list_type_designator(child):
+                        designator_type = InferredType.LIST
+                    else:
+                        part = self._parse_list_part(child)
+                        if part:
+                            cdt_parts.append(part)
                 elif rule_index == ConditionParser.RULE_mapPart:
-                    part = self._parse_map_part(child)
-                    if part:
-                        cdt_parts.append(part)
-        
+                    if self._is_map_type_designator(child):
+                        designator_type = InferredType.MAP
+                    else:
+                        part = self._parse_map_part(child)
+                        if part:
+                            cdt_parts.append(part)
+
         if bin_name is None:
             raise DslParseException("Base path must start with a bin name")
-        
-        # If no CDT parts, return a DeferredBin (for backward compatibility)
+
         if not cdt_parts:
-            return DeferredBin(bin_name)
-        
-        # Return CDTPath with bin name and parts
-        return CDTPath(bin_name=bin_name, parts=cdt_parts)
+            return DeferredBin(bin_name, explicit_type=designator_type)
+
+        path = CDTPath(bin_name=bin_name, parts=cdt_parts)
+        if designator_type is not None:
+            path.explicit_type = designator_type
+        return path
+
+    @staticmethod
+    def _is_list_type_designator(ctx) -> bool:
+        return (hasattr(ctx, 'LIST_TYPE_DESIGNATOR')
+                and ctx.LIST_TYPE_DESIGNATOR() is not None)
+
+    @staticmethod
+    def _is_map_type_designator(ctx) -> bool:
+        return (hasattr(ctx, 'MAP_TYPE_DESIGNATOR')
+                and ctx.MAP_TYPE_DESIGNATOR() is not None)
     
     def _parse_list_part(self, ctx) -> Optional[CDTPart]:
         """Parse a list part from the parse tree."""
@@ -1994,7 +2036,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         if ctx.NAME_IDENTIFIER() is not None:
             return ctx.NAME_IDENTIFIER().getText()
         if ctx.IN() is not None:
-            return ctx.IN().getText().lower()
+            return ctx.IN().getText()
         return ctx.getText()
 
     def _parse_index_range(self, ctx) -> tuple[int, Optional[int]]:
@@ -2409,32 +2451,30 @@ class ExpressionConditionVisitor(ConditionVisitor):
         
         # Map metadata functions to FilterExpression methods
         if text == "deviceSize()":
-            return FilterExpression.device_size()
+            return TypedExpr(FilterExpression.device_size(), InferredType.INT)
         elif text == "memorySize()":
-            # Same as deviceSize/recordSize in server; PAC only has device_size
-            return FilterExpression.device_size()
+            return TypedExpr(FilterExpression.device_size(), InferredType.INT)
         elif text == "recordSize()":
-            return FilterExpression.device_size()
+            return TypedExpr(FilterExpression.device_size(), InferredType.INT)
         elif text == "isTombstone()":
-            return FilterExpression.is_tombstone()
+            return TypedExpr(FilterExpression.is_tombstone(), InferredType.BOOL)
         elif text == "keyExists()":
-            return FilterExpression.key_exists()
+            return TypedExpr(FilterExpression.key_exists(), InferredType.BOOL)
         elif text == "lastUpdate()":
-            return FilterExpression.last_update()
+            return TypedExpr(FilterExpression.last_update(), InferredType.INT)
         elif text == "sinceUpdate()":
-            return FilterExpression.since_update()
+            return TypedExpr(FilterExpression.since_update(), InferredType.INT)
         elif text == "setName()":
-            # TypedExpr so comparisons infer the other operand as STRING (e.g. $.mySetBin == $.setName())
             return TypedExpr(FilterExpression.set_name(), InferredType.STRING)
         elif text == "ttl()":
-            return FilterExpression.ttl()
+            return TypedExpr(FilterExpression.ttl(), InferredType.INT)
         elif text == "voidTime()":
-            return FilterExpression.void_time()
+            return TypedExpr(FilterExpression.void_time(), InferredType.INT)
         elif text.startswith("digestModulo(") and text.endswith(")"):
             match = re.search(r"digestModulo\((-?(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d+))\)", text)
             if match:
                 value = int(match.group(1), 0)
-                return FilterExpression.digest_modulo(value)
+                return TypedExpr(FilterExpression.digest_modulo(value), InferredType.INT)
         
         raise DslParseException(f"Unsupported metadata function: {text}")
 
@@ -2473,16 +2513,20 @@ class ExpressionConditionVisitor(ConditionVisitor):
                 FilterExpression.num_add([FilterExpression.var("x"), FilterExpression.var("y")])
             ])
         """
-        definitions: List[FilterExpression] = []
-        for var_def_ctx in ctx.variableDefinition():
-            var_name = var_def_ctx.NAME_IDENTIFIER().getText()
+        self._push_var_scope()
+        try:
+            definitions: List[FilterExpression] = []
+            for var_def_ctx in ctx.variableDefinition():
+                var_name = var_def_ctx.NAME_IDENTIFIER().getText()
+                value_expr = self.visit(var_def_ctx.expression())
+                self._set_var_type(var_name, _get_type_hint(value_expr))
+                value_expr = _resolve_for_arithmetic(value_expr)
+                definitions.append(FilterExpression.def_(var_name, value_expr))
 
-            value_expr = self.visit(var_def_ctx.expression())
-            value_expr = _resolve_for_arithmetic(value_expr)
-            definitions.append(FilterExpression.def_(var_name, value_expr))
-
-        action_expr = self.visit(ctx.expression())
-        action_expr = _resolve_for_arithmetic(action_expr)
+            action_expr = self.visit(ctx.expression())
+            action_expr = _resolve_for_arithmetic(action_expr)
+        finally:
+            self._pop_var_scope()
 
         all_exprs = definitions + [action_expr]
         return FilterExpression.exp_let(all_exprs)
@@ -2759,56 +2803,71 @@ class ExpressionConditionVisitor(ConditionVisitor):
                 _validate_arg_count(name, args, 1)
                 if _contains_deferred(args[0]):
                     return DeferredArithmetic(ArithOp.ABS, args)
-                return FilterExpression.num_abs(_resolve_for_arithmetic(args[0]))
+                abs_type = _get_type_hint(args[0])
+                abs_type = abs_type if abs_type in _NUMERIC_TYPES else InferredType.INT
+                return TypedExpr(
+                    FilterExpression.num_abs(_resolve_for_arithmetic(args[0])), abs_type,
+                )
             case "ceil":
                 _validate_arg_count(name, args, 1)
-                return FilterExpression.num_ceil(_resolve_for_arithmetic(args[0], has_float=True))
+                return TypedExpr(
+                    FilterExpression.num_ceil(_resolve_for_arithmetic(args[0], has_float=True)),
+                    InferredType.FLOAT,
+                )
             case "floor":
                 _validate_arg_count(name, args, 1)
-                return FilterExpression.num_floor(_resolve_for_arithmetic(args[0], has_float=True))
+                return TypedExpr(
+                    FilterExpression.num_floor(_resolve_for_arithmetic(args[0], has_float=True)),
+                    InferredType.FLOAT,
+                )
             case "log":
                 _validate_arg_count(name, args, 2)
-                return FilterExpression.num_log(
+                return TypedExpr(FilterExpression.num_log(
                     _resolve_for_arithmetic(args[0], has_float=True),
                     _resolve_for_arithmetic(args[1], has_float=True),
-                )
+                ), InferredType.FLOAT)
             case "pow":
                 _validate_arg_count(name, args, 2)
-                return FilterExpression.num_pow(
+                return TypedExpr(FilterExpression.num_pow(
                     _resolve_for_arithmetic(args[0], has_float=True),
                     _resolve_for_arithmetic(args[1], has_float=True),
-                )
+                ), InferredType.FLOAT)
             case "max":
                 _validate_min_arg_count(name, args, 2)
                 if any(_contains_deferred(v) for v in args):
                     return DeferredArithmetic(ArithOp.MAX, args)
                 has_float = any(_is_float_context(v) for v in args)
-                return FilterExpression.max(
+                result_type = InferredType.FLOAT if has_float else InferredType.INT
+                return TypedExpr(FilterExpression.max(
                     [_resolve_for_arithmetic(v, has_float=has_float) for v in args]
-                )
+                ), result_type)
             case "min":
                 _validate_min_arg_count(name, args, 2)
                 if any(_contains_deferred(v) for v in args):
                     return DeferredArithmetic(ArithOp.MIN, args)
                 has_float = any(_is_float_context(v) for v in args)
-                return FilterExpression.min(
+                result_type = InferredType.FLOAT if has_float else InferredType.INT
+                return TypedExpr(FilterExpression.min(
                     [_resolve_for_arithmetic(v, has_float=has_float) for v in args]
-                )
+                ), result_type)
             case "countOneBits":
                 _validate_arg_count(name, args, 1)
-                return FilterExpression.int_count(_resolve_for_arithmetic(args[0], has_float=False))
+                return TypedExpr(
+                    FilterExpression.int_count(_resolve_for_arithmetic(args[0], has_float=False)),
+                    InferredType.INT,
+                )
             case "findBitLeft":
                 _validate_arg_count(name, args, 2)
-                return FilterExpression.int_lscan(
+                return TypedExpr(FilterExpression.int_lscan(
                     _resolve_for_arithmetic(args[0], has_float=False),
                     _resolve_for_arithmetic(args[1], has_float=False),
-                )
+                ), InferredType.INT)
             case "findBitRight":
                 _validate_arg_count(name, args, 2)
-                return FilterExpression.int_rscan(
+                return TypedExpr(FilterExpression.int_rscan(
                     _resolve_for_arithmetic(args[0], has_float=False),
                     _resolve_for_arithmetic(args[1], has_float=False),
-                )
+                ), InferredType.INT)
             case _:
                 raise DslParseException(f"Unknown function: {name}")
 
@@ -2922,13 +2981,16 @@ class ExpressionConditionVisitor(ConditionVisitor):
         expr = FilterExpression.map_val(result)
         return TypedExpr(expr, InferredType.MAP)
 
-    def visitVariable(self, ctx: ConditionParser.VariableContext) -> Optional[FilterExpression]:
+    def visitVariable(self, ctx: ConditionParser.VariableContext) -> ExprOrDeferred:
         """Visit variable: ${varName}"""
         var_name = ctx.getText()
-        # Remove ${ and }
         if var_name.startswith("${") and var_name.endswith("}"):
             var_name = var_name[2:-1]
-        return FilterExpression.var(var_name)
+        expr = FilterExpression.var(var_name)
+        var_type = self._get_var_type(var_name)
+        if var_type != InferredType.UNKNOWN:
+            return TypedExpr(expr, var_type)
+        return expr
 
     def visitPlaceholder(self, ctx: ConditionParser.PlaceholderContext) -> ExprOrDeferred:
         """Visit placeholder: ?0, ?1, etc.
@@ -2969,7 +3031,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
         elif isinstance(value, bytes):
             return TypedExpr(FilterExpression.blob_val(list(value)), InferredType.UNKNOWN)
         elif isinstance(value, (list, tuple)):
-            return TypedExpr(FilterExpression.list_val(list(value)), InferredType.UNKNOWN)
+            vals = list(value)
+            return TypedExpr(FilterExpression.list_val(vals), InferredType.LIST, value=vals)
         elif isinstance(value, dict):
             return TypedExpr(FilterExpression.map_val(value), InferredType.UNKNOWN)
         else:
