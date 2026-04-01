@@ -261,3 +261,164 @@ async def test_query_with_filter_expression_and(client):
 
     stream.close()
     assert count > 0
+
+
+# ============================================================================
+# Metadata-based query tests 
+# ============================================================================
+
+async def test_query_with_dsl_where(client):
+    """Test query with DSL where() clause (expression filter via string DSL)."""
+    stream = await (
+        client.query("test", "query_test")
+        .where("$.age >= 25")
+        .execute()
+    )
+    count = 0
+    async for result in stream:
+        rec = result.record_or_raise()
+        assert rec.bins["age"] >= 25
+        count += 1
+
+    stream.close()
+    assert count == 5
+
+
+async def test_query_dsl_and_or(client):
+    """Test DSL where() with nested AND/OR conditions."""
+    stream = await (
+        client.query("test", "query_test")
+        .where('$.age >= 22 and $.age <= 26')
+        .execute()
+    )
+    count = 0
+    async for result in stream:
+        rec = result.record_or_raise()
+        assert 22 <= rec.bins["age"] <= 26
+        count += 1
+
+    stream.close()
+    assert count == 5
+
+
+async def test_query_dsl_not(client):
+    """Test DSL where() with NOT condition."""
+    stream = await (
+        client.query("test", "query_test")
+        .where('not ($.age >= 25)')
+        .execute()
+    )
+    count = 0
+    async for result in stream:
+        rec = result.record_or_raise()
+        assert rec.bins["age"] < 25
+        count += 1
+
+    stream.close()
+    assert count == 5
+
+
+async def test_query_digest_modulo(client):
+    """Test query with digestModulo metadata expression filter."""
+    filter_exp = Exp.eq(Exp.digest_modulo(3), Exp.int_val(1))
+
+    stream = await (
+        client.query("test", "query_test")
+        .filter_expression(filter_exp)
+        .execute()
+    )
+    count = 0
+    async for result in stream:
+        assert result.is_ok
+        count += 1
+
+    stream.close()
+    assert count >= 1
+
+
+async def test_query_bin_exists(client):
+    """Test query filtering by bin existence."""
+    filter_exp = Exp.bin_exists("age")
+
+    stream = await (
+        client.query("test", "query_test")
+        .filter_expression(filter_exp)
+        .execute()
+    )
+    count = 0
+    async for result in stream:
+        rec = result.record_or_raise()
+        assert "age" in rec.bins
+        count += 1
+
+    stream.close()
+    assert count == 10
+
+
+async def test_query_record_size(client):
+    """Test query filtering by record size metadata."""
+    filter_exp = Exp.ge(Exp.device_size(), Exp.int_val(0))
+
+    stream = await (
+        client.query("test", "query_test")
+        .filter_expression(filter_exp)
+        .execute()
+    )
+    count = 0
+    async for result in stream:
+        assert result.is_ok
+        count += 1
+
+    stream.close()
+    assert count == 10
+
+
+async def test_query_chunked_iteration(client):
+    """Server-side chunked iteration via chunk_size + has_more_chunks."""
+    stream = await (
+        client.query("test", "query_test")
+        .chunk_size(3)
+        .execute()
+    )
+    total = 0
+    chunks = 0
+    while await stream.has_more_chunks():
+        chunks += 1
+        async for result in stream:
+            assert result.is_ok
+            total += 1
+    stream.close()
+
+    assert total == 10
+    assert chunks >= 2
+
+
+async def test_query_chunked_single_chunk(client):
+    """chunk_size larger than dataset returns everything in one chunk."""
+    stream = await (
+        client.query("test", "query_test")
+        .chunk_size(100)
+        .execute()
+    )
+    total = 0
+    chunks = 0
+    while await stream.has_more_chunks():
+        chunks += 1
+        async for result in stream:
+            total += 1
+    stream.close()
+
+    assert total == 10
+    assert chunks == 1
+
+
+async def test_has_more_chunks_on_non_chunked_stream(client):
+    """has_more_chunks on a regular stream returns True once then False."""
+    stream = await client.query("test", "query_test").execute()
+    assert await stream.has_more_chunks() is True
+    count = 0
+    async for _ in stream:
+        count += 1
+    assert await stream.has_more_chunks() is False
+    stream.close()
+    assert count == 10

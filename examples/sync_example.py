@@ -1,82 +1,50 @@
-"""Example demonstrating SyncFluentClient usage (synchronous API)."""
+#!/usr/bin/env python3
+"""Example demonstrating the synchronous fluent API.
 
-import os
+Covers: SyncFluentClient connection, put, get, exists, delete — no async/await.
+"""
 
-from aerospike_fluent import DataSet, SyncFluentClient
+import _env
+from aerospike_fluent import Behavior, DataSet, SyncFluentClient
 
 
-def main():
-    """Demonstrate synchronous fluent API operations."""
-    host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
+def main() -> None:
+    cluster = _env.sync_connect().connect()
+    session = cluster.create_session(Behavior.DEFAULT)
+    users = DataSet.of("test", "users")
+    key = users.id("user123")
 
-    # Use context manager for automatic connection management
-    # No async/await needed!
-    with SyncFluentClient(seeds=host) as client:
-        print("✓ Connected to Aerospike")
+    try:
+        # PUT
+        session.upsert(key).put({"name": "John", "age": 30}).execute()
+        print("Put record")
 
-        # Create a DataSet
-        users = DataSet.of("test", "users")
-        user_key = users.id("user123")
+        # GET
+        stream = session.query(key).execute()
+        first = stream.first_or_raise()
+        print(f"Got record: {first.record.bins}")
+        stream.close()
 
-        # PUT operation - synchronous, no await
-        client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).put({"name": "John", "age": 30})
-        print("✓ Put record")
+        # GET with selected bins
+        stream = session.query(key).bins(["name"]).execute()
+        first = stream.first_or_raise()
+        print(f"Got record (name only): {first.record.bins}")
+        stream.close()
 
-        # GET operation - synchronous, no await
-        record = client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).get()
-        print(f"✓ Got record: {record.bins if record else None}")
+        # EXISTS
+        stream = session.exists(key).execute()
+        first = stream.first()
+        print(f"Record exists: {first.as_bool() if first else None}")
+        stream.close()
 
-        # GET with specific bins
-        record = client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).bins(["name"]).get()
-        print(f"✓ Got record with selected bins: {record.bins if record else None}")
+        # DELETE
+        session.delete(key).execute()
+        print("Deleted record")
 
-        # EXISTS operation
-        exists = client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).exists()
-        print(f"✓ Record exists: {exists}")
-
-        # Using DataSet for key creation
-        key = users.id("user456")
-        client.key_value(
-            namespace=users.namespace,
-            set_name=users.set_name,
-            key=key.value
-        ).put({"name": "Jane", "age": 25})
-        print("✓ Put record using DataSet")
-
-        # DELETE operation
-        existed = client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).delete()
-        print(f"✓ Deleted record (existed: {existed})")
-
-        # Clean up second record
-        client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user456"
-        ).delete()
-
-        print("\n✓ All operations completed successfully!")
+        print("\nAll operations completed successfully!")
+    finally:
+        cluster.close()
 
 
 if __name__ == "__main__":
     main()
-

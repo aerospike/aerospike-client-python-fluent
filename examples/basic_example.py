@@ -1,67 +1,52 @@
 #!/usr/bin/env python3
-"""
-Basic example demonstrating the fluent API.
+"""Basic example demonstrating key-value operations via the fluent API.
 
-This example shows basic key-value operations using the fluent interface.
+Covers: connect, put, get, get with bin selection, exists, delete.
 """
 
 import asyncio
-import os
 
-from aerospike_fluent import FluentClient
+import _env
+from aerospike_fluent import Behavior, DataSet
 
 
-async def main():
-    """Demonstrate basic fluent API operations."""
-    host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
+async def main() -> None:
+    cluster = await _env.connect().connect()
+    session = cluster.create_session(Behavior.DEFAULT)
+    users = DataSet.of("test", "users")
+    key = users.id("user123")
 
-    # Use context manager for automatic connection management
-    async with FluentClient(seeds=host) as client:
-        print("✓ Connected to Aerospike")
+    try:
+        # PUT
+        await session.upsert(key).put({"name": "John", "age": 30}).execute()
+        print("Put record")
 
-        # PUT operation with named parameters
-        await client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).put({"name": "John", "age": 30})
-        print("✓ Put record")
+        # GET
+        stream = await session.query(key).execute()
+        first = await stream.first_or_raise()
+        print(f"Got record: {first.record.bins}")
+        stream.close()
 
-        # GET operation
-        record = await client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).get()
-        print(f"✓ Got record: {record.bins if record else None}")
+        # GET with selected bins
+        stream = await session.query(key).bins(["name"]).execute()
+        first = await stream.first_or_raise()
+        print(f"Got record (name only): {first.record.bins}")
+        stream.close()
 
-        # GET with specific bins
-        record = await client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).bins(["name"]).get()
-        print(f"✓ Got record with selected bins: {record.bins if record else None}")
+        # EXISTS
+        stream = await session.exists(key).execute()
+        first = await stream.first()
+        print(f"Record exists: {first.as_bool() if first else None}")
+        stream.close()
 
-        # EXISTS operation
-        exists = await client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).exists()
-        print(f"✓ Record exists: {exists}")
+        # DELETE
+        await session.delete(key).execute()
+        print("Deleted record")
 
-        # DELETE operation
-        existed = await client.key_value(
-            namespace="test",
-            set_name="users",
-            key="user123"
-        ).delete()
-        print(f"✓ Deleted record (existed: {existed})")
-
-        print("\n✓ All operations completed successfully!")
+        print("\nAll operations completed successfully!")
+    finally:
+        await cluster.close()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-

@@ -123,6 +123,15 @@ class TestSelectFrom:
         result = await rs.first_or_raise()
         assert result.record.bins.get("ev") is None
 
+    async def test_select_from_returns_nil(self, client):
+        """select_from on missing bin with ignore_eval_failure returns None."""
+        rs = await (
+            client.query(_key(KEY_B)).bin("ev").select_from("$.A", ignore_eval_failure=True)
+                .execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins.get("ev") is None
+
     async def test_multiple_select_from(self, client):
         """Multiple select_from in same execute (expMerge pattern)."""
         rs = await (

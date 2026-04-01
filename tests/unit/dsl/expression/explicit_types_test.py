@@ -339,7 +339,7 @@ class TestExplicitTypes:
 
     def test_map_comparison_left_negative_list_type(self):
         """Test that comparing LIST to MAP raises error."""
-        with pytest.raises(DslParseException, match="Cannot compare MAP to LIST"):
+        with pytest.raises(DslParseException, match="Cannot compare LIST to MAP"):
             parse_dsl("['yes', 'of course'] == $.mapBin1.get(type: MAP)")
 
     def test_map_comparison_left_negative_list_key(self):

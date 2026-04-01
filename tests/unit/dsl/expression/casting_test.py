@@ -127,7 +127,6 @@ class TestLiteralCasting:
         with pytest.raises(DslParseException, match="Cannot compare"):
             parse_dsl('28.asFloat() == "hello"')
 
-    @pytest.mark.xfail(reason="INT vs STRING literal comparison not yet rejected (pre-existing gap)")
     def test_cast_to_int_compared_to_string_raises(self):
         with pytest.raises(DslParseException, match="Cannot compare"):
             parse_dsl('28.0.asInt() == "hello"')

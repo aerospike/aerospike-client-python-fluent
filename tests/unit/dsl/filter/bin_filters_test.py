@@ -21,7 +21,9 @@ Each parseFilterAndCompare or assert filter null is a separate test for clear fa
 import pytest
 
 from aerospike_async import Filter
+import pytest
 from aerospike_fluent import (
+    DslParseException,
     Index,
     IndexContext,
     IndexTypeEnum,
@@ -232,11 +234,11 @@ class TestBinFiltersNOTEQ:
         assert result.filter is None
 
     def test_bin_noteq_5(self):
-        """100 != 'text' — no bin, filter null."""
-        result = parse_dsl_with_index("100 != 'text'", _index_ctx())
-        assert result.filter is None
+        """100 != 'text' — cross-type comparison rejected."""
+        with pytest.raises(DslParseException, match="Cannot compare"):
+            parse_dsl_with_index("100 != 'text'", _index_ctx())
 
     def test_bin_noteq_6(self):
-        """100 != \"text\" — no bin, filter null."""
-        result = parse_dsl_with_index('100 != "text"', _index_ctx())
-        assert result.filter is None
+        """100 != "text" — cross-type comparison rejected."""
+        with pytest.raises(DslParseException, match="Cannot compare"):
+            parse_dsl_with_index('100 != "text"', _index_ctx())

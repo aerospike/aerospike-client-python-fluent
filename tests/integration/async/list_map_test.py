@@ -190,6 +190,106 @@ class TestListMap:
         # Cleanup
         await session.delete(key).execute()
 
+    async def test_list_sorted(self, client: FluentClient, test_set: DataSet):
+        """Store a pre-sorted list and verify order is preserved on retrieval."""
+        session = client.create_session()
+        key = test_set.id("listSorted")
+        bin_name = "sortedlistbin"
+
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+
+        items = ["e", "d", "c", "b", "a"]
+        items.sort()
+
+        await session.upsert(key).bin(bin_name).set_to(items).execute()
+
+        result = await (await session.query(key).execute()).first_or_raise()
+        received = result.record.bins[bin_name]
+
+        assert len(received) == 5
+        assert received == ["a", "b", "c", "d", "e"]
+
+        await session.delete(key).execute()
+
+    async def test_map_with_integer_keys(self, client: FluentClient, test_set: DataSet):
+        """Store a map with integer keys and mixed value types."""
+        session = client.create_session()
+        key = test_set.id("mapIntKeys")
+        bin_name = "intkeymapbin"
+
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+
+        map_data = {1: "one", 2: "two", 3: "three"}
+        await session.upsert(key).bin(bin_name).set_to(map_data).execute()
+
+        result = await (await session.query(key).execute()).first_or_raise()
+        received = result.record.bins[bin_name]
+
+        assert len(received) == 3
+        assert received[1] == "one"
+        assert received[2] == "two"
+        assert received[3] == "three"
+
+        await session.delete(key).execute()
+
+    async def test_multiple_bin_list_and_map(self, client: FluentClient, test_set: DataSet):
+        """Store list in one bin and map in another, verify independent retrieval."""
+        session = client.create_session()
+        key = test_set.id("multiBinListMap")
+
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+
+        list_data = [10, 20, 30]
+        map_data = {"x": 1, "y": 2}
+
+        await (
+            session.upsert(key)
+                .bin("listbin").set_to(list_data)
+                .bin("mapbin").set_to(map_data)
+                .execute()
+        )
+
+        result = await (await session.query(key).execute()).first_or_raise()
+        bins = result.record.bins
+        assert bins["listbin"] == [10, 20, 30]
+        assert bins["mapbin"]["x"] == 1
+        assert bins["mapbin"]["y"] == 2
+
+        await session.delete(key).execute()
+
+    async def test_empty_list_and_map(self, client: FluentClient, test_set: DataSet):
+        """Store and retrieve empty list and empty map."""
+        session = client.create_session()
+        key = test_set.id("emptyListMap")
+
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+
+        await (
+            session.upsert(key)
+                .bin("emptylist").set_to([])
+                .bin("emptymap").set_to({})
+                .execute()
+        )
+
+        result = await (await session.query(key).execute()).first_or_raise()
+        bins = result.record.bins
+        assert bins["emptylist"] == []
+        assert bins["emptymap"] == {}
+
+        await session.delete(key).execute()
+
     async def test_list_map_combined(self, client: FluentClient, test_set: DataSet):
         """Test storing and retrieving nested lists and maps."""
         session = client.create_session()

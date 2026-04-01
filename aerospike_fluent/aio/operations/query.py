@@ -2151,6 +2151,19 @@ class QueryBuilder(_WriteVerbs):
                 policy, partition_filter, statement)
         except Exception as e:
             raise _convert_pac_exception(e) from e
+
+        if self._chunk_size is not None and self._chunk_size > 0:
+            client = self._client
+
+            async def _reexecute(pf: PartitionFilter) -> Any:
+                return await client.query(policy, pf, statement)
+
+            return RecordStream.from_chunked_recordset(
+                recordset,
+                reexecute=_reexecute,
+                limit=0,
+            )
+
         return RecordStream.from_recordset(recordset)
 
     def _resolve_index_context(self) -> None:

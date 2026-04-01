@@ -20,23 +20,6 @@ from aerospike_async import CTX, ExpType, ListReturnType, MapReturnType
 from aerospike_fluent import Exp, parse_dsl
 from aerospike_fluent.dsl.exceptions import DslParseException
 
-# Common xfail reasons for missing validation
-_XFAIL_RIGHT_NOT_LIST = pytest.mark.xfail(
-    reason="missing validation: IN right operand must be a List"
-)
-_XFAIL_AMBIGUOUS_LEFT = pytest.mark.xfail(
-    reason="missing validation: ambiguous left operand type for IN"
-)
-_XFAIL_VAR_TYPE_TRACKING = pytest.mark.xfail(
-    reason="missing validation: variable-bound type tracking for IN"
-)
-_XFAIL_PLACEHOLDER_VALIDATION = pytest.mark.xfail(
-    reason="missing validation: placeholder type checking for IN"
-)
-_XFAIL_PATH_RESOLVE = pytest.mark.xfail(
-    reason="nested path on IN right side resolves with default INT instead of contextual type"
-)
-
 
 # ---------------------------------------------------------------------------
 # Literal values in literal lists
@@ -282,7 +265,6 @@ class TestInBin:
         )
         assert parse_dsl("$.itemType.get(type: INT) in $.allowedItems") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_bin_in_nested_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -588,7 +570,6 @@ class TestInExplicitType:
 
     # --- Explicit type on left, right is a path ---
 
-    @_XFAIL_PATH_RESOLVE
     def test_explicit_string_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -601,7 +582,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.name.get(type: STRING) in $.items.tags") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_explicit_int_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -614,7 +594,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.val.get(type: INT) in $.items.tags") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_explicit_float_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -627,7 +606,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.val.get(type: FLOAT) in $.items.tags") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_explicit_bool_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -640,7 +618,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.flag.get(type: BOOL) in $.items.tags") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_explicit_list_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -653,7 +630,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.items.get(type: LIST) in $.items.tags") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_explicit_map_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -686,7 +662,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.val.asFloat() in $.list") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_cast_int_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -699,7 +674,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.val.asInt() in $.items.tags") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_cast_float_bin_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -726,7 +700,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.rooms.name.get(type: STRING) in $.list") == expected
 
-    @_XFAIL_PATH_RESOLVE
     def test_explicit_path_in_path(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -833,9 +806,6 @@ class TestInExplicitType:
 
     # --- PATH_OPERAND with type designator ---
 
-    @pytest.mark.xfail(
-        reason=".[] designator on IN left operand does not resolve as list_bin"
-    )
     def test_list_designator_bin_in_bin(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -845,7 +815,6 @@ class TestInExplicitType:
         )
         assert parse_dsl("$.items.[] in $.list") == expected
 
-    @pytest.mark.xfail(reason=".{} empty map designator not parsed on IN left operand")
     def test_map_designator_bin_in_bin(self):
         expected = Exp.list_get_by_value(
             ListReturnType.EXISTS,
@@ -1098,23 +1067,12 @@ class TestInComposite:
             ' (let (y = ${x}) then (1 in ${y}))'
         ) == expected
 
-    def test_transitive_var_indirection(self):
-        expected = Exp.exp_let([
-            Exp.def_("x", Exp.int_val(1)),
-            Exp.exp_let([
-                Exp.def_("y", Exp.var("x")),
-                Exp.list_get_by_value(
-                    ListReturnType.EXISTS,
-                    Exp.string_val("foo"),
-                    Exp.var("y"),
-                    [],
-                ),
-            ]),
-        ])
-        assert parse_dsl(
-            'let (x = 1) then'
-            ' (let (y = ${x}) then ("foo" in ${y}))'
-        ) == expected
+    def test_neg_transitive_var_indirection(self):
+        with pytest.raises(DslParseException, match="IN operation requires a List"):
+            parse_dsl(
+                'let (x = 1) then'
+                ' (let (y = ${x}) then ("foo" in ${y}))'
+            )
 
     def test_when_scalar_branches_allowed_conservatively(self):
         expected = Exp.exp_let([
@@ -1302,7 +1260,6 @@ class TestInNegative:
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('$.name in {"a": 1}')
 
-    @_XFAIL_RIGHT_NOT_LIST
     def test_neg_right_operand_metadata(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl("$.name in $.ttl()")
@@ -1363,7 +1320,6 @@ class TestInNegative:
         with pytest.raises(DslParseException, match="same type"):
             parse_dsl('?0 in [1, "y"]', 42)
 
-    @_XFAIL_PLACEHOLDER_VALIDATION
     def test_neg_mixed_type_list_via_placeholder(self):
         with pytest.raises(DslParseException, match="same type"):
             parse_dsl(
@@ -1385,10 +1341,9 @@ class TestInNegative:
         with pytest.raises(DslParseException, match="cannot infer the type"):
             parse_dsl("$.name in $.binName.[]")
 
-    @_XFAIL_AMBIGUOUS_LEFT
     def test_neg_bin_in_placeholder_ambiguous(self):
         with pytest.raises(DslParseException, match="cannot infer the type"):
-            parse_dsl("$.name in ?0")
+            parse_dsl("$.name in ?0", [])
 
     def test_neg_path_in_bin_ambiguous(self):
         with pytest.raises(DslParseException, match="cannot infer the type"):
@@ -1398,10 +1353,9 @@ class TestInNegative:
         with pytest.raises(DslParseException, match="cannot infer the type"):
             parse_dsl("$.rooms.room1.a in $.rooms.room2.b")
 
-    @_XFAIL_AMBIGUOUS_LEFT
     def test_neg_path_in_placeholder_ambiguous(self):
         with pytest.raises(DslParseException, match="cannot infer the type"):
-            parse_dsl("$.rooms.room1.name in ?0")
+            parse_dsl("$.rooms.room1.name in ?0", [])
 
     def test_neg_bin_in_variable_ambiguous(self):
         with pytest.raises(DslParseException, match="cannot infer the type"):
@@ -1409,54 +1363,44 @@ class TestInNegative:
 
     # --- Variable bound to non-list as right operand ---
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_int(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = 1) then ("100" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_float(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = 1.5) then ("100" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_bool(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = true) then ("100" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_string(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = "hello") then ("100" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_map(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = {"a": 1}) then ("100" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_metadata(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = $.ttl()) then ("100" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_arithmetic_expr(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = 1 + 2) then ("foo" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_function_expr(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = abs(1)) then ("foo" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_explicit_int_bin(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl(
                 'let (x = $.someBin.get(type: INT)) then ("foo" in ${x})'
             )
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_explicit_str_path(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl(
@@ -1465,7 +1409,6 @@ class TestInNegative:
 
     # --- Nested LET variable validation ---
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_nested_let_outer_non_list_var(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl(
@@ -1473,7 +1416,6 @@ class TestInNegative:
                 ' (let (y = [1, 2]) then ("foo" in ${x}))'
             )
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_nested_shadowed_var_let_scalar(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl(
@@ -1481,17 +1423,14 @@ class TestInNegative:
                 ' (let (x = 1) then ("foo" in ${x}))'
             )
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_not_wrapping_in_let_scalar_var(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = 1) then (not("foo" in ${x}))')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_bound_to_count_path(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl('let (x = $.a.[].count()) then ("foo" in ${x})')
 
-    @_XFAIL_VAR_TYPE_TRACKING
     def test_neg_var_def_let_in_scalar_var(self):
         with pytest.raises(DslParseException, match="IN operation requires a List"):
             parse_dsl(
@@ -1613,7 +1552,6 @@ class TestInGrammarConflicts:
         )
         assert parse_dsl('$.listBin.[=in].get(type: STRING) == "hello"') == expected
 
-    @pytest.mark.xfail(reason="IN token lowercased in [=IN] value designator context")
     def test_list_value_named_in_upper_case(self):
         expected = Exp.eq(
             Exp.list_get_by_value(
@@ -1638,7 +1576,6 @@ class TestInGrammarConflicts:
         )
         assert parse_dsl('$.mapBin.{=in}.get(type: STRING) == "hello"') == expected
 
-    @pytest.mark.xfail(reason="IN token lowercased in {=IN} value designator context")
     def test_map_value_named_in_upper_case(self):
         expected = Exp.eq(
             Exp.map_get_by_value(

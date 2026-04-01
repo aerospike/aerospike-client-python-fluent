@@ -1,4 +1,4 @@
-.PHONY: antlr generate-dsl test dev docs docs-serve
+.PHONY: antlr generate-dsl test dev docs docs-serve examples
 
 # ANTLR JAR location - download if not present
 ANTLR_JAR ?= antlr-4.13.0-complete.jar
@@ -41,6 +41,13 @@ test-unit:
 test-int:
 	pytest tests/integration
 
+examples:
+	@for f in examples/*_example.py examples/operation_differences.py; do \
+		echo "=== $$f ==="; \
+		python "$$f" || exit 1; \
+		echo; \
+	done
+	
 docs:
 	mkdocs build --strict
 

@@ -1,77 +1,59 @@
-"""Example demonstrating DataSet usage."""
+#!/usr/bin/env python3
+"""Example demonstrating DataSet key creation and usage patterns.
+
+Covers: DataSet.of, .id(), .ids(), .id_from_digest(), key types.
+"""
 
 import asyncio
-import os
 
-from aerospike_fluent import DataSet, FluentClient
+import _env
+from aerospike_fluent import Behavior, DataSet
 
 
-async def main():
-    """Demonstrate DataSet usage patterns."""
-    # Get host from environment
-    host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
-    
-    # Create a DataSet for users
+async def main() -> None:
     users = DataSet.of("test", "users")
-    
-    print(f"Created DataSet: {users}")
-    print(f"Namespace: {users.namespace}, Set: {users.set_name}")
-    
-    # Create single keys
-    user_key1 = users.id("user123")
-    user_key2 = users.id(456)
-    user_key3 = users.id(b"bytes_key")
-    
-    print(f"\nCreated keys:")
-    print(f"  String key: {user_key1}")
-    print(f"  Integer key: {user_key2}")
-    print(f"  Bytes key: {user_key3}")
-    
-    # Create multiple keys at once
-    user_keys = users.ids("user1", "user2", "user3")
-    print(f"\nCreated {len(user_keys)} keys from multiple arguments")
-    
-    # Create keys from a list
-    user_keys_from_list = users.ids(["user4", "user5", "user6"])
-    print(f"Created {len(user_keys_from_list)} keys from a list")
-    
-    # Create keys using id_for_object (automatic type detection)
-    key1 = users.id_for_object("user123")
-    key2 = users.id_for_object(123)
-    key3 = users.id_for_object(b"bytes")
-    print(f"\nCreated keys using id_for_object:")
-    print(f"  {key1.value}, {key2.value}, {key3.value}")
-    
-    # Example: Using DataSet with FluentClient
-    async with FluentClient(seeds=host) as client:
-        # Use DataSet to create keys for operations
+    print(f"DataSet: namespace={users.namespace}, set={users.set_name}")
+
+    # Single keys (various types)
+    key_str = users.id("user123")
+    key_int = users.id(456)
+    key_bytes = users.id(b"bytes_key")
+    print(f"\nSingle keys:")
+    print(f"  String key: {key_str}")
+    print(f"  Integer key: {key_int}")
+    print(f"  Bytes key: {key_bytes}")
+
+    # Multiple keys
+    keys = users.ids("user1", "user2", "user3")
+    print(f"\nMultiple keys: {len(keys)} keys")
+
+    # Key from digest
+    original = users.id(123)
+    digest = original.digest
+    from_digest = users.id_from_digest(digest)
+    print(f"\nKey from digest:")
+    print(f"  Original: {original}")
+    print(f"  From digest: {from_digest}")
+    print(f"  Equal: {original == from_digest}")
+
+    # Use with live server
+    cluster = await _env.connect().connect()
+    session = cluster.create_session(Behavior.DEFAULT)
+
+    try:
         key = users.id("example_user")
-        
-        # Put a record using the key from DataSet
-        await client.key_value(
-            namespace=users.namespace,
-            set_name=users.set_name,
-            key=key.value  # Extract the value from the Key
-        ).put({"name": "John Doe", "age": 30})
-        
-        # Get the record back
-        record = await client.key_value(
-            namespace=users.namespace,
-            set_name=users.set_name,
-            key=key.value
-        ).get()
-        
-        if record:
-            print(f"\nRetrieved record: {record.bins}")
-        
-        # Clean up
-        await client.key_value(
-            namespace=users.namespace,
-            set_name=users.set_name,
-            key=key.value
-        ).delete()
+        await session.upsert(key).put({"name": "John Doe", "age": 30}).execute()
+
+        stream = await session.query(key).execute()
+        first = await stream.first_or_raise()
+        print(f"\nRetrieved record: {first.record.bins}")
+        stream.close()
+
+        await session.delete(key).execute()
+        print("Cleaned up")
+    finally:
+        await cluster.close()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-
