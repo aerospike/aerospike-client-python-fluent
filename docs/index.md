@@ -9,34 +9,38 @@ built on top of the
 === "Async"
 
     ```python
+    import asyncio
     from aerospike_fluent import FluentClient, DataSet, Behavior
 
-    async with FluentClient("localhost", 3000) as client:
-        session = client.create_session(Behavior.DEFAULT)
-        users = DataSet.of("test", "users")
+    async def main():
+        async with FluentClient("localhost:3000") as client:
+            session = client.create_session(Behavior.DEFAULT)
+            users = DataSet.of("test", "users")
 
-        # Write
-        await (
-            session.upsert(users.id(1))
-            .bin("name").set_to("Alice")
-            .bin("age").set_to(30)
-            .execute()
-        )
+            # Write
+            await (
+                session.upsert(users.id(1))
+                .bin("name").set_to("Alice")
+                .bin("age").set_to(30)
+                .execute()
+            )
 
-        # Read
-        stream = await session.query(users.id(1)).execute()
-        result = await stream.first_or_raise()
-        print(result.record.bins)  # {'name': 'Alice', 'age': 30}
+            # Read
+            stream = await session.query(users.id(1)).execute()
+            result = await stream.first_or_raise()
+            print(result.record.bins)  # {'name': 'Alice', 'age': 30}
 
-        # Query with DSL filter
-        stream = await (
-            session.query(users)
-            .where("$.age > 25")
-            .execute()
-        )
-        async for result in stream:
-            print(result.record.bins)
-        stream.close()
+            # Query with DSL filter
+            stream = await (
+                session.query(users)
+                .where("$.age > 25")
+                .execute()
+            )
+            async for result in stream:
+                print(result.record.bins)
+            stream.close()
+
+    asyncio.run(main())
     ```
 
 === "Sync"
@@ -44,7 +48,7 @@ built on top of the
     ```python
     from aerospike_fluent import SyncFluentClient, DataSet, Behavior
 
-    with SyncFluentClient("localhost", 3000) as client:
+    with SyncFluentClient("localhost:3000") as client:
         session = client.create_session(Behavior.DEFAULT)
         users = DataSet.of("test", "users")
 

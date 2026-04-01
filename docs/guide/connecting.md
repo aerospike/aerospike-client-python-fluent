@@ -9,7 +9,7 @@ The simplest way to connect is with a host and port:
     ```python
     from aerospike_fluent import FluentClient
 
-    async with FluentClient("localhost", 3000) as client:
+    async with FluentClient("localhost:3000") as client:
         session = client.create_session()
         # ... use session ...
     ```
@@ -19,7 +19,7 @@ The simplest way to connect is with a host and port:
     ```python
     from aerospike_fluent import SyncFluentClient
 
-    with SyncFluentClient("localhost", 3000) as client:
+    with SyncFluentClient("localhost:3000") as client:
         session = client.create_session()
         # ... use session ...
     ```

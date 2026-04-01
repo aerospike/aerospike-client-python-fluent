@@ -68,7 +68,7 @@ stream = await (
 The refresh interval defaults to 5 seconds:
 
 ```python
-client = FluentClient("localhost", 3000, index_refresh_interval=2.0)
+client = FluentClient("localhost:3000", index_refresh_interval=2.0)
 ```
 
 ### Explicit Override
