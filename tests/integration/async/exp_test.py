@@ -379,7 +379,7 @@ class TestBinExpressions:
 # Integration tests with actual database operations
 
 @pytest.fixture
-async def client_with_data(aerospike_host, client_policy):
+async def client_with_data(aerospike_host, client_policy, enterprise):
     """Setup test data for expression tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
@@ -395,8 +395,7 @@ async def client_with_data(aerospike_host, client_policy):
         await session.upsert(ds.id("B")).put({"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2}).execute()
         await session.upsert(ds.id("C")).put({"A": 0, "B": -1.0, "C": "1", "D": 0, "E": 0}).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
 
         yield client
 
@@ -755,7 +754,7 @@ async def client_with_cdt_data(aerospike_host, client_policy, enterprise):
             "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
         }).execute()
 
-        await asyncio.sleep(0.25 if not enterprise else 0.01)
+        await asyncio.sleep(0.35 if not enterprise else 0.01)
 
         yield client
 
@@ -1035,7 +1034,7 @@ class TestExistsAndCount:
 
 
 @pytest.fixture
-async def client_with_list_data(aerospike_host, client_policy):
+async def client_with_list_data(aerospike_host, client_policy, enterprise):
     """Setup test data with various lists for advanced list DSL tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
@@ -1064,8 +1063,7 @@ async def client_with_list_data(aerospike_host, client_policy):
             "tags": ["zeta"],
         }).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
 
         yield client
 
@@ -1219,7 +1217,7 @@ class TestAdvancedListDsl:
 
 
 @pytest.fixture
-async def client_with_map_data(aerospike_host, client_policy):
+async def client_with_map_data(aerospike_host, client_policy, enterprise):
     """Setup test data with maps for advanced map DSL tests."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
@@ -1244,8 +1242,7 @@ async def client_with_map_data(aerospike_host, client_policy):
             "metadata": {"type": "premium", "level": 2},
         }).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
 
         yield client
 
@@ -1330,7 +1327,7 @@ class TestAdvancedMapDsl:
 # =============================================================================
 
 @pytest.fixture
-async def client_with_nested_data(aerospike_host, client_policy):
+async def client_with_nested_data(aerospike_host, client_policy, enterprise):
     """Setup test data with deeply nested structures."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
@@ -1359,8 +1356,7 @@ async def client_with_nested_data(aerospike_host, client_policy):
             "simple_list": [10, 20, 30],
         }).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
 
         yield client
 
@@ -1490,7 +1486,7 @@ class TestMapKeyOperationsDsl:
 
 
 @pytest.fixture
-async def client_with_relative_range_data(aerospike_host, client_policy):
+async def client_with_relative_range_data(aerospike_host, client_policy, enterprise):
     """Setup test data for relative range operations."""
     async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
@@ -1515,8 +1511,7 @@ async def client_with_relative_range_data(aerospike_host, client_policy):
             "scores": {"alice": 55, "bob": 65, "charlie": 95, "dave": 105},
         }).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
 
         yield client
 
@@ -1694,7 +1689,7 @@ class TestDslErrorHandling:
 # =============================================================================
 
 @pytest.fixture
-async def filter_session(aerospike_host, client_policy):
+async def filter_session(aerospike_host, client_policy, enterprise):
     """Session with test data matching JFC FilterExpTest setUp.
 
     Key "A": A=1, B=1.1, C="abcde",      D=1, E=-1
@@ -1715,8 +1710,7 @@ async def filter_session(aerospike_host, client_policy):
         await session.upsert(ds.id("B")).put({"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2}).execute()
         await session.upsert(ds.id("C")).put({"A": 0, "B": -1.0, "C": "1"}).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25 if not enterprise else 0.01)
 
         yield session, ds
 

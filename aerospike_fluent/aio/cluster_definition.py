@@ -394,8 +394,9 @@ class ClusterDefinition:
 
         # TLS configuration
         if self._tls_builder and self._tls_builder.is_tls_enabled():
-            # TODO: Set TLS policy when Python Async Client fully supports it
-            pass
+            tls_config = self._tls_builder.build_tls_config()
+            if tls_config is not None:
+                policy.tls_config = tls_config
 
         # System settings (connection pool, tend interval, etc.)
         if self._system_settings is not None:
@@ -426,9 +427,18 @@ class ClusterDefinition:
         return new_hosts
     
     def _build_seeds_string(self) -> str:
-        """Build a seeds string from the hosts list."""
+        """Build a seeds string from the hosts list.
+
+        Format is ``host:port`` or ``host:tls_name:port`` when a TLS name is set.
+        """
         effective_hosts = self._get_effective_hosts()
-        return ",".join(f"{host.name}:{host.port}" for host in effective_hosts)
+        parts = []
+        for host in effective_hosts:
+            if host.tls_name:
+                parts.append(f"{host.name}:{host.tls_name}:{host.port}")
+            else:
+                parts.append(f"{host.name}:{host.port}")
+        return ",".join(parts)
     
     def _validate(self) -> None:
         """Validate the configuration before connecting."""

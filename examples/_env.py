@@ -5,6 +5,7 @@ examples pick up the same connection settings as pytest without requiring
 the user to manually export variables.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -37,6 +38,31 @@ def _ensure_env() -> None:
 
 
 _ensure_env()
+
+
+def _configure_logging() -> None:
+    log_level = os.environ.get("AEROSPIKE_LOG_LEVEL", "").upper()
+    if not log_level:
+        return
+    numeric = getattr(logging, log_level, None)
+    if numeric is None:
+        return
+    log_file = os.environ.get("AEROSPIKE_LOG_FILE")
+    handler: logging.Handler
+    if log_file:
+        handler = logging.FileHandler(log_file)
+    else:
+        handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    ))
+    for prefix in ("aerospike_core", "aerospike_async", "aerospike_fluent"):
+        logger = logging.getLogger(prefix)
+        logger.setLevel(numeric)
+        logger.addHandler(handler)
+
+
+_configure_logging()
 
 
 def _host_and_port() -> tuple[str, int]:
