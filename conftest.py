@@ -5,6 +5,7 @@ If aerospike.env exists, only that file is read (override=True); aerospike.env.e
 is not merged. If aerospike.env is missing, aerospike.env.example supplies defaults
 for variables not already in os.environ (override=False).
 """
+import logging
 import os
 import pytest
 import pytest_asyncio
@@ -50,6 +51,27 @@ def pytest_configure(config):
         load_env_file(env_example, override=False)
         print(f"Loaded default environment variables from {env_example} (no {env_local.name})\n")
     
+    # Configure logging from AEROSPIKE_LOG_LEVEL / AEROSPIKE_LOG_FILE
+    log_level = os.environ.get("AEROSPIKE_LOG_LEVEL", "").upper()
+    if log_level:
+        numeric = getattr(logging, log_level, None)
+        if numeric is None:
+            print(f"Warning: invalid AEROSPIKE_LOG_LEVEL={log_level!r}, ignoring\n")
+        else:
+            log_file = os.environ.get("AEROSPIKE_LOG_FILE")
+            handler: logging.Handler
+            if log_file:
+                handler = logging.FileHandler(log_file)
+            else:
+                handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+            ))
+            for prefix in ("aerospike_core", "aerospike_async", "aerospike_fluent"):
+                logger = logging.getLogger(prefix)
+                logger.setLevel(numeric)
+                logger.addHandler(handler)
+
     # Ensure python path includes the tests directory for imports
     import sys
     tests_dir = Path(__file__).parent / "tests"

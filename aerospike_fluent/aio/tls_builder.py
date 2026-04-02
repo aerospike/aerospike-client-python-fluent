@@ -52,6 +52,8 @@ class TlsBuilder:
         self._parent = parent
         self._tls_name: Optional[str] = None
         self._ca_file: Optional[str] = None
+        self._client_cert_file: Optional[str] = None
+        self._client_key_file: Optional[str] = None
         self._protocols: Optional[list[str]] = None
         self._ciphers: Optional[list[str]] = None
         self._for_login_only = False
@@ -92,6 +94,32 @@ class TlsBuilder:
         self._ca_file = ca_file
         return self
     
+    def client_cert_file(self, cert_file: str) -> TlsBuilder:
+        """
+        Sets the path to the client certificate PEM file for mutual TLS (mTLS).
+        
+        Args:
+            cert_file: The path to the client certificate PEM file
+        
+        Returns:
+            This TlsBuilder for method chaining
+        """
+        self._client_cert_file = cert_file
+        return self
+
+    def client_key_file(self, key_file: str) -> TlsBuilder:
+        """
+        Sets the path to the client private key PEM file for mutual TLS (mTLS).
+        
+        Args:
+            key_file: The path to the client private key PEM file
+        
+        Returns:
+            This TlsBuilder for method chaining
+        """
+        self._client_key_file = key_file
+        return self
+
     def protocols(self, *protocols: str) -> TlsBuilder:
         """
         Sets the allowed TLS protocols.
@@ -148,31 +176,24 @@ class TlsBuilder:
         """Get the TLS name."""
         return self._tls_name
     
-    def build_tls_policy(self) -> Any:
+    def build_tls_config(self) -> Any:
         """
-        Build a TLS policy from the configuration.
-        
+        Build a PAC TlsConfig from the builder state.
+
         Returns:
-            A configured TLS policy object (type depends on client implementation)
-        
-        Note:
-            TLS policy structure may vary by client implementation.
-            This is a placeholder that returns a dict for now.
+            A configured ``aerospike_async.TlsConfig``, or ``None`` when
+            no CA file has been set (TLS cannot be configured without one).
         """
-        # Note: Python Async Client TLS support may be limited
-        # This returns a dict that can be used to configure TLS when support is added
-        policy: dict[str, Any] = {}
-        
-        if self._ca_file:
-            policy["ca_file"] = self._ca_file
-        
-        if self._protocols:
-            policy["protocols"] = self._protocols
-        
-        if self._ciphers:
-            policy["ciphers"] = self._ciphers
-        
-        policy["for_login_only"] = self._for_login_only
-        
-        return policy
+        if not self._ca_file:
+            return None
+
+        from aerospike_async import TlsConfig
+
+        if self._client_cert_file and self._client_key_file:
+            return TlsConfig.with_client_auth(
+                self._ca_file,
+                self._client_cert_file,
+                self._client_key_file,
+            )
+        return TlsConfig(self._ca_file)
 
