@@ -630,6 +630,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1508,6 +1536,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#aerospike_fluent.record_stream.RecordStream.from_chunked_recordset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_chunked_recordset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#aerospike_fluent.record_stream.RecordStream.from_single" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1545,6 +1584,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__anext__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aerospike_fluent.record_stream.RecordStream.has_more_chunks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;has_more_chunks
       
     </span>
   </a>
@@ -2140,6 +2190,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#aerospike_fluent.record_stream.RecordStream.from_chunked_recordset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_chunked_recordset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#aerospike_fluent.record_stream.RecordStream.from_single" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2177,6 +2238,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__anext__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aerospike_fluent.record_stream.RecordStream.has_more_chunks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;has_more_chunks
       
     </span>
   </a>
@@ -2539,6 +2611,96 @@ async for row in stream:
 <div class="doc doc-object doc-function">
 
 
+<h3 id="aerospike_fluent.record_stream.RecordStream.from_chunked_recordset" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">from_chunked_recordset</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#aerospike_fluent.record_stream.RecordStream.from_chunked_recordset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">from_chunked_recordset</span><span class="p">(</span><span class="n">recordset</span><span class="p">,</span> <span class="n">reexecute</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Wrap a <code>Recordset</code> for chunked iteration.</p>
+<p>The stream yields records from the current chunk.  Call
+:meth:<code>has_more_chunks</code> to advance to the next server chunk.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>recordset</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The PAC <code>Recordset</code> from the first query call.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reexecute</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="aerospike_async.PartitionFilter">PartitionFilter</span>], <span title="typing.Awaitable">Awaitable</span>[<span title="typing.Any">Any</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An async callable that accepts an updated
+<code>PartitionFilter</code> and returns a new <code>Recordset</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>limit</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional overall record limit (0 = unlimited).</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="aerospike_fluent.record_stream.RecordStream.from_single" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">from_single</span>
 
@@ -2652,6 +2814,48 @@ called before more rows were read.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="aerospike_fluent.record_stream.RecordStream.has_more_chunks" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">has_more_chunks</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#aerospike_fluent.record_stream.RecordStream.has_more_chunks" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">has_more_chunks</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Check whether more server-side chunks remain.</p>
+<p>On the first call this returns <code>True</code> so the caller enters the
+iteration loop for the already-loaded first chunk.  Subsequent calls
+inspect the server's <code>PartitionFilter</code> cursor: if more partitions
+remain, a new query round-trip is issued transparently and <code>True</code>
+is returned.</p>
+<p>Returns <code>False</code> when:
+* the server cursor is done (all partitions scanned), or
+* the overall <code>limit</code> has been reached, or
+* the stream was not created with :meth:<code>from_chunked_recordset</code>.</p>
+<p>Example::</p>
+<div class="highlight"><pre><span></span><code>stream = await session.query(SET).chunk_size(10).execute()
+chunk = 0
+while await stream.has_more_chunks():
+    chunk += 1
+    print(f&quot;Chunk: {chunk}&quot;)
+    async for rr in stream:
+        print(rr.record.bins)
+</code></pre></div>
 
 
     </div>

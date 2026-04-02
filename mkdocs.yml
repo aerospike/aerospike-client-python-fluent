@@ -79,6 +79,7 @@ nav:
     - Error Handling: guide/error-handling.md
     - Background Tasks & UDF: guide/background-udf.md
     - Secondary Indexes: guide/indexes.md
+    - Logging: guide/logging.md
   - API Reference:
     - Overview: api/index.md
     - Async:

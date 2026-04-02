@@ -14,7 +14,7 @@
         <link rel="prev" href="../background-udf/">
       
       
-        <link rel="next" href="../../api/">
+        <link rel="next" href="../logging/">
       
       
         
@@ -747,6 +747,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2024,7 +2052,7 @@ secondary index <code>Filter</code> if a matching index exists.</p>
 </code></pre></div>
 <h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
 <p>The refresh interval defaults to 5 seconds:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">client</span> <span class="o">=</span> <span class="n">FluentClient</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3000</span><span class="p">,</span> <span class="n">index_refresh_interval</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">client</span> <span class="o">=</span> <span class="n">FluentClient</span><span class="p">(</span><span class="s2">&quot;localhost:3000&quot;</span><span class="p">,</span> <span class="n">index_refresh_interval</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="explicit-override">Explicit Override<a class="headerlink" href="#explicit-override" title="Permanent link">&para;</a></h3>
 <p>Use <a href="../../api/query/"><code>with_index_context()</code></a> to explicitly provide index

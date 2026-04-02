@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../cluster-definition/">
+        <link rel="prev" href="../indexes/">
       
       
-        <link rel="next" href="../exceptions/">
+        <link rel="next" href="../../api/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>ErrorStrategy - Aerospike Python Fluent Client</title>
+        <title>Logging - Aerospike Python Fluent Client</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#error-strategy" class="md-skip">
+        <a href="#logging" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              ErrorStrategy
+              Logging
             
           </span>
         </div>
@@ -242,11 +242,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../guide/connecting/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../connecting/" class="md-tabs__link">
           
   
   
@@ -262,13 +264,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
           
   
   
@@ -356,28 +356,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
-        
-          
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
             
   
   
@@ -395,7 +398,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -413,7 +416,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/connecting/" class="md-nav__link">
+      <a href="../connecting/" class="md-nav__link">
         
   
   
@@ -441,7 +444,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/reads/" class="md-nav__link">
+      <a href="../reads/" class="md-nav__link">
         
   
   
@@ -469,7 +472,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/writes/" class="md-nav__link">
+      <a href="../writes/" class="md-nav__link">
         
   
   
@@ -497,7 +500,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/cdt-operations/" class="md-nav__link">
+      <a href="../cdt-operations/" class="md-nav__link">
         
   
   
@@ -525,7 +528,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/expression-dsl/" class="md-nav__link">
+      <a href="../expression-dsl/" class="md-nav__link">
         
   
   
@@ -553,7 +556,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/error-handling/" class="md-nav__link">
+      <a href="../error-handling/" class="md-nav__link">
         
   
   
@@ -581,7 +584,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/background-udf/" class="md-nav__link">
+      <a href="../background-udf/" class="md-nav__link">
         
   
   
@@ -609,7 +612,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guide/indexes/" class="md-nav__link">
+      <a href="../indexes/" class="md-nav__link">
         
   
   
@@ -634,10 +637,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../guide/logging/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -653,6 +683,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#programmatic-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programmatic Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#log-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log Output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Logging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended Levels
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -669,31 +774,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -711,7 +813,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -729,7 +831,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../api/" class="md-nav__link">
         
   
   
@@ -763,13 +865,10 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
@@ -778,7 +877,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
         
           
-          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
             
   
   
@@ -814,7 +913,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../client/" class="md-nav__link">
+      <a href="../../api/client/" class="md-nav__link">
         
   
   
@@ -842,7 +941,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../session/" class="md-nav__link">
+      <a href="../../api/session/" class="md-nav__link">
         
   
   
@@ -870,7 +969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../query/" class="md-nav__link">
+      <a href="../../api/query/" class="md-nav__link">
         
   
   
@@ -898,7 +997,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../write-segment/" class="md-nav__link">
+      <a href="../../api/write-segment/" class="md-nav__link">
         
   
   
@@ -926,7 +1025,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cdt-read/" class="md-nav__link">
+      <a href="../../api/cdt-read/" class="md-nav__link">
         
   
   
@@ -954,7 +1053,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cdt-write/" class="md-nav__link">
+      <a href="../../api/cdt-write/" class="md-nav__link">
         
   
   
@@ -982,7 +1081,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../batch/" class="md-nav__link">
+      <a href="../../api/batch/" class="md-nav__link">
         
   
   
@@ -1010,7 +1109,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../index-builder/" class="md-nav__link">
+      <a href="../../api/index-builder/" class="md-nav__link">
         
   
   
@@ -1038,7 +1137,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../background/" class="md-nav__link">
+      <a href="../../api/background/" class="md-nav__link">
         
   
   
@@ -1066,7 +1165,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../udf/" class="md-nav__link">
+      <a href="../../api/udf/" class="md-nav__link">
         
   
   
@@ -1094,7 +1193,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../info/" class="md-nav__link">
+      <a href="../../api/info/" class="md-nav__link">
         
   
   
@@ -1122,7 +1221,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../transactional-session/" class="md-nav__link">
+      <a href="../../api/transactional-session/" class="md-nav__link">
         
   
   
@@ -1164,13 +1263,10 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
@@ -1179,7 +1275,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
             
   
   
@@ -1215,7 +1311,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sync/client/" class="md-nav__link">
+      <a href="../../api/sync/client/" class="md-nav__link">
         
   
   
@@ -1243,7 +1339,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sync/session/" class="md-nav__link">
+      <a href="../../api/sync/session/" class="md-nav__link">
         
   
   
@@ -1271,7 +1367,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sync/query/" class="md-nav__link">
+      <a href="../../api/sync/query/" class="md-nav__link">
         
   
   
@@ -1304,31 +1400,28 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
         
           
-          
         
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" checked>
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -1346,7 +1439,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1364,7 +1457,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dataset/" class="md-nav__link">
+      <a href="../../api/dataset/" class="md-nav__link">
         
   
   
@@ -1392,7 +1485,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../record-result/" class="md-nav__link">
+      <a href="../../api/record-result/" class="md-nav__link">
         
   
   
@@ -1420,7 +1513,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../record-stream/" class="md-nav__link">
+      <a href="../../api/record-stream/" class="md-nav__link">
         
   
   
@@ -1448,7 +1541,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../behavior/" class="md-nav__link">
+      <a href="../../api/behavior/" class="md-nav__link">
         
   
   
@@ -1476,7 +1569,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cluster-definition/" class="md-nav__link">
+      <a href="../../api/cluster-definition/" class="md-nav__link">
         
   
   
@@ -1501,37 +1594,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    ErrorStrategy
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../api/error-strategy/" class="md-nav__link">
         
   
   
@@ -1547,87 +1613,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;error_strategy
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.ErrorHandler" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;ErrorHandler
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.OnError" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;OnError
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.ErrorStrategy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ErrorStrategy
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" ErrorStrategy">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.ErrorStrategy.IN_STREAM" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;IN_STREAM
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1640,7 +1625,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../exceptions/" class="md-nav__link">
+      <a href="../../api/exceptions/" class="md-nav__link">
         
   
   
@@ -1668,7 +1653,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../query-hint/" class="md-nav__link">
+      <a href="../../api/query-hint/" class="md-nav__link">
         
   
   
@@ -1696,7 +1681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../indexes-monitor/" class="md-nav__link">
+      <a href="../../api/indexes-monitor/" class="md-nav__link">
         
   
   
@@ -1738,13 +1723,10 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
@@ -1753,7 +1735,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
         
           
-          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
             
   
   
@@ -1789,7 +1771,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dsl-parser/" class="md-nav__link">
+      <a href="../../api/dsl-parser/" class="md-nav__link">
         
   
   
@@ -1817,7 +1799,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dsl-filter-gen/" class="md-nav__link">
+      <a href="../../api/dsl-filter-gen/" class="md-nav__link">
         
   
   
@@ -1845,7 +1827,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../exp/" class="md-nav__link">
+      <a href="../../api/exp/" class="md-nav__link">
         
   
   
@@ -1908,10 +1890,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;error_strategy
+        Quick Start
       
     </span>
   </a>
@@ -1919,10 +1901,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.ErrorHandler" class="md-nav__link">
+  <a href="#programmatic-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;ErrorHandler
+        Programmatic Configuration
       
     </span>
   </a>
@@ -1930,10 +1912,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.OnError" class="md-nav__link">
+  <a href="#log-output" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;OnError
+        Log Output
       
     </span>
   </a>
@@ -1941,30 +1923,24 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.ErrorStrategy" class="md-nav__link">
+  <a href="#file-logging" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ErrorStrategy
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" ErrorStrategy">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#aerospike_fluent.error_strategy.ErrorStrategy.IN_STREAM" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;IN_STREAM
+        File Logging
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended Levels
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1988,190 +1964,110 @@
   
 
 
-<h1 id="error-strategy">Error Strategy<a class="headerlink" href="#error-strategy" title="Permanent link">&para;</a></h1>
-
-
-<div class="doc doc-object doc-module">
-
-
-
-<a id="aerospike_fluent.error_strategy"></a>
-    <div class="doc doc-contents first">
-
-        <p>Error handling strategy for fluent operations.</p>
-<p>Controls how per-record errors are surfaced during execution:</p>
-<ul>
-<li><strong>Default</strong> (no argument): single-key operations raise immediately;
-  batch / multi-key operations embed errors in the <code>RecordStream</code>.</li>
-<li><strong>ErrorStrategy.IN_STREAM</strong>: always embed errors as <code>RecordResult</code>
-  entries with non-OK result codes, even for single-key operations.</li>
-<li><strong>ErrorHandler</strong> callback: errors are dispatched to the callback and
-  excluded from the returned stream.</li>
-</ul>
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h2 id="aerospike_fluent.error_strategy.ErrorHandler" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">ErrorHandler</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
-  </span>
-
-<a href="#aerospike_fluent.error_strategy.ErrorHandler" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ErrorHandler</span> <span class="o">=</span> <span class="n"><span title="typing.Callable">Callable</span></span><span class="p">[</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="p">[</span><span class="s2">&quot;Key&quot;</span><span class="p">,</span> <span class="n"><span title="int">int</span></span><span class="p">,</span> <span class="s2">&quot;AerospikeError&quot;</span><span class="p">],</span> <span class="kc">None</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">]</span>
+<h1 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h1>
+<p>The fluent client produces logs from three layers, each identified by its
+Python logger name:</p>
+<table>
+<thead>
+<tr>
+<th>Logger name</th>
+<th>Layer</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aerospike_core</code></td>
+<td>Rust core</td>
+<td>Cluster management, connection pooling, wire protocol</td>
+</tr>
+<tr>
+<td><code>aerospike_async</code></td>
+<td>Python Async Client (PAC)</td>
+<td>Client init, connection lifecycle</td>
+</tr>
+<tr>
+<td><code>aerospike_fluent</code></td>
+<td>Python Fluent Client (PFC)</td>
+<td>Session operations, DSL parsing, index monitoring</td>
+</tr>
+</tbody>
+</table>
+<p>All three layers use Python's standard <code>logging</code> module, so any handler or
+formatter you configure will receive messages from all layers.</p>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p>The simplest way to enable logging is via environment variables:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AEROSPIKE_LOG_LEVEL</span><span class="o">=</span>DEBUG
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AEROSPIKE_LOG_FILE</span><span class="o">=</span>/tmp/aerospike.log<span class="w">   </span><span class="c1"># optional; omit for stderr</span>
 </code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Callback <code>(key, index, exception) -&gt; None</code> for per-record error handling.</p>
-<p>The callback receives the failed record's key, its position in the batch
-(0-based; 0 for single-key, -1 for queries), and the typed exception.
-Errors dispatched to the handler are excluded from the returned stream.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h2 id="aerospike_fluent.error_strategy.OnError" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">OnError</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
-  </span>
-
-<a href="#aerospike_fluent.error_strategy.OnError" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">OnError</span> <span class="o">=</span> <span class="n"><span title="typing.Union">Union</span></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-internal" title="            ErrorStrategy (aerospike_fluent.error_strategy.ErrorStrategy)" href="#aerospike_fluent.error_strategy.ErrorStrategy">ErrorStrategy</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-internal" title="            ErrorHandler
-
-
-  
-      module-attribute
-   (aerospike_fluent.error_strategy.ErrorHandler)" href="#aerospike_fluent.error_strategy.ErrorHandler">ErrorHandler</a></span><span class="p">]</span>
+<p>The test suite and example scripts read these variables automatically (see
+<code>conftest.py</code> and <code>examples/_env.py</code>).</p>
+<h2 id="programmatic-configuration">Programmatic Configuration<a class="headerlink" href="#programmatic-configuration" title="Permanent link">&para;</a></h2>
+<p>For full control, configure the loggers directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(levelname)-8s</span><span class="s2"> </span><span class="si">%(name)s</span><span class="s2">: </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">))</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;aerospike_core&quot;</span><span class="p">,</span> <span class="s2">&quot;aerospike_async&quot;</span><span class="p">,</span> <span class="s2">&quot;aerospike_fluent&quot;</span><span class="p">):</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
 </code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Type alias for the <code>on_error</code> parameter of <code>execute()</code>.</p>
-
-    </div>
-
-</div>
-
-
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="aerospike_fluent.error_strategy.ErrorStrategy" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">ErrorStrategy</span>
-
-
-<a href="#aerospike_fluent.error_strategy.ErrorStrategy" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="enum.Enum">Enum</span></code></p>
-
-
-
-        <p>Strategy for handling per-record errors during execution.</p>
-<p>Pass to <code>execute(on_error=...)</code> to override the default behavior.</p>
-<p>Example::
-    stream = await (
-        session.query(k1, k2).execute(on_error=ErrorStrategy.IN_STREAM)
-    )</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="aerospike_fluent.error_strategy.ErrorStrategy.IN_STREAM" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">IN_STREAM</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#aerospike_fluent.error_strategy.ErrorStrategy.IN_STREAM" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">IN_STREAM</span> <span class="o">=</span> <span class="s1">&#39;in_stream&#39;</span>
+<p>You can set different levels per layer — for example, <code>WARNING</code> for the core
+and <code>DEBUG</code> for the fluent client:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;aerospike_core&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;aerospike_fluent&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
 </code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Embed errors in the <code>RecordStream</code> as <code>RecordResult</code> entries.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
+<h2 id="log-output">Log Output<a class="headerlink" href="#log-output" title="Permanent link">&para;</a></h2>
+<p>A typical log line looks like:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>2026-03-30 14:22:01,234 INFO     aerospike_async: connecting to 127.0.0.1:3100
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2026-03-30 14:22:01,289 INFO     aerospike_async: connected to 127.0.0.1:3100
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>2026-03-30 14:22:01,290 DEBUG    aerospike_core.cluster: Tending cluster...
+</code></pre></div>
+<p>The <code>%(name)s</code> field identifies which layer produced the message, making it
+straightforward to filter or route logs.</p>
+<h2 id="file-logging">File Logging<a class="headerlink" href="#file-logging" title="Permanent link">&para;</a></h2>
+<p>To write logs to a file instead of stderr:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="s2">&quot;/tmp/aerospike.log&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(levelname)-8s</span><span class="s2"> </span><span class="si">%(name)s</span><span class="s2">: </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="p">))</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;aerospike_core&quot;</span><span class="p">,</span> <span class="s2">&quot;aerospike_async&quot;</span><span class="p">,</span> <span class="s2">&quot;aerospike_fluent&quot;</span><span class="p">):</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
+</code></pre></div>
+<p>Or via environment variables in <code>aerospike.env</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AEROSPIKE_LOG_LEVEL</span><span class="o">=</span>DEBUG
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AEROSPIKE_LOG_FILE</span><span class="o">=</span>/tmp/aerospike.log
+</code></pre></div>
+<h2 id="recommended-levels">Recommended Levels<a class="headerlink" href="#recommended-levels" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WARNING</code> (default)</td>
+<td>Production — only unexpected conditions</td>
+</tr>
+<tr>
+<td><code>INFO</code></td>
+<td>Connection lifecycle, index creation events</td>
+</tr>
+<tr>
+<td><code>DEBUG</code></td>
+<td>Full detail including cluster tend cycles, expression parsing</td>
+</tr>
+</tbody>
+</table>
 
 
 

@@ -46,17 +46,66 @@ async with cluster_def.connect() as client:
 
 ### TLS
 
+Server-side TLS with CA certificate verification:
+
 ```python
 cluster = (
-    ClusterDefinition("localhost", 3100)
+    ClusterDefinition("localhost", 4333)
     .with_tls_config_of()
         .tls_name("myTlsName")
         .ca_file("/path/to/ca.pem")
     .done()
     .with_native_credentials("username", "password")
-    .connect()
+    .using_services_alternate()
 )
+
+async with await cluster.connect() as c:
+    session = c.create_session()
+    # ... use session ...
 ```
+
+Mutual TLS (mTLS) with client certificate authentication:
+
+```python
+cluster = (
+    ClusterDefinition("localhost", 4333)
+    .with_tls_config_of()
+        .tls_name("myTlsName")
+        .ca_file("/path/to/ca.pem")
+        .client_cert_file("/path/to/client-cert.pem")
+        .client_key_file("/path/to/client-key.pem")
+    .done()
+    .with_native_credentials("username", "password")
+    .using_services_alternate()
+)
+
+async with await cluster.connect() as c:
+    session = c.create_session()
+    # ... use session ...
+```
+
+You can also configure TLS directly on a `FluentClient` by passing a `ClientPolicy`
+with `tls_config` set:
+
+```python
+from aerospike_async import ClientPolicy, TlsConfig, AuthMode
+from aerospike_fluent import FluentClient
+
+policy = ClientPolicy()
+policy.tls_config = TlsConfig("/path/to/ca.pem")
+policy.set_auth_mode(AuthMode.INTERNAL, user="admin", password="admin")
+policy.use_services_alternate = True
+
+async with FluentClient("localhost:myTlsName:4333", policy) as client:
+    session = client.create_session()
+    # ... use session ...
+```
+
+!!! note
+    When using TLS, the seed string format is `host:tls_name:port` (three parts).
+    The `tls_name` must match the server's configured TLS name for certificate
+    validation. With `ClusterDefinition`, setting `tls_name()` on the builder
+    automatically applies it to all hosts.
 
 ### Rack Awareness
 
