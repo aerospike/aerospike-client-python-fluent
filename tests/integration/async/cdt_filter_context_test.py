@@ -106,7 +106,7 @@ async def test_query_filter_equal_with_map_nested_context(client, enterprise):
     except Exception as e:
         pytest.skip(f"Could not create nested-map secondary index: {e}")
 
-    await asyncio.sleep(0.25 if not enterprise else 0.01)
+    await asyncio.sleep(0.35 if not enterprise else 0.01)
 
     target = 4242
     other_inner = 7
@@ -206,7 +206,7 @@ async def test_query_filter_equal_single_map_key_context(client, enterprise):
     except Exception as e:
         pytest.skip(f"Could not create CDT-path numeric index: {e}")
 
-    await asyncio.sleep(0.25 if not enterprise else 0.01)
+    await asyncio.sleep(0.35 if not enterprise else 0.01)
     val = 5150
 
     try:
