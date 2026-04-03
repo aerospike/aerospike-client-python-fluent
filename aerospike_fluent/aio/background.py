@@ -18,7 +18,10 @@
 from __future__ import annotations
 
 import enum
+import logging
 from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union, overload
+
+log = logging.getLogger("aerospike_fluent.background")
 
 from aerospike_async import (
     Client,
@@ -305,6 +308,11 @@ class BackgroundOperationBuilder:
         """
         ops = self._final_operations()
         reject_unsupported_background_write_ops(ops)
+        log.debug(
+            "background %s: %s.%s ops=%d",
+            self._op_type.name if self._op_type else "WRITE",
+            self._dataset.namespace, self._dataset.set_name, len(ops),
+        )
         wp = make_background_write_policy(
             self._session.behavior,
             self._filter_expression,
@@ -453,6 +461,11 @@ class BackgroundUdfBuilder:
             )
             await task.wait_till_complete()
         """
+        log.debug(
+            "background UDF: %s.%s %s.%s",
+            self._dataset.namespace, self._dataset.set_name,
+            self._package_name, self._function_name,
+        )
         wp = make_background_write_policy(
             self._session.behavior,
             self._filter_expression,

@@ -276,9 +276,10 @@ class RecordStream:
         if pf is None or pf.done():
             return False
 
+        counted_so_far = getattr(self, "_counter_ref", [0])[0]
+        log.debug("fetching next chunk (counted=%d)", counted_so_far)
         recordset = await self._chunk_reexecute(pf)
         self._chunk_recordset = recordset
-        counted_so_far = getattr(self, "_counter_ref", [0])[0]
         self._chunk_count = counted_so_far
 
         new_stream = self._make_chunk_iter(

@@ -17,11 +17,14 @@
 
 from __future__ import annotations
 
+import logging
 import typing
 from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 if TYPE_CHECKING:
     from aerospike_fluent.aio.session import Session
+
+log = logging.getLogger("aerospike_fluent.info")
 
 
 class InfoCommands:
@@ -117,7 +120,7 @@ class InfoCommands:
                 return None
             return response
         except Exception:
-            # If namespace doesn't exist or error occurs, return None
+            log.debug("namespace_details(%s) failed", namespace, exc_info=True)
             return None
 
     async def sets(self, namespace: str) -> List[str]:
@@ -219,7 +222,10 @@ class InfoCommands:
                 return None
             return response
         except Exception:
-            # If index doesn't exist or error occurs, return None
+            log.debug(
+                "secondary_index_details(%s, %s) failed",
+                namespace, index_name, exc_info=True,
+            )
             return None
 
     async def is_cluster_stable(self) -> bool:

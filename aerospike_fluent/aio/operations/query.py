@@ -1252,6 +1252,12 @@ class QueryBuilder(_WriteVerbs):
         self._finalize_current_spec()
 
         if self._specs:
+            total_keys = sum(len(s.keys) for s in self._specs)
+            log.debug(
+                "execute: %s.%s specs=%d keys=%d",
+                self._namespace, self._set_name,
+                len(self._specs), total_keys,
+            )
             is_single = (
                 len(self._specs) == 1
                 and len(self._specs[0].keys) == 1
@@ -1329,6 +1335,10 @@ class QueryBuilder(_WriteVerbs):
                 "with_write_operations(...).",
             )
         self._reject_unsupported_background_write_ops(self._operations)
+        log.debug(
+            "background task: %s.%s ops=%d",
+            self._namespace, self._set_name, len(self._operations),
+        )
         wp = self._make_background_write_policy()
         statement = self._build_statement()
         try:
@@ -1360,6 +1370,10 @@ class QueryBuilder(_WriteVerbs):
                 "Do not combine with_write_operations with "
                 "execute_udf_background_task.",
             )
+        log.debug(
+            "background UDF: %s.%s %s.%s",
+            self._namespace, self._set_name, package_name, function_name,
+        )
         wp = self._make_background_write_policy()
         statement = self._build_statement()
         py_args: Optional[List[Any]] = list(args) if args is not None else None
@@ -1493,6 +1507,10 @@ class QueryBuilder(_WriteVerbs):
         """Execute a single :class:`_OperationSpec`."""
         keys = spec.keys
         op_type = spec.op_type
+        log.debug(
+            "_execute_spec: op=%s keys=%d ops=%d",
+            op_type or "read", len(keys), len(spec.operations),
+        )
 
         if op_type is None:
             has_ops = bool(spec.operations)
@@ -2121,6 +2139,13 @@ class QueryBuilder(_WriteVerbs):
         return bwp
 
     async def _execute_dataset_query(self) -> RecordStream:
+        log.debug(
+            "dataset query: %s.%s filter=%s chunk=%s hint=%s",
+            self._namespace, self._set_name,
+            self._filter_expression is not None or bool(self._filter_records),
+            self._chunk_size,
+            self._query_hint is not None,
+        )
         if self._policy is not None:
             policy = self._policy
         elif self._behavior is not None:
