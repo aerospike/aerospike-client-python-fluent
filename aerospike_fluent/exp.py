@@ -19,11 +19,16 @@ Re-exports FilterExpression as Exp and provides a convenience val() function
 for creating value expressions from Python values.
 """
 
-from typing import Any, Dict, List, Union, overload
+from typing import Any, Dict, List, Optional, Union, overload
 
-from aerospike_async import FilterExpression as Exp
+from aerospike_async import (
+    CTX,
+    FilterExpression as Exp,
+    ListReturnType,
+    MapReturnType,
+)
 
-__all__ = ["Exp", "val"]
+__all__ = ["Exp", "val", "in_list", "map_keys", "map_values"]
 
 
 @overload
@@ -78,3 +83,77 @@ def val(value: Any) -> Exp:
     elif value is None:
         return Exp.nil()
     raise TypeError(f"Unsupported type for val(): {type(value)}")
+
+
+def in_list(
+    value: Exp,
+    list_exp: Exp,
+    ctx: Optional[List[CTX]] = None,
+) -> Exp:
+    """Check whether *value* exists in *list_exp*.
+
+    Returns a boolean expression equivalent to ``value IN list``.
+
+    Args:
+        value: The value to search for.
+        list_exp: A list expression (e.g. ``Exp.list_bin("tags")``).
+        ctx: Optional CDT context for nested lists.
+
+    Example::
+
+        # bin "role" in list bin "allowed_roles"
+        in_list(Exp.string_bin("role"), Exp.list_bin("allowed_roles"))
+    """
+    return Exp.gt(
+        Exp.list_get_by_value(
+            ListReturnType.COUNT,
+            value,
+            list_exp,
+            ctx or [],
+        ),
+        Exp.int_val(0),
+    )
+
+
+def map_keys(
+    map_exp: Exp,
+    ctx: Optional[List[CTX]] = None,
+) -> Exp:
+    """Return all keys of *map_exp* as a list expression.
+
+    Args:
+        map_exp: A map expression (e.g. ``Exp.map_bin("scores")``).
+        ctx: Optional CDT context for nested maps.
+
+    Example::
+
+        map_keys(Exp.map_bin("scores"))
+    """
+    return Exp.map_get_by_index_range(
+        MapReturnType.KEY,
+        Exp.int_val(0),
+        map_exp,
+        ctx or [],
+    )
+
+
+def map_values(
+    map_exp: Exp,
+    ctx: Optional[List[CTX]] = None,
+) -> Exp:
+    """Return all values of *map_exp* as a list expression.
+
+    Args:
+        map_exp: A map expression (e.g. ``Exp.map_bin("scores")``).
+        ctx: Optional CDT context for nested maps.
+
+    Example::
+
+        map_values(Exp.map_bin("scores"))
+    """
+    return Exp.map_get_by_index_range(
+        MapReturnType.VALUE,
+        Exp.int_val(0),
+        map_exp,
+        ctx or [],
+    )

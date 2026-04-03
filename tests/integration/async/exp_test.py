@@ -23,7 +23,7 @@ import asyncio
 import pytest
 from aerospike_async import FilterExpression
 
-from aerospike_fluent import DslParseException, Exp, FluentClient, val
+from aerospike_fluent import DslParseException, Exp, FluentClient, in_list, map_keys, map_values, val
 from aerospike_fluent.dataset import DataSet
 
 
@@ -1899,3 +1899,84 @@ class TestInExpression:
             records.append(result.record)
         stream.close()
         assert len(records) == 0
+
+
+class TestConvenienceWrappers:
+    """Tests for in_list(), map_keys(), map_values() convenience functions."""
+
+    async def test_in_list_string_match(self, client_with_cdt_data):
+        """in_list finds "bob" in the names list bin (rec1 only)."""
+        filt = Exp.eq(
+            in_list(Exp.string_val("bob"), Exp.list_bin("names")),
+            Exp.bool_val(True),
+        )
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .filter_expression(filt)
+            .execute()
+        )
+        records = [r.record async for r in stream]
+        stream.close()
+        assert len(records) == 1
+        assert "bob" in records[0].bins["names"]
+
+    async def test_in_list_int_match(self, client_with_cdt_data):
+        """in_list finds 200 in the numbers list bin (rec3 only)."""
+        filt = Exp.eq(
+            in_list(Exp.int_val(200), Exp.list_bin("numbers")),
+            Exp.bool_val(True),
+        )
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .filter_expression(filt)
+            .execute()
+        )
+        records = [r.record async for r in stream]
+        stream.close()
+        assert len(records) == 1
+        assert 200 in records[0].bins["numbers"]
+
+    async def test_in_list_no_match(self, client_with_cdt_data):
+        """in_list returns false when the value is not present."""
+        filt = Exp.eq(
+            in_list(Exp.string_val("zzz"), Exp.list_bin("names")),
+            Exp.bool_val(True),
+        )
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .filter_expression(filt)
+            .execute()
+        )
+        records = [r.record async for r in stream]
+        stream.close()
+        assert len(records) == 0
+
+    async def test_map_keys(self, client_with_cdt_data):
+        """map_keys returns the key set of the info map."""
+        filt = Exp.eq(
+            Exp.list_size(map_keys(Exp.map_bin("info")), []),
+            Exp.int_val(3),
+        )
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .filter_expression(filt)
+            .execute()
+        )
+        records = [r.record async for r in stream]
+        stream.close()
+        assert len(records) == 3
+
+    async def test_map_values(self, client_with_cdt_data):
+        """map_values returns values; filter on list size == 3."""
+        filt = Exp.eq(
+            Exp.list_size(map_values(Exp.map_bin("info")), []),
+            Exp.int_val(3),
+        )
+        stream = await (
+            client_with_cdt_data.query("test", "cdt_test")
+            .filter_expression(filt)
+            .execute()
+        )
+        records = [r.record async for r in stream]
+        stream.close()
+        assert len(records) == 3

@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Optional
+from typing import NoReturn, Optional
 
 from aerospike_async import ClientPolicy
 
@@ -128,7 +128,7 @@ class Cluster:
     def create_transactional_session(
         self,
         behavior: Optional[Behavior] = None,
-    ):
+    ) -> NoReturn:
         """
         Creates a new transactional session with the specified behavior.
         

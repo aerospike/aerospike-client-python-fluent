@@ -14,7 +14,7 @@
         <link rel="prev" href="../behavior/">
       
       
-        <link rel="next" href="../error-strategy/">
+        <link rel="next" href="../tls-builder/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>ClusterDefinition - Aerospike Python Fluent Client</title>
+        <title>ClusterDefinition & Host - Aerospike Python Fluent Client</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#clusterdefinition" class="md-skip">
+        <a href="#clusterdefinition-host" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              ClusterDefinition
+              ClusterDefinition & Host
             
           </span>
         </div>
@@ -842,6 +842,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../session/" class="md-nav__link">
         
   
@@ -877,7 +905,7 @@
   <span class="md-ellipsis">
     
   
-    QueryBuilder
+    Query Builders
   
 
     
@@ -989,7 +1017,7 @@
   <span class="md-ellipsis">
     
   
-    BatchOperationBuilder
+    Batch Builders
   
 
     
@@ -1045,7 +1073,7 @@
   <span class="md-ellipsis">
     
   
-    BackgroundTaskSession
+    Background Builders
   
 
     
@@ -1243,6 +1271,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sync/cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SyncCluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../sync/session/" class="md-nav__link">
         
   
@@ -1278,7 +1334,175 @@
   <span class="md-ellipsis">
     
   
-    SyncQueryBuilder
+    Sync Query Builders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/cluster-definition/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SyncClusterDefinition
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/index-builder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SyncIndexBuilder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/background/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sync Background Builders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SyncInfoCommands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/udf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sync UDF Builders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/tls-builder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SyncTlsBuilder
   
 
     
@@ -1455,7 +1679,7 @@
   <span class="md-ellipsis">
     
   
-    Behavior
+    Behavior & Settings
   
 
     
@@ -1492,7 +1716,7 @@
   <span class="md-ellipsis">
     
   
-    ClusterDefinition
+    ClusterDefinition & Host
   
 
     
@@ -1510,7 +1734,7 @@
   <span class="md-ellipsis">
     
   
-    ClusterDefinition
+    ClusterDefinition & Host
   
 
     
@@ -1534,6 +1758,56 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;cluster_definition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition.Host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Host
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Host">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition.Host.of" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;of
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition.Host.parse_hosts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;parse_hosts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#aerospike_fluent.aio.cluster_definition.ClusterDefinition" class="md-nav__link">
@@ -1688,6 +1962,62 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tls-builder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TlsBuilder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SystemSettings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1996,6 +2326,56 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;cluster_definition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition.Host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Host
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Host">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition.Host.of" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;of
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aerospike_fluent.aio.cluster_definition.Host.parse_hosts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;parse_hosts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#aerospike_fluent.aio.cluster_definition.ClusterDefinition" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2164,8 +2544,295 @@
   
 
 
-<h1 id="clusterdefinition">ClusterDefinition<a class="headerlink" href="#clusterdefinition" title="Permanent link">&para;</a></h1>
+<h1 id="clusterdefinition-host">ClusterDefinition &amp; Host<a class="headerlink" href="#clusterdefinition-host" title="Permanent link">&para;</a></h1>
 
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="aerospike_fluent.aio.cluster_definition"></a>
+    <div class="doc doc-contents first">
+
+        <p>ClusterDefinition - Builder for configuring Aerospike cluster connections.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="aerospike_fluent.aio.cluster_definition.Host" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Host</span>
+
+
+<a href="#aerospike_fluent.aio.cluster_definition.Host" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Host</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">tls_name</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Seed address for cluster discovery.</p>
+<p>Example::</p>
+<div class="highlight"><pre><span></span><code>host = Host(&quot;192.168.1.10&quot;, 3000)
+# or use the convenience parser
+hosts = Host.parse_hosts(&quot;host1:3000,host2:3000&quot;, 3000)
+</code></pre></div>
+
+        <p>Initialize a Host.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hostname or IP address</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>port</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Port number</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tls_name</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional TLS name for certificate validation</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="aerospike_fluent.aio.cluster_definition.Host.of" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">of</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
+  </span>
+
+<a href="#aerospike_fluent.aio.cluster_definition.Host.of" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">of</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Create a Host instance.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hostname or IP address.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>port</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Port number.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            Host (aerospike_fluent.aio.cluster_definition.Host)" href="#aerospike_fluent.aio.cluster_definition.Host">Host</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Host with the given name and port.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="aerospike_fluent.aio.cluster_definition.Host.parse_hosts" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">parse_hosts</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
+  </span>
+
+<a href="#aerospike_fluent.aio.cluster_definition.Host.parse_hosts" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">parse_hosts</span><span class="p">(</span><span class="n">host_string</span><span class="p">,</span> <span class="n">default_port</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Parse a host string into a list of Host objects.</p>
+<p>Format: <code>host1:port1,host2:port2</code> or <code>host1,host2</code> (uses <code>default_port</code>).</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a port segment is present but not a valid integer.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-class">
 
@@ -2179,7 +2846,7 @@
 <div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">ClusterDefinition</span><span class="p">(</span><span class="n">hostname</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hosts</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 
-    <div class="doc doc-contents first">
+    <div class="doc doc-contents ">
 
 
 
@@ -2256,7 +2923,7 @@ The sync counterpart lives under <code>aerospike_fluent.sync.cluster_definition<
                 <code>hosts</code>
             </td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Union">Union</span>[<span title="typing.List">List</span>[<span title="aerospike_fluent.aio.cluster_definition.Host">Host</span>], <span title="tuple">tuple</span>[<span title="aerospike_fluent.aio.cluster_definition.Host">Host</span>, ...]]]</code>
+                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Union">Union</span>[<span title="typing.List">List</span>[<a class="autorefs autorefs-internal" title="            Host (aerospike_fluent.aio.cluster_definition.Host)" href="#aerospike_fluent.aio.cluster_definition.Host">Host</a>], <span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="            Host (aerospike_fluent.aio.cluster_definition.Host)" href="#aerospike_fluent.aio.cluster_definition.Host">Host</a>, ...]]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2972,7 +3639,12 @@ server handle address translation without client-side configuration.</p>
                 <code>settings</code>
             </td>
             <td>
-                  <code><span title="aerospike_fluent.policy.system_settings.SystemSettings">SystemSettings</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            SystemSettings
+
+
+  
+      dataclass
+   (aerospike_fluent.policy.system_settings.SystemSettings)" href="../system-settings/#aerospike_fluent.policy.system_settings.SystemSettings">SystemSettings</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3053,7 +3725,7 @@ to this ClusterDefinition for further configuration.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="aerospike_fluent.aio.tls_builder.TlsBuilder">TlsBuilder</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            TlsBuilder (aerospike_fluent.aio.tls_builder.TlsBuilder)" href="../tls-builder/#aerospike_fluent.aio.tls_builder.TlsBuilder">TlsBuilder</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3111,7 +3783,7 @@ to properly release resources.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="aerospike_fluent.aio.cluster.Cluster">Cluster</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            Cluster (aerospike_fluent.aio.cluster.Cluster)" href="../cluster/#aerospike_fluent.aio.cluster.Cluster">Cluster</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3160,6 +3832,15 @@ the cluster is unreachable</p>
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 
 
 

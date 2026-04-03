@@ -84,27 +84,37 @@ nav:
     - Overview: api/index.md
     - Async:
       - FluentClient: api/client.md
+      - Cluster: api/cluster.md
       - Session: api/session.md
-      - QueryBuilder: api/query.md
+      - Query Builders: api/query.md
       - WriteSegmentBuilder: api/write-segment.md
       - CDT Read: api/cdt-read.md
       - CDT Write: api/cdt-write.md
-      - BatchOperationBuilder: api/batch.md
+      - Batch Builders: api/batch.md
       - IndexBuilder: api/index-builder.md
-      - BackgroundTaskSession: api/background.md
+      - Background Builders: api/background.md
       - UDF Builders: api/udf.md
       - InfoCommands: api/info.md
       - TransactionalSession: api/transactional-session.md
     - Sync:
       - SyncFluentClient: api/sync/client.md
+      - SyncCluster: api/sync/cluster.md
       - SyncSession: api/sync/session.md
-      - SyncQueryBuilder: api/sync/query.md
+      - Sync Query Builders: api/sync/query.md
+      - SyncClusterDefinition: api/sync/cluster-definition.md
+      - SyncIndexBuilder: api/sync/index-builder.md
+      - Sync Background Builders: api/sync/background.md
+      - SyncInfoCommands: api/sync/info.md
+      - Sync UDF Builders: api/sync/udf.md
+      - SyncTlsBuilder: api/sync/tls-builder.md
     - Core:
       - DataSet: api/dataset.md
       - RecordResult: api/record-result.md
       - RecordStream: api/record-stream.md
-      - Behavior: api/behavior.md
-      - ClusterDefinition: api/cluster-definition.md
+      - Behavior & Settings: api/behavior.md
+      - ClusterDefinition & Host: api/cluster-definition.md
+      - TlsBuilder: api/tls-builder.md
+      - SystemSettings: api/system-settings.md
       - ErrorStrategy: api/error-strategy.md
       - Exceptions: api/exceptions.md
       - QueryHint: api/query-hint.md

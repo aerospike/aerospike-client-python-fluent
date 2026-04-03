@@ -40,7 +40,7 @@ from aerospike_fluent.exceptions import (
     TimeoutError,
 )
 from aerospike_fluent.error_strategy import ErrorHandler, ErrorStrategy, OnError
-from aerospike_fluent.exp import Exp, val
+from aerospike_fluent.exp import Exp, val, in_list, map_keys, map_values
 from aerospike_fluent.policy.behavior import Behavior
 from aerospike_fluent.record_result import RecordResult
 from aerospike_fluent.record_stream import RecordStream
@@ -65,6 +65,7 @@ __all__ = [
     "ErrorStrategy",
     "Exp",
     "FluentClient",
+    "in_list",
     "GenerationError",
     "Host",
     "Index",
@@ -89,6 +90,8 @@ __all__ = [
     "SyncRecordStream",
     "TimeoutError",
     "TransactionalSession",
+    "map_keys",
+    "map_values",
     "val",
 ]
 
