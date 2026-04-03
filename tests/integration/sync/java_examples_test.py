@@ -18,6 +18,8 @@
 Focused examples for documentation and API verification.
 """
 
+import time
+
 import pytest
 from aerospike_async import Key
 from aerospike_fluent import DataSet, Behavior
@@ -47,7 +49,7 @@ def session(cluster):
 
 
 @pytest.fixture
-def customer_dataset(session):
+def customer_dataset(session, enterprise):
     """Setup test data for customer dataset.
 
     This fixture ensures test data is in a known state before each test.
@@ -55,17 +57,16 @@ def customer_dataset(session):
     """
     customers = DataSet.of("test", "Customers")
 
-    # Always reset test data to known state before each test
-    # Delete first to ensure clean state, then insert fresh data
     for i, data in [(1, {"name": "Tim", "age": 25, "country": "US"}),
                     (2, {"name": "Bob", "age": 30, "country": "US"}),
                     (3, {"name": "Alice", "age": 28, "country": "UK"})]:
         try:
             session.delete(customers.id(i)).execute()
         except Exception:
-            pass  # Ignore if key doesn't exist
+            pass
         session.upsert(customers.id(i)).put(data).execute()
 
+    time.sleep(0.25 if not enterprise else 0.01)
     yield customers
 
     # Cleanup after test - restore original test data in case tests modified it
