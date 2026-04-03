@@ -15,25 +15,25 @@
 
 """Tests for SyncFluentClient Query operations."""
 
+import time
+
 import pytest
 from aerospike_fluent import DataSet, Exp, SyncFluentClient
 
 
 @pytest.fixture
-def client(aerospike_host, client_policy):
+def client(aerospike_host, client_policy, enterprise):
     """Setup sync fluent client and test data for query tests."""
     with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "query_test")
-        # Clean up and insert test data
-        # Clean up existing records
         for i in range(10):
             session.delete(ds.id(i)).execute()
 
-        # Insert test records with age values
         for i in range(10):
             session.upsert(ds.id(i)).put({"id": i, "age": 20 + i, "name": f"User{i}"}).execute()
 
+        time.sleep(0.25 if not enterprise else 0.01)
         yield client
 
 def test_query_basic(client):
