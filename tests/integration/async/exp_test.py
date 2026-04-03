@@ -754,7 +754,7 @@ async def client_with_cdt_data(aerospike_host, client_policy, enterprise):
             "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
         }).execute()
 
-        await asyncio.sleep(0.35 if not enterprise else 0.01)
+        await asyncio.sleep(0.5 if not enterprise else 0.01)
 
         yield client
 
