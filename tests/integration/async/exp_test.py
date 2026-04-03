@@ -1063,7 +1063,7 @@ async def client_with_list_data(aerospike_host, client_policy, enterprise):
             "tags": ["zeta"],
         }).execute()
 
-        await asyncio.sleep(0.25 if not enterprise else 0.01)
+        await asyncio.sleep(0.5 if not enterprise else 0.01)
 
         yield client
 
