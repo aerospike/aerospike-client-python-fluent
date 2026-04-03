@@ -1,0 +1,214 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.1.0) — must match pyproject.toml'
+        required: true
+        type: string
+      publish_pypi:
+        description: 'Publish to PyPI?'
+        required: false
+        type: choice
+        options:
+          - 'no'
+          - 'test.pypi.org'
+          - 'pypi.org'
+        default: 'no'
+
+permissions:
+  contents: write
+
+env:
+  PAC_REPO: "aerospike/aerospike-client-python-async"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      pac_version: ${{ steps.pac.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version matches VERSION file
+        run: |
+          FILE_VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "VERSION file: $FILE_VERSION"
+          if [ "$FILE_VERSION" != "${{ inputs.version }}" ]; then
+            echo "::error::Version mismatch: VERSION file has '$FILE_VERSION' but release requested '${{ inputs.version }}'"
+            exit 1
+          fi
+
+      - name: Check tag does not already exist
+        run: |
+          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::Tag v${{ inputs.version }} already exists"
+            exit 1
+          fi
+          if git ls-remote --tags origin "refs/tags/v${{ inputs.version }}" | grep -q .; then
+            echo "::error::Tag v${{ inputs.version }} already exists on remote"
+            exit 1
+          fi
+          echo "Tag v${{ inputs.version }} is available"
+
+      - name: Enforce stable releases from main
+        run: |
+          VERSION="${{ inputs.version }}"
+          BRANCH="${{ github.ref_name }}"
+          if echo "$VERSION" | grep -q -E "\-alpha|\-beta|\-rc"; then
+            echo "Pre-release ($VERSION) — allowed from any branch ($BRANCH)"
+          elif [ "$BRANCH" != "main" ]; then
+            echo "::error::Stable releases must be cut from the main branch (current: $BRANCH)"
+            exit 1
+          else
+            echo "Stable release ($VERSION) from main — OK"
+          fi
+
+      - name: Resolve and validate PAC dependency
+        id: pac
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PAC_VERSION=$(grep 'aerospike-client-python-async' pyproject.toml | grep -oP '@\Kv[^"]+')
+          echo "PAC dependency version: $PAC_VERSION"
+          echo "version=$PAC_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo "Checking PAC release exists..."
+          if ! gh release view "$PAC_VERSION" --repo "$PAC_REPO" > /dev/null 2>&1; then
+            echo "::error::PAC release $PAC_VERSION not found — cannot release PFC without a published PAC"
+            exit 1
+          fi
+          echo "PAC release $PAC_VERSION found — OK"
+
+  test:
+    needs: validate
+    uses: ./.github/workflows/build-test.yml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build sdist and wheel
+        run: python -m build --sdist --wheel --outdir dist
+
+      - name: Verify wheel contents
+        run: |
+          python3 -c "
+          import zipfile, sys
+          whl = list(__import__('pathlib').Path('dist').glob('*.whl'))[0]
+          names = zipfile.ZipFile(whl).namelist()
+          pkgs = {n.split('/')[0] for n in names if '/' in n}
+          print(f'Wheel: {whl.name}')
+          print(f'Top-level packages: {sorted(pkgs)}')
+          py_files = [n for n in names if n.endswith('.py')]
+          print(f'Python files: {len(py_files)}')
+          if len(py_files) < 10:
+              print('::error::Wheel has suspiciously few Python files')
+              sys.exit(1)
+          "
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: List release artifacts
+        run: ls -lh dist/
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Detect pre-release
+        id: prerelease
+        run: |
+          if echo "${{ inputs.version }}" | grep -qE "\-alpha|\-beta|\-rc"; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_DATE=$(date +"%B %d, %Y")
+          TAG="v${{ inputs.version }}"
+          API_JSON=$(curl -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/generate-notes" \
+            -d "{\"tag_name\":\"$TAG\"}")
+          echo "$API_JSON" | jq -r '.body' | python3 .github/scripts/generate_release_notes.py --date "$RELEASE_DATE" > release_notes.md
+          echo "--- release_notes.md ---"
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version }}"
+          name: "v${{ inputs.version }}"
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease == 'true' }}
+          body_path: release_notes.md
+          generate_release_notes: false
+          files: dist/*
+
+  publish:
+    if: inputs.publish_pypi != 'no'
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.publish_pypi == 'pypi.org' && 'pypi' || 'testpypi' }}
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Publish to Test PyPI
+        if: inputs.publish_pypi == 'test.pypi.org'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+
+      - name: Publish to PyPI
+        if: inputs.publish_pypi == 'pypi.org'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*

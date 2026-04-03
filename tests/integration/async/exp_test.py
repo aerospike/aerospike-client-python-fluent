@@ -395,7 +395,7 @@ async def client_with_data(aerospike_host, client_policy, enterprise):
         await session.upsert(ds.id("B")).put({"A": 2, "B": 2.2, "C": "abcdeabcde", "D": 1, "E": -2}).execute()
         await session.upsert(ds.id("C")).put({"A": 0, "B": -1.0, "C": "1", "D": 0, "E": 0}).execute()
 
-        await asyncio.sleep(0.25 if not enterprise else 0.01)
+        await asyncio.sleep(0.5 if not enterprise else 0.01)
 
         yield client
 
@@ -754,7 +754,7 @@ async def client_with_cdt_data(aerospike_host, client_policy, enterprise):
             "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
         }).execute()
 
-        await asyncio.sleep(0.35 if not enterprise else 0.01)
+        await asyncio.sleep(0.5 if not enterprise else 0.01)
 
         yield client
 
@@ -1063,7 +1063,7 @@ async def client_with_list_data(aerospike_host, client_policy, enterprise):
             "tags": ["zeta"],
         }).execute()
 
-        await asyncio.sleep(0.25 if not enterprise else 0.01)
+        await asyncio.sleep(0.5 if not enterprise else 0.01)
 
         yield client
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aerospike-fluent-client-python"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Fluent API wrapper for the Aerospike Python Async Client"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
@@ -38,8 +38,11 @@ docs = [
     "mkdocstrings[python]>=0.27",
 ]
 
-[tool.setuptools]
-packages = ["aerospike_fluent"]
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.setuptools.packages.find]
+include = ["aerospike_fluent*"]
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]

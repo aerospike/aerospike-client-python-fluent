@@ -67,8 +67,7 @@ async def client(aerospike_host, client_policy, enterprise):
         except Exception:
             pass
 
-        # Wait for monitor to discover the new index (min = refresh interval + indexing time)
-        await asyncio.sleep(.3)
+        await asyncio.sleep(0.5 if not enterprise else 0.1)
 
         yield client
 
