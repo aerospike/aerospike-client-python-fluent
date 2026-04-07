@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-"""Integration tests for foreground UDF fluent API (async)."""
+"""Integration tests for foreground UDF SDK API (async)."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ import os
 import pytest
 from aerospike_async import UDFLang
 from aerospike_async.exceptions import ResultCode
-from aerospike_fluent import DataSet, FluentClient
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import DataSet, Client
+from aerospike_sdk.exceptions import AerospikeError
 
 NS = "test"
 SET = "test"
@@ -37,7 +37,7 @@ MODULE = "record_example"
 
 @pytest.fixture
 async def client_with_udf(aerospike_host, client_policy):
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         try:
             rm = await client.remove_udf(SERVER_PATH)
             await rm.wait_till_complete(sleep_time=0.1, max_attempts=20)

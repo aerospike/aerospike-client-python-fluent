@@ -1,13 +1,13 @@
-.PHONY: antlr generate-dsl test dev docs docs-serve examples
+.PHONY: antlr generate-ael clean-ael test dev docs docs-serve examples
 
 # ANTLR JAR location - download if not present
 ANTLR_JAR ?= antlr-4.13.0-complete.jar
 ANTLR_URL = https://www.antlr.org/download/$(ANTLR_JAR)
 
-# DSL grammar and output directories
-DSL_GRAMMAR = aerospike_fluent/dsl/antlr4/Condition.g4
-DSL_OUTPUT = aerospike_fluent/dsl/antlr4/generated
-DSL_GENERATED = $(DSL_OUTPUT)/ConditionLexer.py $(DSL_OUTPUT)/ConditionParser.py $(DSL_OUTPUT)/ConditionListener.py $(DSL_OUTPUT)/ConditionVisitor.py
+# AEL grammar and output directories
+AEL_GRAMMAR = aerospike_sdk/ael/antlr4/Condition.g4
+AEL_OUTPUT = aerospike_sdk/ael/antlr4/generated
+AEL_GENERATED = $(AEL_OUTPUT)/ConditionLexer.py $(AEL_OUTPUT)/ConditionParser.py $(AEL_OUTPUT)/ConditionListener.py $(AEL_OUTPUT)/ConditionVisitor.py
 
 antlr-download:
 	@if [ ! -f $(ANTLR_JAR) ]; then \
@@ -15,19 +15,19 @@ antlr-download:
 		curl -L -o $(ANTLR_JAR) $(ANTLR_URL); \
 	fi
 
-generate-dsl: antlr-download
+generate-ael: antlr-download
 	@echo "Checking Java version (requires Java 11+)..."
 	@java -version 2>&1 | head -1 || (echo "Error: Java is not installed or not in PATH. ANTLR requires Java 11 or higher." && exit 1)
 	@echo "Generating Python parser from ANTLR grammar..."
-	@mkdir -p $(DSL_OUTPUT)
-	@cd aerospike_fluent/dsl/antlr4 && java -jar ../../../$(ANTLR_JAR) -Dlanguage=Python3 -o generated -visitor -listener Condition.g4
-	@touch $(DSL_OUTPUT)/__init__.py
-	@echo "Generated parser files in $(DSL_OUTPUT)/"
+	@mkdir -p $(AEL_OUTPUT)
+	@cd aerospike_sdk/ael/antlr4 && java -jar ../../../$(ANTLR_JAR) -Dlanguage=Python3 -o generated -visitor -listener Condition.g4
+	@touch $(AEL_OUTPUT)/__init__.py
+	@echo "Generated parser files in $(AEL_OUTPUT)/"
 
-clean-dsl:
-	@echo "Cleaning generated DSL parser files..."
-	@rm -rf $(DSL_OUTPUT)
-	@echo "Cleaned DSL parser files"
+clean-ael:
+	@echo "Cleaning generated AEL parser files..."
+	@rm -rf $(AEL_OUTPUT)
+	@echo "Cleaned AEL parser files"
 
 dev:
 	pip install -e ".[dev]"
@@ -47,9 +47,9 @@ examples:
 		python "$$f" || exit 1; \
 		echo; \
 	done
-	
+
 docs:
-	mkdocs build --strict
+	sphinx-build -b html docs docs/_build/html -W
 
 docs-serve:
-	mkdocs serve
+	sphinx-autobuild docs docs/_build/html

@@ -23,8 +23,8 @@ import asyncio
 import pytest
 from aerospike_async import FilterExpression
 
-from aerospike_fluent import DslParseException, Exp, FluentClient, in_list, map_keys, map_values, val
-from aerospike_fluent.dataset import DataSet
+from aerospike_sdk import AelParseException, Exp, Client, in_list, map_keys, map_values, val
+from aerospike_sdk.dataset import DataSet
 
 
 class TestExpAlias:
@@ -381,7 +381,7 @@ class TestBinExpressions:
 @pytest.fixture
 async def client_with_data(aerospike_host, client_policy, enterprise):
     """Setup test data for expression tests."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "exp_test")
 
@@ -555,8 +555,8 @@ class TestExpWithQuery:
         assert len(records) == 0
 
 
-class TestExpWithDsl:
-    """Test DSL string expressions with where() method.
+class TestExpWithAel:
+    """Test AEL string expressions with where() method.
 
     Type inference: Bin types are automatically inferred from comparison operands.
     For example, `$.A == 1` infers A is an int_bin because 1 is an integer.
@@ -564,7 +564,7 @@ class TestExpWithDsl:
     """
 
     async def test_where_eq_int(self, client_with_data):
-        """Test DSL equality with automatic int inference."""
+        """Test AEL equality with automatic int inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A == 1")
@@ -579,7 +579,7 @@ class TestExpWithDsl:
         assert records[0].bins["A"] == 1
 
     async def test_where_gt_int(self, client_with_data):
-        """Test DSL greater-than with automatic int inference."""
+        """Test AEL greater-than with automatic int inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A > 1")
@@ -594,7 +594,7 @@ class TestExpWithDsl:
         assert records[0].bins["A"] == 2
 
     async def test_where_and_int(self, client_with_data):
-        """Test DSL AND expression with automatic int inference."""
+        """Test AEL AND expression with automatic int inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A == 1 and $.D == 1")
@@ -609,7 +609,7 @@ class TestExpWithDsl:
         assert records[0].bins["A"] == 1
 
     async def test_where_or_int(self, client_with_data):
-        """Test DSL OR expression with automatic int inference."""
+        """Test AEL OR expression with automatic int inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.A == 1 or $.A == 2")
@@ -623,7 +623,7 @@ class TestExpWithDsl:
         assert len(records) == 2
 
     async def test_where_not_int(self, client_with_data):
-        """Test DSL NOT expression with automatic int inference."""
+        """Test AEL NOT expression with automatic int inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("not ($.A == 0)")
@@ -637,7 +637,7 @@ class TestExpWithDsl:
         assert len(records) == 2
 
     async def test_where_arithmetic_int(self, client_with_data):
-        """Test DSL arithmetic expression with automatic int inference."""
+        """Test AEL arithmetic expression with automatic int inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("($.A + $.D) == 2")
@@ -651,7 +651,7 @@ class TestExpWithDsl:
         assert len(records) == 1
 
     async def test_where_string(self, client_with_data):
-        """Test DSL string comparison with automatic string inference."""
+        """Test AEL string comparison with automatic string inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.C == 'abcde'")
@@ -666,7 +666,7 @@ class TestExpWithDsl:
         assert records[0].bins["C"] == "abcde"
 
     async def test_where_complex_int(self, client_with_data):
-        """Test complex DSL expression with automatic int inference."""
+        """Test complex AEL expression with automatic int inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("($.A > 0 and $.D == 1) or $.A == 0")
@@ -695,7 +695,7 @@ class TestExpWithDsl:
         assert records[0].bins["B"] == 1.1
 
     async def test_where_float_comparison(self, client_with_data):
-        """Test DSL float comparison with automatic float inference."""
+        """Test AEL float comparison with automatic float inference."""
         stream = await (
             client_with_data.query("test", "exp_test")
             .where("$.B > 1.0")
@@ -710,12 +710,12 @@ class TestExpWithDsl:
         for rec in records:
             assert rec.bins["B"] > 1.0
 
-    async def test_where_invalid_dsl(self, client_with_data):
-        """Test that invalid DSL raises DslParseException."""
-        with pytest.raises(DslParseException):
+    async def test_where_invalid_ael(self, client_with_data):
+        """Test that invalid AEL raises AelParseException."""
+        with pytest.raises(AelParseException):
             await (
                 client_with_data.query("test", "exp_test")
-                .where("this is not valid DSL !!!")
+                .where("this is not valid AEL !!!")
                 .execute()
             )
 
@@ -725,7 +725,7 @@ class TestExpWithDsl:
 @pytest.fixture
 async def client_with_cdt_data(aerospike_host, client_policy, enterprise):
     """Setup test data with lists and maps for CDT path tests."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "cdt_test")
 
@@ -827,13 +827,13 @@ class TestCdtPathWithExp:
         assert records[0].bins["info"]["age"] == 30
 
 
-class TestCdtPathWithDsl:
-    """Test CDT path expressions using the DSL parser."""
+class TestCdtPathWithAel:
+    """Test CDT path expressions using the AEL parser."""
 
     async def test_list_index_access(self, client_with_cdt_data):
-        """Test DSL list index access: $.numbers.[0] == 10
+        """Test AEL list index access: $.numbers.[0] == 10
         
-        Note: The DSL grammar requires a dot before brackets: .[0] not [0]
+        Note: The AEL grammar requires a dot before brackets: .[0] not [0]
         """
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
@@ -849,9 +849,9 @@ class TestCdtPathWithDsl:
         assert records[0].bins["numbers"][0] == 10
 
     async def test_list_negative_index(self, client_with_cdt_data):
-        """Test DSL list negative index access: $.numbers.[-1] == 50
+        """Test AEL list negative index access: $.numbers.[-1] == 50
         
-        Note: The DSL grammar requires a dot before brackets: .[-1] not [-1]
+        Note: The AEL grammar requires a dot before brackets: .[-1] not [-1]
         """
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
@@ -867,7 +867,7 @@ class TestCdtPathWithDsl:
         assert records[0].bins["numbers"][-1] == 50
 
     async def test_map_key_access(self, client_with_cdt_data):
-        """Test DSL map key access: $.info.age == 30"""
+        """Test AEL map key access: $.info.age == 30"""
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.info.age == 30")
@@ -882,7 +882,7 @@ class TestCdtPathWithDsl:
         assert records[0].bins["info"]["age"] == 30
 
     async def test_map_key_string_comparison(self, client_with_cdt_data):
-        """Test DSL map key access with string comparison: $.info.city == 'NYC'"""
+        """Test AEL map key access with string comparison: $.info.city == 'NYC'"""
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.info.city == 'NYC'")
@@ -898,9 +898,9 @@ class TestCdtPathWithDsl:
             assert rec.bins["info"]["city"] == "NYC"
 
     async def test_list_index_greater_than(self, client_with_cdt_data):
-        """Test DSL list index with greater than: $.numbers.[0] > 50
+        """Test AEL list index with greater than: $.numbers.[0] > 50
         
-        Note: The DSL grammar requires a dot before brackets: .[0] not [0]
+        Note: The AEL grammar requires a dot before brackets: .[0] not [0]
         """
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
@@ -916,7 +916,7 @@ class TestCdtPathWithDsl:
         assert records[0].bins["numbers"][0] > 50
 
     async def test_map_key_with_and(self, client_with_cdt_data):
-        """Test DSL map key with AND: $.info.age > 25 and $.info.city == 'NYC'"""
+        """Test AEL map key with AND: $.info.age > 25 and $.info.city == 'NYC'"""
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("$.info.age > 25 and $.info.city == 'NYC'")
@@ -934,7 +934,7 @@ class TestCdtPathWithDsl:
 
 
 class TestExistsAndCount:
-    """Test exists() and count() DSL functions."""
+    """Test exists() and count() AEL functions."""
 
     async def test_bin_exists(self, client_with_cdt_data):
         """Test $.binName.exists() for checking bin existence."""
@@ -1035,10 +1035,10 @@ class TestExistsAndCount:
 
 @pytest.fixture
 async def client_with_list_data(aerospike_host, client_policy, enterprise):
-    """Setup test data with various lists for advanced list DSL tests."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup test data with various lists for advanced list AEL tests."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
-        ds = DataSet.of("test", "list_dsl_test")
+        ds = DataSet.of("test", "list_ael_test")
 
         for key in ["rec1", "rec2", "rec3", "rec4"]:
             try:
@@ -1074,15 +1074,15 @@ async def client_with_list_data(aerospike_host, client_policy, enterprise):
                 pass
 
 
-class TestAdvancedListDsl:
-    """Test advanced list DSL features."""
+class TestAdvancedListAel:
+    """Test advanced list AEL features."""
 
     async def test_list_by_rank_largest(self, client_with_list_data):
         """Test $.list.[#-1] to get largest value (by rank)."""
         # [#-1] gets the largest value
         # rec1: 50, rec2: 45, rec3: 200, rec4: 5
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.values.[#-1] > 100")
             .execute()
         )
@@ -1099,7 +1099,7 @@ class TestAdvancedListDsl:
         # [#0] gets the smallest value
         # rec1: 10, rec2: 5, rec3: 30, rec4: 1
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.values.[#0] < 5")
             .execute()
         )
@@ -1115,7 +1115,7 @@ class TestAdvancedListDsl:
         """Test $.list.[=value] to find items containing specific value."""
         # rec1 and rec3 have 30 in their values list
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.values.[=30].count() > 0")
             .execute()
         )
@@ -1131,10 +1131,10 @@ class TestAdvancedListDsl:
     async def test_list_index_range(self, client_with_list_data):
         """Test $.list.[1:3] to get a range of indices."""
         # [1:3] gets indices 1 and 2 (count=2)
-        # We can't directly compare the returned list in DSL,
+        # We can't directly compare the returned list in AEL,
         # but we can verify it parses and executes without error
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.values.[1:3].count() == 2")
             .execute()
         )
@@ -1154,7 +1154,7 @@ class TestAdvancedListDsl:
         # rec3: [200] (1 item - only 3 elements total)
         # rec4: [3, 4, 5] (3 items)
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.values.[2:].count() == 3")
             .execute()
         )
@@ -1171,7 +1171,7 @@ class TestAdvancedListDsl:
         # rec1: [10, 20, 30, 40, 50] -> [10, 20, 30] (3 items)
         # rec2: [5, 15, 25, 35, 45] -> [15, 25, 35] (3 items)
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.values.[=10:40].count() == 3")
             .execute()
         )
@@ -1186,7 +1186,7 @@ class TestAdvancedListDsl:
         """Test $.list.[#0:2] to get smallest 2 items by rank."""
         # [#0:2] gets rank 0 and 1 (2 smallest items)
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.values.[#0:2].count() == 2")
             .execute()
         )
@@ -1202,7 +1202,7 @@ class TestAdvancedListDsl:
         """Test $.list.[=a,b,c] to find items matching value list."""
         # Find records where tags contain "alpha"
         stream = await (
-            client_with_list_data.query("test", "list_dsl_test")
+            client_with_list_data.query("test", "list_ael_test")
             .where("$.tags.[=alpha].count() > 0")
             .execute()
         )
@@ -1218,10 +1218,10 @@ class TestAdvancedListDsl:
 
 @pytest.fixture
 async def client_with_map_data(aerospike_host, client_policy, enterprise):
-    """Setup test data with maps for advanced map DSL tests."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup test data with maps for advanced map AEL tests."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
-        ds = DataSet.of("test", "map_dsl_test")
+        ds = DataSet.of("test", "map_ael_test")
 
         for key in ["rec1", "rec2", "rec3"]:
             try:
@@ -1253,14 +1253,14 @@ async def client_with_map_data(aerospike_host, client_policy, enterprise):
                 pass
 
 
-class TestAdvancedMapDsl:
-    """Test advanced map DSL features."""
+class TestAdvancedMapAel:
+    """Test advanced map AEL features."""
 
     async def test_map_by_value(self, client_with_map_data):
         """Test $.map.{=value} to find entries with specific value."""
         # Find records where scores contains value 100
         stream = await (
-            client_with_map_data.query("test", "map_dsl_test")
+            client_with_map_data.query("test", "map_ael_test")
             .where("$.scores.{=100}.count() > 0")
             .execute()
         )
@@ -1276,7 +1276,7 @@ class TestAdvancedMapDsl:
         """Test $.map.{0:2} to get first 2 entries by index."""
         # Get first 2 entries (count=2)
         stream = await (
-            client_with_map_data.query("test", "map_dsl_test")
+            client_with_map_data.query("test", "map_ael_test")
             .where("$.scores.{0:2}.count() == 2")
             .execute()
         )
@@ -1295,7 +1295,7 @@ class TestAdvancedMapDsl:
         # rec2: eve=80 (1 item)
         # rec3: heidi=88 (1 item)
         stream = await (
-            client_with_map_data.query("test", "map_dsl_test")
+            client_with_map_data.query("test", "map_ael_test")
             .where("$.scores.{=80:95}.count() == 2")
             .execute()
         )
@@ -1310,7 +1310,7 @@ class TestAdvancedMapDsl:
         """Test $.map.{#0:2} to get smallest 2 values by rank."""
         # Get 2 smallest values
         stream = await (
-            client_with_map_data.query("test", "map_dsl_test")
+            client_with_map_data.query("test", "map_ael_test")
             .where("$.scores.{#0:2}.count() == 2")
             .execute()
         )
@@ -1329,9 +1329,9 @@ class TestAdvancedMapDsl:
 @pytest.fixture
 async def client_with_nested_data(aerospike_host, client_policy, enterprise):
     """Setup test data with deeply nested structures."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
-        ds = DataSet.of("test", "nested_dsl_test")
+        ds = DataSet.of("test", "nested_ael_test")
 
         for key in ["rec1", "rec2"]:
             try:
@@ -1367,14 +1367,14 @@ async def client_with_nested_data(aerospike_host, client_policy, enterprise):
                 pass
 
 
-class TestNestedCdtDsl:
+class TestNestedCdtAel:
     """Tests for nested CDT operations."""
 
     async def test_nested_list_access(self, client_with_nested_data):
         """Test $.list.[0].[1] - nested list index access."""
         # nested_list[0][1] = 20 for rec1, 10 for rec2
         stream = await (
-            client_with_nested_data.query("test", "nested_dsl_test")
+            client_with_nested_data.query("test", "nested_ael_test")
             .where("$.nested_list.[0].[1] == 20")
             .execute()
         )
@@ -1390,7 +1390,7 @@ class TestNestedCdtDsl:
         """Test $.map.a.aa - nested map key access."""
         # nested_map.a.aa = 100 for rec1, 50 for rec2
         stream = await (
-            client_with_nested_data.query("test", "nested_dsl_test")
+            client_with_nested_data.query("test", "nested_ael_test")
             .where("$.nested_map.a.aa == 100")
             .execute()
         )
@@ -1406,7 +1406,7 @@ class TestNestedCdtDsl:
         """Test $.list.[0].count() - count of nested list."""
         # nested_list[0] has 3 elements for rec1, 2 for rec2
         stream = await (
-            client_with_nested_data.query("test", "nested_dsl_test")
+            client_with_nested_data.query("test", "nested_ael_test")
             .where("$.nested_list.[0].count() == 3")
             .execute()
         )
@@ -1421,7 +1421,7 @@ class TestNestedCdtDsl:
     async def test_list_size_simple(self, client_with_nested_data):
         """Test $.list.count() - basic list size."""
         stream = await (
-            client_with_nested_data.query("test", "nested_dsl_test")
+            client_with_nested_data.query("test", "nested_ael_test")
             .where("$.simple_list.count() == 5")
             .execute()
         )
@@ -1436,7 +1436,7 @@ class TestNestedCdtDsl:
         """Test $.list.[0].[#-1] - rank in nested list."""
         # nested_list[0] largest: 30 for rec1, 10 for rec2
         stream = await (
-            client_with_nested_data.query("test", "nested_dsl_test")
+            client_with_nested_data.query("test", "nested_ael_test")
             .where("$.nested_list.[0].[#-1] == 30")
             .execute()
         )
@@ -1448,14 +1448,14 @@ class TestNestedCdtDsl:
         assert len(records) == 1
 
 
-class TestMapKeyOperationsDsl:
+class TestMapKeyOperationsAel:
     """Tests for map key range and key list operations."""
 
     async def test_map_key_list(self, client_with_map_data):
         """Test $.map.{a,b,c} - get entries by key list."""
         # Get entries for keys alice and bob from scores
         stream = await (
-            client_with_map_data.query("test", "map_dsl_test")
+            client_with_map_data.query("test", "map_ael_test")
             .where("$.scores.{alice,bob}.count() == 2")
             .execute()
         )
@@ -1471,7 +1471,7 @@ class TestMapKeyOperationsDsl:
         """Test $.map.{a-d} - get entries by key range."""
         # Get entries with keys from 'a' to 'd' (alice, bob, charlie)
         stream = await (
-            client_with_map_data.query("test", "map_dsl_test")
+            client_with_map_data.query("test", "map_ael_test")
             .where("$.scores.{alice-dave}.count() >= 2")
             .execute()
         )
@@ -1488,7 +1488,7 @@ class TestMapKeyOperationsDsl:
 @pytest.fixture
 async def client_with_relative_range_data(aerospike_host, client_policy, enterprise):
     """Setup test data for relative range operations."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "rel_range_test")
 
@@ -1522,7 +1522,7 @@ async def client_with_relative_range_data(aerospike_host, client_policy, enterpr
                 pass
 
 
-class TestRelativeRangeDsl:
+class TestRelativeRangeAel:
     """Tests for relative rank/index range operations."""
 
     async def test_list_rank_range_relative(self, client_with_relative_range_data):
@@ -1661,22 +1661,22 @@ class TestRelativeRangeDsl:
         assert len(records) >= 1
 
 
-class TestDslErrorHandling:
-    """Tests for DSL error handling."""
+class TestAelErrorHandling:
+    """Tests for AEL error handling."""
 
-    async def test_invalid_dsl_syntax(self, client_with_cdt_data):
-        """Test that invalid DSL raises DslParseException."""
-        with pytest.raises(DslParseException):
+    async def test_invalid_ael_syntax(self, client_with_cdt_data):
+        """Test that invalid AEL raises AelParseException."""
+        with pytest.raises(AelParseException):
             await (
                 client_with_cdt_data.query("test", "cdt_test")
-                .where("this is not valid DSL !!!")
+                .where("this is not valid AEL !!!")
                 .execute()
             )
 
     async def test_invalid_list_syntax(self, client_with_cdt_data):
-        """Test invalid list syntax raises DslParseException."""
+        """Test invalid list syntax raises AelParseException."""
         # [stringValue] is not valid - should be [=stringValue] or ["stringValue"]
-        with pytest.raises(DslParseException):
+        with pytest.raises(AelParseException):
             await (
                 client_with_cdt_data.query("test", "cdt_test")
                 .where("$.numbers.[invalidSyntax] == 100")
@@ -1696,7 +1696,7 @@ async def filter_session(aerospike_host, client_policy, enterprise):
     Key "B": A=2, B=2.2, C="abcdeabcde",  D=1, E=-2
     Key "C": A=0, B=-1.0, C="1"
     """
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "filter_exp_test")
 
@@ -1726,31 +1726,31 @@ class TestAdvancedExpFilters:
 
     Covers arshift, countOneBits, findBitLeft, findBitRight, min, max,
     and when (conditional). Each test verifies both the positive (matching)
-    and negative (filtered-out) paths using DSL expressions with
+    and negative (filtered-out) paths using AEL expressions with
     fail_on_filtered_out().
     """
 
-    async def _assert_filtered_out(self, session, key, dsl):
-        """Query with DSL filter that should NOT match, expect FILTERED_OUT."""
+    async def _assert_filtered_out(self, session, key, ael):
+        """Query with AEL filter that should NOT match, expect FILTERED_OUT."""
         from aerospike_async.exceptions import ResultCode
-        from aerospike_fluent.exceptions import AerospikeError
+        from aerospike_sdk.exceptions import AerospikeError
 
         with pytest.raises(AerospikeError) as exc_info:
             rs = await (
                 session.query(key)
-                    .where(dsl)
+                    .where(ael)
                     .fail_on_filtered_out()
                     .execute()
             )
             await rs.first_or_raise()
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
-    async def _assert_matches(self, session, key, dsl, bin_name, expected_value):
-        """Query with DSL filter that SHOULD match, validate returned bin."""
+    async def _assert_matches(self, session, key, ael, bin_name, expected_value):
+        """Query with AEL filter that SHOULD match, validate returned bin."""
         rs = await (
             session.query(key)
                 .bins([bin_name])
-                .where(dsl)
+                .where(ael)
                 .fail_on_filtered_out()
                 .execute()
         )
@@ -1809,9 +1809,9 @@ class TestAdvancedExpFilters:
             "$.A == 2 => $.D * $.E, "
             "default => -1)"
         )
-        cond_dsl = f"({when_expr}) == 2"
-        await self._assert_filtered_out(session, key, f"not ({cond_dsl})")
-        await self._assert_matches(session, key, cond_dsl, "A", 1)
+        cond_ael = f"({when_expr}) == 2"
+        await self._assert_filtered_out(session, key, f"not ({cond_ael})")
+        await self._assert_matches(session, key, cond_ael, "A", 1)
 
 
 class TestInExpression:
@@ -1844,8 +1844,8 @@ class TestInExpression:
         assert len(records) == 1
         assert "bob" in records[0].bins["names"]
 
-    async def test_string_in_list_bin_with_dsl(self, client_with_cdt_data):
-        """Filter via DSL: "bob" in $.names — should match rec1 only."""
+    async def test_string_in_list_bin_with_ael(self, client_with_cdt_data):
+        """Filter via AEL: "bob" in $.names — should match rec1 only."""
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where('"bob" in $.names')
@@ -1858,8 +1858,8 @@ class TestInExpression:
         assert len(records) == 1
         assert "bob" in records[0].bins["names"]
 
-    async def test_int_in_list_bin_with_dsl(self, client_with_cdt_data):
-        """Filter via DSL: 20 in $.numbers — matches rec1 only (numbers=[10,20,30,40,50])."""
+    async def test_int_in_list_bin_with_ael(self, client_with_cdt_data):
+        """Filter via AEL: 20 in $.numbers — matches rec1 only (numbers=[10,20,30,40,50])."""
         stream = await (
             client_with_cdt_data.query("test", "cdt_test")
             .where("20 in $.numbers")

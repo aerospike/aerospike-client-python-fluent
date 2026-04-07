@@ -20,13 +20,13 @@ import re
 import pytest
 
 from aerospike_async import Filter
-from aerospike_fluent import (
-    DslParseException,
+from aerospike_sdk import (
+    AelParseException,
     Exp,
     Index,
     IndexContext,
     IndexTypeEnum,
-    parse_dsl_with_index,
+    parse_ael_with_index,
 )
 
 MAX = 2**63 - 1
@@ -70,7 +70,7 @@ class TestExplicitTypesFilters:
 
     def test_explicit_int_parsed(self):
         """$.intBin1.get(type: INT) > 5 parses to correct Exp."""
-        result = parse_dsl_with_index("$.intBin1.get(type: INT) > 5")
+        result = parse_ael_with_index("$.intBin1.get(type: INT) > 5")
         assert result.filter is None
         assert result.exp == Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(5))
 
@@ -80,25 +80,25 @@ class TestIntegerComparison:
 
     def test_integer_comparison_no_index(self):
         """Namespace and indexes must be given to create a Filter; no index context → filter None."""
-        result = parse_dsl_with_index("$.intBin1.get(type: INT) > 5")
+        result = parse_ael_with_index("$.intBin1.get(type: INT) > 5")
         assert result.filter is None
         assert result.exp is not None
 
     def test_integer_comparison_with_index(self):
         """$.intBin1.get(type: INT) > 5 with index context → range(intBin1, 6, MAX)."""
-        result = parse_dsl_with_index("$.intBin1.get(type: INT) > 5", _index_ctx())
+        result = parse_ael_with_index("$.intBin1.get(type: INT) > 5", _index_ctx())
         _assert_range_filter(result, "intBin1", 6, MAX)
         assert result.exp is None
 
     def test_integer_comparison_value_op_bin(self):
         """5 < $.intBin1.get(type: INT) with index context → range(intBin1, 6, MAX)."""
-        result = parse_dsl_with_index("5 < $.intBin1.get(type: INT)", _index_ctx())
+        result = parse_ael_with_index("5 < $.intBin1.get(type: INT)", _index_ctx())
         _assert_range_filter(result, "intBin1", 6, MAX)
         assert result.exp is None
 
     def test_two_integer_bins_comparison(self):
         """$.intBin1.get(type: INT) == $.intBin2.get(type: INT) — bin-op-bin; filter is None."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1.get(type: INT) == $.intBin2.get(type: INT)",
             _index_ctx(),
         )
@@ -110,31 +110,31 @@ class TestStringComparison:
 
     def test_string_comparison_double_quotes(self):
         """$.stringBin1.get(type: STRING) == \"yes\" with index context → equal(stringBin1, 'yes')."""
-        result = parse_dsl_with_index('$.stringBin1.get(type: STRING) == "yes"', _index_ctx())
+        result = parse_ael_with_index('$.stringBin1.get(type: STRING) == "yes"', _index_ctx())
         _assert_equal_filter(result, "stringBin1", "yes")
         assert result.exp is None
 
     def test_string_comparison_single_quotes(self):
         """$.stringBin1.get(type: STRING) == 'yes' with index context → equal(stringBin1, 'yes')."""
-        result = parse_dsl_with_index("$.stringBin1.get(type: STRING) == 'yes'", _index_ctx())
+        result = parse_ael_with_index("$.stringBin1.get(type: STRING) == 'yes'", _index_ctx())
         _assert_equal_filter(result, "stringBin1", "yes")
         assert result.exp is None
 
     def test_string_comparison_value_op_bin_double_quotes(self):
         """\"yes\" == $.stringBin1.get(type: STRING) with index context → equal(stringBin1, 'yes')."""
-        result = parse_dsl_with_index('"yes" == $.stringBin1.get(type: STRING)', _index_ctx())
+        result = parse_ael_with_index('"yes" == $.stringBin1.get(type: STRING)', _index_ctx())
         _assert_equal_filter(result, "stringBin1", "yes")
         assert result.exp is None
 
     def test_string_comparison_value_op_bin_single_quotes(self):
         """'yes' == $.stringBin1.get(type: STRING) with index context → equal(stringBin1, 'yes')."""
-        result = parse_dsl_with_index("'yes' == $.stringBin1.get(type: STRING)", _index_ctx())
+        result = parse_ael_with_index("'yes' == $.stringBin1.get(type: STRING)", _index_ctx())
         _assert_equal_filter(result, "stringBin1", "yes")
         assert result.exp is None
 
     def test_two_string_bins_comparison(self):
         """$.stringBin1.get(type: STRING) == $.stringBin2.get(type: STRING) — bin-op-bin; filter is None."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.stringBin1.get(type: STRING) == $.stringBin2.get(type: STRING)',
             _index_ctx(),
         )
@@ -145,9 +145,9 @@ class TestStringComparisonNegative:
     """String constant must be quoted."""
 
     def test_string_constant_must_be_quoted(self):
-        """$.stringBin1.get(type: STRING) == yes — unquoted string raises DslParseException."""
-        with pytest.raises(DslParseException, match=r"Unable to parse right operand|Right operand cannot be None|Could not parse given DSL|mismatched input"):
-            parse_dsl_with_index("$.stringBin1.get(type: STRING) == yes")
+        """$.stringBin1.get(type: STRING) == yes — unquoted string raises AelParseException."""
+        with pytest.raises(AelParseException, match=r"Unable to parse right operand|Right operand cannot be None|Could not parse given AEL|mismatched input"):
+            parse_ael_with_index("$.stringBin1.get(type: STRING) == yes")
 
 
 class TestBlobComparison:
@@ -155,7 +155,7 @@ class TestBlobComparison:
 
     def test_blob_comparison_bin_op_value(self):
         """$.blobBin1.get(type: BLOB) == \"AQID\" with index context → equal(blobBin1, b'\\x01\\x02\\x03')."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.blobBin1.get(type: BLOB) == "AQID"',
             _index_ctx_blob(),
         )
@@ -164,7 +164,7 @@ class TestBlobComparison:
 
     def test_blob_comparison_value_op_bin(self):
         """\"AQID\" == $.blobBin1.get(type: BLOB) with index context → equal(blobBin1, b'\\x01\\x02\\x03')."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '"AQID" == $.blobBin1.get(type: BLOB)',
             _index_ctx_blob(),
         )
@@ -173,7 +173,7 @@ class TestBlobComparison:
 
     def test_two_blob_bins_comparison(self):
         """$.blobBin1.get(type: BLOB) == $.blobBin2.get(type: BLOB) — bin-op-bin; filter is None."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.blobBin1.get(type: BLOB) == $.blobBin2.get(type: BLOB)",
             _index_ctx_blob(),
         )
@@ -185,19 +185,19 @@ class TestFloatComparison:
 
     def test_float_comparison_bin_op_value(self):
         """$.floatBin1.get(type: FLOAT) == 1.5 — no float filter support."""
-        result = parse_dsl_with_index("$.floatBin1.get(type: FLOAT) == 1.5")
+        result = parse_ael_with_index("$.floatBin1.get(type: FLOAT) == 1.5")
         assert result.filter is None
         assert result.exp is not None
 
     def test_float_comparison_value_op_bin(self):
         """1.5 == $.floatBin1.get(type: FLOAT) — no float filter support."""
-        result = parse_dsl_with_index("1.5 == $.floatBin1.get(type: FLOAT)")
+        result = parse_ael_with_index("1.5 == $.floatBin1.get(type: FLOAT)")
         assert result.filter is None
         assert result.exp is not None
 
     def test_two_float_bins_comparison(self):
         """$.floatBin1.get(type: FLOAT) == $.floatBin2.get(type: FLOAT) — bin-op-bin; filter is None."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.floatBin1.get(type: FLOAT) == $.floatBin2.get(type: FLOAT)",
         )
         assert result.filter is None
@@ -208,24 +208,24 @@ class TestBooleanComparison:
 
     def test_boolean_comparison_bin_op_value(self):
         """$.boolBin1.get(type: BOOL) == true — no boolean filter support."""
-        result = parse_dsl_with_index("$.boolBin1.get(type: BOOL) == true")
+        result = parse_ael_with_index("$.boolBin1.get(type: BOOL) == true")
         assert result.filter is None
         assert result.exp is not None
 
     def test_boolean_comparison_value_op_bin(self):
         """true == $.boolBin1.get(type: BOOL) — no boolean filter support."""
-        result = parse_dsl_with_index("true == $.boolBin1.get(type: BOOL)")
+        result = parse_ael_with_index("true == $.boolBin1.get(type: BOOL)")
         assert result.filter is None
         assert result.exp is not None
 
 
 class TestNegativeBooleanComparison:
-    """BOOL compared to INT raises DslParseException."""
+    """BOOL compared to INT raises AelParseException."""
 
     def test_cannot_compare_bool_to_int(self):
         """$.boolBin1.get(type: BOOL) == 5 raises Cannot compare BOOL to INT."""
-        with pytest.raises(DslParseException, match="Cannot compare BOOL to INT"):
-            parse_dsl_with_index("$.boolBin1.get(type: BOOL) == 5")
+        with pytest.raises(AelParseException, match="Cannot compare BOOL to INT"):
+            parse_ael_with_index("$.boolBin1.get(type: BOOL) == 5")
 
 
 class TestListComparison:
@@ -233,29 +233,29 @@ class TestListComparison:
 
     def test_list_comparison_constant_on_right_side(self):
         """$.listBin1.get(type: LIST) == [100] — not supported by secondary index filter."""
-        result = parse_dsl_with_index("$.listBin1.get(type: LIST) == [100]")
+        result = parse_ael_with_index("$.listBin1.get(type: LIST) == [100]")
         assert result.filter is None
 
     def test_list_comparison_constant_on_right_side_negative(self):
         """$.listBin1.get(type: LIST) == [yes, of course] — unquoted list elements raise or filter is None."""
         try:
-            result = parse_dsl_with_index("$.listBin1.get(type: LIST) == [yes, of course]")
+            result = parse_ael_with_index("$.listBin1.get(type: LIST) == [yes, of course]")
             assert result.filter is None
-        except DslParseException as e:
+        except AelParseException as e:
             assert re.search(
-                r"Unable to parse list operand|Unsupported operand type|Could not parse given DSL expression input|line \d+:\d+|extraneous input|no viable alternative",
+                r"Unable to parse list operand|Unsupported operand type|Could not parse given AEL expression input|line \d+:\d+|extraneous input|no viable alternative",
                 str(e),
             )
 
     def test_list_comparison_constant_on_left_side(self):
         """[100] == $.listBin1.get(type: LIST) — not supported by secondary index filter."""
-        result = parse_dsl_with_index("[100] == $.listBin1.get(type: LIST)")
+        result = parse_ael_with_index("[100] == $.listBin1.get(type: LIST)")
         assert result.filter is None
 
     def test_list_comparison_constant_on_left_side_negative(self):
         """[yes, of course] == $.listBin1.get(type: LIST) — invalid list raises."""
-        with pytest.raises(DslParseException, match=r"Could not parse given DSL expression input|Failed to parse DSL expression: visitor returned None|line \d+:\d+|no viable alternative|extraneous input"):
-            parse_dsl_with_index("[yes, of course] == $.listBin1.get(type: LIST)")
+        with pytest.raises(AelParseException, match=r"Could not parse given AEL expression input|Failed to parse AEL expression: visitor returned None|line \d+:\d+|no viable alternative|extraneous input"):
+            parse_ael_with_index("[yes, of course] == $.listBin1.get(type: LIST)")
 
 
 class TestMapComparison:
@@ -263,26 +263,26 @@ class TestMapComparison:
 
     def test_map_comparison_constant_on_right_side(self):
         """$.mapBin1.get(type: MAP) == {100:100} — not supported by secondary index filter."""
-        result = parse_dsl_with_index("$.mapBin1.get(type: MAP) == {100:100}")
+        result = parse_ael_with_index("$.mapBin1.get(type: MAP) == {100:100}")
         assert result.filter is None
 
     def test_map_comparison_constant_on_right_side_negative(self):
         """$.mapBin1.get(type: MAP) == {yes, of course} — invalid map raises or filter is None."""
         try:
-            result = parse_dsl_with_index("$.mapBin1.get(type: MAP) == {yes, of course}")
+            result = parse_ael_with_index("$.mapBin1.get(type: MAP) == {yes, of course}")
             assert result.filter is None
-        except DslParseException as e:
+        except AelParseException as e:
             assert re.search(
-                r"Unable to parse map operand|Map constants in expressions|Could not parse given DSL expression input|line \d+:\d+|extraneous input|no viable alternative",
+                r"Unable to parse map operand|Map constants in expressions|Could not parse given AEL expression input|line \d+:\d+|extraneous input|no viable alternative",
                 str(e),
             )
 
     def test_map_comparison_constant_on_left_side(self):
         """{100:100} == $.mapBin1.get(type: MAP) — not supported by secondary index filter."""
-        result = parse_dsl_with_index("{100:100} == $.mapBin1.get(type: MAP)")
+        result = parse_ael_with_index("{100:100} == $.mapBin1.get(type: MAP)")
         assert result.filter is None
 
     def test_map_comparison_constant_on_left_side_negative(self):
         """{yes, of course} == $.mapBin1.get(type: MAP) — invalid map raises."""
-        with pytest.raises(DslParseException, match=r"Could not parse given DSL expression input|Failed to parse DSL expression: visitor returned None|line \d+:\d+|no viable alternative|extraneous input"):
-            parse_dsl_with_index("{yes, of course} == $.mapBin1.get(type: MAP)")
+        with pytest.raises(AelParseException, match=r"Could not parse given AEL expression input|Failed to parse AEL expression: visitor returned None|line \d+:\d+|no viable alternative|extraneous input"):
+            parse_ael_with_index("{yes, of course} == $.mapBin1.get(type: MAP)")

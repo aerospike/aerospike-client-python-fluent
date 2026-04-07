@@ -28,7 +28,7 @@ Coverage:
 import pytest
 
 from aerospike_async import Key
-from aerospike_fluent import DataSet, SyncFluentClient
+from aerospike_sdk import DataSet, SyncClient
 
 
 KEY_PREFIX = "qbops_"
@@ -38,7 +38,7 @@ SET = "query_bin_ops_sync"
 
 @pytest.fixture
 def client(aerospike_host, client_policy):
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of(NS, SET)
 

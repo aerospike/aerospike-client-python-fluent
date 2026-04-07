@@ -18,7 +18,7 @@
 import pytest
 from aerospike_async import Operation, UDFLang
 
-from aerospike_fluent import DataSet, FluentClient
+from aerospike_sdk import DataSet, Client
 
 NS = "test"
 SET = "pfc_bg_task"
@@ -61,7 +61,7 @@ end
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
+    async with Client(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
         raw = c._client
         assert raw is not None

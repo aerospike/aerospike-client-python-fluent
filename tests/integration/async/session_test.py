@@ -22,13 +22,13 @@ from datetime import timedelta
 
 log = logging.getLogger(__name__)
 
-from aerospike_fluent import Behavior, DataSet, FluentClient
+from aerospike_sdk import Behavior, DataSet, Client
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 

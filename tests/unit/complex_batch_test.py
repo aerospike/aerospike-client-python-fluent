@@ -35,7 +35,7 @@ from aerospike_async import (
     WritePolicy,
 )
 
-from aerospike_fluent.aio.operations.query import (
+from aerospike_sdk.aio.operations.query import (
     _OperationSpec,
     _OP_TYPE_TO_REA,
     QueryBuilder,

@@ -13,21 +13,21 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for IndexBuilder fluent API."""
+"""Tests for IndexBuilder SDK API."""
 
 import asyncio
 import os
 
 import pytest
 from aerospike_async import CTX, CollectionIndexType, Filter
-from aerospike_fluent import DataSet, FluentClient
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import DataSet, Client
+from aerospike_sdk.exceptions import AerospikeError
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for index tests."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for index tests."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -120,8 +120,8 @@ async def test_drop_nonexistent_index(client):
     # Dropping non-existent index should not raise error
     await client.index("test", "test").named("non_existent_idx").drop()
 
-async def test_index_fluent_chaining(client):
-    """Test fluent method chaining on index builder."""
+async def test_index_chaining(client):
+    """Test method chaining on index builder."""
     index_name = "test_chain_idx"
     # Clean up any existing index
     try:
@@ -180,7 +180,7 @@ async def test_create_duplicate_index_fails(client):
 
 
 async def test_create_index_with_cdt_context(client, enterprise):
-    """Create a numeric index on a nested map element via fluent .context()."""
+    """Create a numeric index on a nested map element via chainable .context()."""
     index_name = "test_ctx_idx"
     bin_name = "payload"
     ds = DataSet.of("test", "test")

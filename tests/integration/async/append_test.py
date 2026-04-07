@@ -16,14 +16,14 @@
 """Tests for append and prepend operations."""
 
 import pytest
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -36,7 +36,7 @@ def test_set():
 class TestAppend:
     """Test string append operations."""
 
-    async def test_append(self, client: FluentClient, test_set: DataSet):
+    async def test_append(self, client: Client, test_set: DataSet):
         """Test appending strings to a bin."""
         session = client.create_session()
         key = test_set.id("append")
@@ -62,7 +62,7 @@ class TestAppend:
 
         await session.delete(key).execute()
 
-    async def test_prepend(self, client: FluentClient, test_set: DataSet):
+    async def test_prepend(self, client: Client, test_set: DataSet):
         """Test prepending strings to a bin."""
         session = client.create_session()
         key = test_set.id("prepend")
@@ -88,7 +88,7 @@ class TestAppend:
 
         await session.delete(key).execute()
 
-    async def test_append_to_multiple_keys(self, client: FluentClient, test_set: DataSet):
+    async def test_append_to_multiple_keys(self, client: Client, test_set: DataSet):
         """Test appending to multiple keys."""
         session = client.create_session()
         bin_name = "appendbin"

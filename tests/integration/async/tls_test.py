@@ -13,18 +13,18 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Integration tests for TLS connections through the fluent API."""
+"""Integration tests for TLS connections through the SDK API."""
 
 import os
 import pytest
 
-from aerospike_fluent import (
+from aerospike_sdk import (
     Behavior,
     ClusterDefinition,
     DataSet,
-    FluentClient,
+    Client,
     Host,
-    SyncFluentClient,
+    SyncClient,
 )
 
 
@@ -69,13 +69,13 @@ skip_no_pki = pytest.mark.skipif(
 
 
 # ============================================================================
-# ClusterDefinition — TLS via fluent builder
+# ClusterDefinition — TLS via chainable builder
 # ============================================================================
 
 
 @skip_no_tls
 class TestTlsClusterDefinition:
-    """TLS connections through ClusterDefinition's fluent builder."""
+    """TLS connections through ClusterDefinition's chainable builder."""
 
     @pytest.fixture
     def host_port(self):
@@ -166,7 +166,7 @@ class TestPkiClusterDefinition:
         return _parse_host_port(_tls_host_env())
 
     async def test_pki_connection(self, host_port):
-        """Connect with client cert + key via the fluent builder."""
+        """Connect with client cert + key via the chainable builder."""
         if not all([TLS_CA, TLS_CERT, TLS_KEY]):
             pytest.skip("TLS certificate files not configured")
 
@@ -190,13 +190,13 @@ class TestPkiClusterDefinition:
 
 
 # ============================================================================
-# FluentClient — TLS via direct policy
+# Client — TLS via direct policy
 # ============================================================================
 
 
 @skip_no_tls
-class TestTlsFluentClient:
-    """TLS connections through FluentClient (seeds string)."""
+class TestTlsClient:
+    """TLS connections through Client (seeds string)."""
 
     def _seeds(self) -> str:
         """Build host:tls_name:port seed string."""
@@ -219,12 +219,12 @@ class TestTlsFluentClient:
         policy.set_auth_mode(AuthMode.INTERNAL, user=TLS_USER, password=TLS_PASS)
         return policy
 
-    async def test_async_fluent_client_tls(self):
-        """FluentClient with explicit TLS policy."""
+    async def test_async_sdk_client_tls(self):
+        """Client with explicit TLS policy."""
         if not TLS_CA:
             pytest.skip("AEROSPIKE_TLS_CA_FILE not set")
 
-        async with FluentClient(self._seeds(), self._policy()) as client:
+        async with Client(self._seeds(), self._policy()) as client:
             assert client.is_connected
             session = client.create_session(Behavior.DEFAULT)
             key = USERS.id("fc_tls")
@@ -234,12 +234,12 @@ class TestTlsFluentClient:
             assert result.record.bins["v"] == 1
             await session.delete(key).execute()
 
-    def test_sync_fluent_client_tls(self):
-        """SyncFluentClient with explicit TLS policy."""
+    def test_sync_sdk_client_tls(self):
+        """SyncClient with explicit TLS policy."""
         if not TLS_CA:
             pytest.skip("AEROSPIKE_TLS_CA_FILE not set")
 
-        with SyncFluentClient(self._seeds(), self._policy()) as client:
+        with SyncClient(self._seeds(), self._policy()) as client:
             assert client.is_connected
             session = client.create_session(Behavior.DEFAULT)
             key = USERS.id("sfc_tls")

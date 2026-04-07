@@ -16,14 +16,14 @@
 """Tests for operate operations."""
 
 import pytest
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -36,7 +36,7 @@ def test_set():
 class TestOperate:
     """Test combined operate operations."""
 
-    async def test_operate(self, client: FluentClient, test_set: DataSet):
+    async def test_operate(self, client: Client, test_set: DataSet):
         """Test combined operations (add + set + get) in single call."""
         session = client.create_session()
         key = test_set.id("operate")
@@ -72,7 +72,7 @@ class TestOperate:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_operate_multiple_increments(self, client: FluentClient, test_set: DataSet):
+    async def test_operate_multiple_increments(self, client: Client, test_set: DataSet):
         """Test multiple increment operations on same bin."""
         session = client.create_session()
         key = test_set.id("operate_multi_inc")
@@ -100,7 +100,7 @@ class TestOperate:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_operate_set_and_get(self, client: FluentClient, test_set: DataSet):
+    async def test_operate_set_and_get(self, client: Client, test_set: DataSet):
         """Test setting and getting in same operation."""
         session = client.create_session()
         key = test_set.id("operate_set_get")

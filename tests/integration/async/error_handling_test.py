@@ -27,15 +27,15 @@ Covers:
 import pytest
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
-from aerospike_fluent.error_strategy import ErrorStrategy
-from aerospike_fluent.exceptions import AerospikeError, GenerationError
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
+from aerospike_sdk.error_strategy import ErrorStrategy
+from aerospike_sdk.exceptions import AerospikeError, GenerationError
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
+    async with Client(seeds=aerospike_host, policy=client_policy) as c:
         yield c
 
 

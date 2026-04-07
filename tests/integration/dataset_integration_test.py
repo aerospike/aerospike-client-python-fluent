@@ -13,18 +13,18 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for DataSet integration with FluentClient."""
+"""Tests for DataSet integration with Client."""
 
 import pytest
 
-from aerospike_fluent import DataSet, FluentClient
+from aerospike_sdk import DataSet, Client
 
 
 async def test_key_value_with_dataset(aerospike_host, client_policy):
     """Test key_value operation using DataSet."""
     users = DataSet.of("test", "users")
 
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         key = users.id("user1")
         # Put a record using DataSet
@@ -45,7 +45,7 @@ async def test_key_value_with_key_object(aerospike_host, client_policy):
     users = DataSet.of("test", "users")
     key = users.id("user2")
 
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         # Put a record using Key object
         await session.upsert(key).put({"name": "Jane", "age": 25}).execute()
@@ -64,7 +64,7 @@ async def test_query_with_dataset(aerospike_host, client_policy):
     """Test query operation using DataSet."""
     users = DataSet.of("test", "query_test")
 
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         # Put some test data
         await session.upsert(users.id("q1")).put({"id": "q1", "value": 10}).execute()
@@ -91,7 +91,7 @@ async def test_query_with_single_key(aerospike_host, client_policy):
     users = DataSet.of("test", "users")
     key = users.id("user3")
 
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         # Put a record
         await session.upsert(key).put({"name": "Bob", "age": 35}).execute()
@@ -115,7 +115,7 @@ async def test_query_with_multiple_keys(aerospike_host, client_policy):
     users = DataSet.of("test", "users")
     keys = users.ids("user4", "user5")
 
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         # Put records
         await session.upsert(keys[0]).put({"name": "Alice", "age": 28}).execute()

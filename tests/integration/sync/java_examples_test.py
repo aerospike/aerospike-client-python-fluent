@@ -22,8 +22,8 @@ import time
 
 import pytest
 from aerospike_async import Key
-from aerospike_fluent import DataSet, Behavior
-from aerospike_fluent.sync import ClusterDefinition
+from aerospike_sdk import DataSet, Behavior
+from aerospike_sdk.sync import ClusterDefinition
 
 
 @pytest.fixture

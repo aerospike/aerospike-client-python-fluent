@@ -20,8 +20,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from aerospike_fluent.dsl.filter_gen import IndexTypeEnum
-from aerospike_fluent.index_monitor import (
+from aerospike_sdk.ael.filter_gen import IndexTypeEnum
+from aerospike_sdk.index_monitor import (
     IndexesMonitor,
     _parse_entries_per_bval,
     _parse_sindex_list,

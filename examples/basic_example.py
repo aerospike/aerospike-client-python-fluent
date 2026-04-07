@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Basic example demonstrating key-value operations via the fluent API.
+"""Basic example demonstrating key-value operations via the SDK API.
 
 Covers: connect, put, get, get with bin selection, exists, delete.
 """
@@ -7,7 +7,7 @@ Covers: connect, put, get, get with bin selection, exists, delete.
 import asyncio
 
 import _env
-from aerospike_fluent import Behavior, DataSet
+from aerospike_sdk import Behavior, DataSet
 
 
 async def main() -> None:

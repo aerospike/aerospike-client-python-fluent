@@ -30,8 +30,8 @@ import pytest
 
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode
-from aerospike_fluent import DataSet, FluentClient
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import DataSet, Client
+from aerospike_sdk.exceptions import AerospikeError
 
 
 KEY_PREFIX = "qbops_"
@@ -41,8 +41,8 @@ SET = "query_bin_ops"
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client, seed test data, yield the client."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client, seed test data, yield the client."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of(NS, SET)
 

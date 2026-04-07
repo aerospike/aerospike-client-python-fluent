@@ -13,15 +13,15 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for FluentClient."""
+"""Tests for Client."""
 
 import pytest
-from aerospike_fluent import FluentClient
+from aerospike_sdk import Client
 
 
 async def test_client_connection(aerospike_host, client_policy):
-    """Test that we can connect to Aerospike using the fluent client."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Test that we can connect to Aerospike using the SDK client."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         assert client.is_connected
         # Test that we can create a session and perform operations
         session = client.create_session()
@@ -29,7 +29,7 @@ async def test_client_connection(aerospike_host, client_policy):
 
 async def test_client_context_manager(aerospike_host, client_policy):
     """Test that the context manager properly manages connection lifecycle."""
-    client = FluentClient(seeds=aerospike_host, policy=client_policy)
+    client = Client(seeds=aerospike_host, policy=client_policy)
     assert not client.is_connected
 
     async with client:
@@ -40,7 +40,7 @@ async def test_client_context_manager(aerospike_host, client_policy):
 
 async def test_client_manual_connect_close(aerospike_host, client_policy):
     """Test manual connect and close methods."""
-    client = FluentClient(seeds=aerospike_host, policy=client_policy)
+    client = Client(seeds=aerospike_host, policy=client_policy)
     assert not client.is_connected
 
     await client.connect()

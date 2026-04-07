@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Demonstrates known DSL spec-vs-implementation incongruities.
+"""Demonstrates known AEL spec-vs-implementation incongruities.
 
 Each test targets a specific issue identified in the spec review:
   2a: let...then keyword alignment (PFC uses let...then — aligned)
@@ -13,9 +13,9 @@ Each test targets a specific issue identified in the spec review:
 import asyncio
 
 import _env
-from aerospike_fluent import Behavior, DataSet
+from aerospike_sdk import Behavior, DataSet
 
-SET = DataSet.of("test", "dsl_diff_test")
+SET = DataSet.of("test", "ael_diff_test")
 SEPARATOR = "=" * 70
 PASS = "PASS"
 FAIL = "** FAIL **"
@@ -173,7 +173,7 @@ async def test_2b_name_identifier_too_permissive(session) -> None:
             print(f"      Expected:    val_from_int_key_1 (integer key 1)")
             print(f"      Actual:      {result or 'null (key not found)'}")
             check("2b-int-key-lookup", result == "val_from_int_key_1",
-                  "DSL looks up string key '1' instead of integer key 1")
+                  "AEL looks up string key '1' instead of integer key 1")
         else:
             print(f"      Actual:      record filtered/missing (eval failure)")
             check("2b-int-key-lookup", False, "integer key lookup returned nothing")
@@ -197,7 +197,7 @@ async def test_2b_name_identifier_too_permissive(session) -> None:
             print(f"      $.m.1 per spec should return: INTEGER_KEY_1")
             print(f"      $.m.1 actually returns:       {result}")
             check("2b-ambiguous-key", result == "INTEGER_KEY_1",
-                  "DSL resolves to string key instead of integer key")
+                  "AEL resolves to string key instead of integer key")
         else:
             check("2b-ambiguous-key", False, "no result returned")
     except Exception as e:
@@ -235,7 +235,7 @@ async def test_2c_right_shift_reversed(session) -> None:
         if first and first.is_ok:
             result = first.record.bins.get("result")
             print(f"      Expected (spec):     {expected_arithmetic} (arithmetic, sign preserved)")
-            print(f"      Actual DSL >>:       {result}")
+            print(f"      Actual AEL >>:       {result}")
             is_correct = result == expected_arithmetic
             if not is_correct:
                 print("      Note: >> may be wired to logical right shift instead of arithmetic")
@@ -282,7 +282,7 @@ async def test_2c_right_shift_reversed(session) -> None:
         stream.close()
         if first and first.is_ok:
             result = first.record.bins.get("result")
-            print(f"      Actual DSL >>>:      {result}")
+            print(f"      Actual AEL >>>:      {result}")
             check("2c-logical-rshift", True, ">>> is supported in PFC")
         else:
             check("2c-logical-rshift", False, "no result for >>>")

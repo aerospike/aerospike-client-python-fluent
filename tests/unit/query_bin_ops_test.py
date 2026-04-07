@@ -29,16 +29,16 @@ from unittest.mock import MagicMock
 from aerospike_async import Key, ListReturnType, MapReturnType
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.aio.operations.cdt_read import (
+from aerospike_sdk.aio.operations.cdt_read import (
     CdtReadBuilder,
     CdtReadInvertableBuilder,
 )
-from aerospike_fluent.aio.operations.query import (
+from aerospike_sdk.aio.operations.query import (
     _OperationSpec,
     QueryBinBuilder,
     QueryBuilder,
 )
-from aerospike_fluent.sync.operations.query import SyncQueryBuilder
+from aerospike_sdk.sync.operations.query import SyncQueryBuilder
 
 
 # ---------------------------------------------------------------------------

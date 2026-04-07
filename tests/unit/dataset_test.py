@@ -18,7 +18,7 @@
 import pytest
 from aerospike_async import Key
 
-from aerospike_fluent import DataSet
+from aerospike_sdk import DataSet
 
 
 class TestDataSet:

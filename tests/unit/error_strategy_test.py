@@ -20,13 +20,13 @@ import pytest
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.error_strategy import (
+from aerospike_sdk.error_strategy import (
     ErrorStrategy,
     _ErrorDisposition,
     _resolve_disposition,
 )
-from aerospike_fluent.exceptions import AerospikeError, TimeoutError
-from aerospike_fluent.record_result import RecordResult
+from aerospike_sdk.exceptions import AerospikeError, TimeoutError
+from aerospike_sdk.record_result import RecordResult
 
 
 def _key(val: int = 1) -> Key:
@@ -110,7 +110,7 @@ class TestRecordResultException:
             key=_key(), record=None,
             result_code=ResultCode.GENERATION_ERROR,
         )
-        from aerospike_fluent.exceptions import GenerationError
+        from aerospike_sdk.exceptions import GenerationError
         with pytest.raises(GenerationError):
             rr.or_raise()
 
@@ -142,7 +142,7 @@ class TestBuilderFlagWiring:
 
     def _make_wsb(self):
         from unittest.mock import MagicMock
-        from aerospike_fluent.aio.operations.query import QueryBuilder, WriteSegmentBuilder
+        from aerospike_sdk.aio.operations.query import QueryBuilder, WriteSegmentBuilder
 
         qb = QueryBuilder(
             client=MagicMock(),
@@ -232,7 +232,7 @@ class TestBuilderValidation:
 
     def _make_wsb(self):
         from unittest.mock import MagicMock
-        from aerospike_fluent.aio.operations.query import QueryBuilder, WriteSegmentBuilder
+        from aerospike_sdk.aio.operations.query import QueryBuilder, WriteSegmentBuilder
 
         qb = QueryBuilder(
             client=MagicMock(),
@@ -270,7 +270,7 @@ class TestBuilderValidation:
 
     def test_default_expire_record_after_seconds_zero_raises(self):
         from unittest.mock import MagicMock
-        from aerospike_fluent.aio.operations.query import QueryBuilder
+        from aerospike_sdk.aio.operations.query import QueryBuilder
 
         qb = QueryBuilder(client=MagicMock(), namespace="test", set_name="test")
         with pytest.raises(ValueError, match="greater than 0"):
@@ -278,7 +278,7 @@ class TestBuilderValidation:
 
     def test_bins_empty_list_raises(self):
         from unittest.mock import MagicMock
-        from aerospike_fluent.aio.operations.query import QueryBuilder
+        from aerospike_sdk.aio.operations.query import QueryBuilder
 
         qb = QueryBuilder(
             client=MagicMock(),
@@ -297,21 +297,21 @@ class TestToExpiration:
 
     def test_never_expire(self):
         from aerospike_async import Expiration
-        from aerospike_fluent.aio.operations.query import _to_expiration
+        from aerospike_sdk.aio.operations.query import _to_expiration
         assert _to_expiration(-1) is Expiration.NEVER_EXPIRE
 
     def test_dont_update(self):
         from aerospike_async import Expiration
-        from aerospike_fluent.aio.operations.query import _to_expiration
+        from aerospike_sdk.aio.operations.query import _to_expiration
         assert _to_expiration(-2) is Expiration.DONT_UPDATE
 
     def test_server_default(self):
         from aerospike_async import Expiration
-        from aerospike_fluent.aio.operations.query import _to_expiration
+        from aerospike_sdk.aio.operations.query import _to_expiration
         assert _to_expiration(0) is Expiration.NAMESPACE_DEFAULT
 
     def test_positive_seconds(self):
-        from aerospike_fluent.aio.operations.query import _to_expiration
+        from aerospike_sdk.aio.operations.query import _to_expiration
         exp = _to_expiration(3600)
         assert exp is not None
 
@@ -324,7 +324,7 @@ class TestDefaultTtlMethods:
 
     def _make_qb(self):
         from unittest.mock import MagicMock
-        from aerospike_fluent.aio.operations.query import QueryBuilder
+        from aerospike_sdk.aio.operations.query import QueryBuilder
         return QueryBuilder(client=MagicMock(), namespace="test", set_name="test")
 
     def test_default_never_expire(self):

@@ -24,7 +24,7 @@ import time
 import pytest
 from aerospike_async import CTX, Filter, IndexType
 
-from aerospike_fluent import DataSet, SyncFluentClient
+from aerospike_sdk import DataSet, SyncClient
 
 _NS = "test"
 _SET = "cdt_filter_ctx_test"
@@ -44,7 +44,7 @@ def _require_filter_context() -> None:
 
 @pytest.fixture
 def client(aerospike_host, client_policy):
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -64,7 +64,7 @@ def _user_keys_from_stream(stream):
     return keys
 
 
-def _run_async(client: SyncFluentClient, coro):
+def _run_async(client: SyncClient, coro):
     return client._loop_manager.run_async(coro)
 
 

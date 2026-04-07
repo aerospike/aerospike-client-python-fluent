@@ -13,18 +13,18 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for SyncFluentClient Query operations."""
+"""Tests for SyncClient Query operations."""
 
 import time
 
 import pytest
-from aerospike_fluent import DataSet, Exp, SyncFluentClient
+from aerospike_sdk import DataSet, Exp, SyncClient
 
 
 @pytest.fixture
 def client(aerospike_host, client_policy, enterprise):
-    """Setup sync fluent client and test data for query tests."""
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup sync SDK client and test data for query tests."""
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "query_test")
         for i in range(10):

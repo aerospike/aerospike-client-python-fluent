@@ -19,8 +19,8 @@ import pytest
 from aerospike_async import ListOrderType, ListSortFlags, MapOrder
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent import DataSet, FluentClient
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import DataSet, Client
+from aerospike_sdk.exceptions import AerospikeError
 
 
 NS = "test"
@@ -78,7 +78,7 @@ def _assert_list_get_relative_batch(raw_bin):
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
+    async with Client(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
         for key_id in range(1, 100):
             await session.delete(DS.id(key_id)).execute()

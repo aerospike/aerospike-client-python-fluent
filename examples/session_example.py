@@ -9,7 +9,7 @@ import asyncio
 from datetime import timedelta
 
 import _env
-from aerospike_fluent import Behavior, DataSet
+from aerospike_sdk import Behavior, DataSet
 
 
 async def main() -> None:

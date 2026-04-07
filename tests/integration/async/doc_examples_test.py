@@ -10,12 +10,12 @@ import pytest
 import pytest_asyncio
 from aerospike_async import ClientPolicy
 
-from aerospike_fluent import (
+from aerospike_sdk import (
     Behavior,
     ClusterDefinition,
     DataSet,
-    FluentClient,
-    SyncFluentClient,
+    Client,
+    SyncClient,
 )
 
 SEEDS = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
@@ -41,7 +41,7 @@ def _client_policy() -> ClientPolicy:
 @pytest_asyncio.fixture(scope="module", loop_scope="session")
 async def session():
     """Provide a connected async session for the module."""
-    async with FluentClient(SEEDS, _client_policy()) as client:
+    async with Client(SEEDS, _client_policy()) as client:
         s = client.create_session(Behavior.DEFAULT)
         await s.truncate(USERS)
         yield s
@@ -85,7 +85,7 @@ async def test_quick_example_async(session):
 
 def test_quick_example_sync():
     """docs/index.md — Quick Example (sync tab)."""
-    with SyncFluentClient(SEEDS, _client_policy()) as client:
+    with SyncClient(SEEDS, _client_policy()) as client:
         s = client.create_session(Behavior.DEFAULT)
         key = USERS.id("qe_sync")
 

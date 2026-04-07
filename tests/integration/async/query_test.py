@@ -13,18 +13,18 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for QueryBuilder fluent API."""
+"""Tests for QueryBuilder SDK API."""
 
 import asyncio
 import pytest
 from aerospike_async import Filter, PartitionFilter, QueryPolicy
-from aerospike_fluent import DataSet, Exp, FluentClient
+from aerospike_sdk import DataSet, Exp, Client
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client and test data for query tests."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client and test data for query tests."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "query_test")
 
@@ -98,8 +98,8 @@ async def test_query_with_partition_filter(client):
     stream.close()
     assert count > 0
 
-async def test_query_fluent_chaining(client):
-    """Test fluent method chaining on query builder."""
+async def test_query_builder_chaining(client):
+    """Test method chaining on query builder."""
     policy = QueryPolicy()
     partition_filter = PartitionFilter.all()
 
@@ -267,8 +267,8 @@ async def test_query_with_filter_expression_and(client):
 # Metadata-based query tests 
 # ============================================================================
 
-async def test_query_with_dsl_where(client):
-    """Test query with DSL where() clause (expression filter via string DSL)."""
+async def test_query_with_ael_where(client):
+    """Test query with AEL where() clause (expression filter via string AEL)."""
     stream = await (
         client.query("test", "query_test")
         .where("$.age >= 25")
@@ -284,8 +284,8 @@ async def test_query_with_dsl_where(client):
     assert count == 5
 
 
-async def test_query_dsl_and_or(client):
-    """Test DSL where() with nested AND/OR conditions."""
+async def test_query_ael_and_or(client):
+    """Test AEL where() with nested AND/OR conditions."""
     stream = await (
         client.query("test", "query_test")
         .where('$.age >= 22 and $.age <= 26')
@@ -301,8 +301,8 @@ async def test_query_dsl_and_or(client):
     assert count == 5
 
 
-async def test_query_dsl_not(client):
-    """Test DSL where() with NOT condition."""
+async def test_query_ael_not(client):
+    """Test AEL where() with NOT condition."""
     stream = await (
         client.query("test", "query_test")
         .where('not ($.age >= 25)')

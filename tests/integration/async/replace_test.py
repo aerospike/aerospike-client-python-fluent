@@ -17,15 +17,15 @@
 
 import pytest
 from aerospike_async.exceptions import ResultCode
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
+from aerospike_sdk.exceptions import AerospikeError
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -38,7 +38,7 @@ def users():
 class TestReplaceOperations:
     """Test replace and replace_if_exists operations."""
 
-    async def test_replace(self, client: FluentClient, users: DataSet):
+    async def test_replace(self, client: Client, users: DataSet):
         """replace() completely replaces an existing record's bins."""
         session = client.create_session()
         key = users.id("replace_key")
@@ -53,7 +53,7 @@ class TestReplaceOperations:
         assert record.record.bins.get("bin2") is None
         assert record.record.bins["bin3"] == "value3"
 
-    async def test_replace_only(self, client: FluentClient, users: DataSet):
+    async def test_replace_only(self, client: Client, users: DataSet):
         """replace_only() on a non-existent key should fail with KEY_NOT_FOUND_ERROR."""
         session = client.create_session()
         key = users.id("replace_only_key")
@@ -71,7 +71,7 @@ class TestReplaceOperations:
 
         assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
-    async def test_replace_only_modifies_op_type(self, client: FluentClient, users: DataSet):
+    async def test_replace_only_modifies_op_type(self, client: Client, users: DataSet):
         """replace_only() dynamically changes upsert to replace-if-exists semantics."""
         session = client.create_session()
         key = users.id("replace_only_modifies_key")
@@ -92,7 +92,7 @@ class TestReplaceOperations:
         assert record.record.bins["bin3"] == "value3"
 
     async def test_chained_operations_with_different_op_types(
-        self, client: FluentClient, users: DataSet,
+        self, client: Client, users: DataSet,
     ):
         """Per-operation errors are isolated when chaining different op types."""
         session = client.create_session()
@@ -125,7 +125,7 @@ class TestReplaceOperations:
         rec3 = await (await session.query(key3).execute()).first_or_raise()
         assert rec3.record.bins["value"] == "replaced3"
 
-    async def test_replace_creates_new_record(self, client: FluentClient, users: DataSet):
+    async def test_replace_creates_new_record(self, client: Client, users: DataSet):
         """replace() creates a new record if it doesn't exist."""
         session = client.create_session()
         key = users.id("replace_new_record")
@@ -139,7 +139,7 @@ class TestReplaceOperations:
         assert record.record.bins["name"] == "New User"
         assert record.record.bins["status"] == "active"
 
-    async def test_replace_if_exists_fails_on_missing_record(self, client: FluentClient, users: DataSet):
+    async def test_replace_if_exists_fails_on_missing_record(self, client: Client, users: DataSet):
         """replace_if_exists() fails if record doesn't exist."""
         session = client.create_session()
         key = users.id("replace_if_exists_missing")
@@ -154,7 +154,7 @@ class TestReplaceOperations:
             )
             await stream.first_or_raise()
 
-    async def test_replace_if_exists_replaces_existing_record(self, client: FluentClient, users: DataSet):
+    async def test_replace_if_exists_replaces_existing_record(self, client: Client, users: DataSet):
         """replace_if_exists() replaces an existing record."""
         session = client.create_session()
         key = users.id("replace_if_exists_existing")
@@ -172,7 +172,7 @@ class TestReplaceOperations:
         assert record.record.bins["status"] == "updated"
         assert "extra" not in record.record.bins
 
-    async def test_batch_replace_if_exists(self, client: FluentClient, users: DataSet):
+    async def test_batch_replace_if_exists(self, client: Client, users: DataSet):
         """replace_if_exists works in batch operations."""
         session = client.create_session()
 

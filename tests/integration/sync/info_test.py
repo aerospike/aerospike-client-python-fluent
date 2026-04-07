@@ -16,13 +16,13 @@
 """Tests for SyncInfoCommands."""
 
 import pytest
-from aerospike_fluent import Behavior, SyncFluentClient
+from aerospike_sdk import Behavior, SyncClient
 
 
 @pytest.fixture
 def client(aerospike_host, client_policy):
-    """Setup sync fluent client for testing."""
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup sync SDK client for testing."""
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 

@@ -2,14 +2,14 @@
 """Demonstrates map CDT operations used as read and write expressions.
 
 Explores the behavior of map operations applied via expressions, including
-removeByKeyRange semantics and return-type behavior. Uses the fluent CDT
-builder API and DSL expressions to exercise map operations.
+removeByKeyRange semantics and return-type behavior. Uses the chainable CDT
+builder API and AEL expressions to exercise map operations.
 """
 
 import asyncio
 
 import _env
-from aerospike_fluent import Behavior, DataSet
+from aerospike_sdk import Behavior, DataSet
 
 SET = DataSet.of("test", "map_remove_test")
 
@@ -38,9 +38,9 @@ async def run_examples(session) -> None:
     print(f"Source map: {source_map}\n")
 
     # ==================================================================
-    # Test 1: Read map key by DSL
+    # Test 1: Read map key by AEL
     # ==================================================================
-    print("=== Test 1: Read map key 'c' via DSL ===")
+    print("=== Test 1: Read map key 'c' via AEL ===")
     print("Expected: 3")
     try:
         stream = await (
@@ -59,9 +59,9 @@ async def run_examples(session) -> None:
     print()
 
     # ==================================================================
-    # Test 2: Read map key range via fluent CDT builder
+    # Test 2: Read map key range via chainable CDT builder
     # ==================================================================
-    print("=== Test 2: Read map key 'b' values via fluent builder ===")
+    print("=== Test 2: Read map key 'b' values via chainable builder ===")
     print("Expected: value for key 'b' = 2")
     try:
         stream = await (
@@ -122,9 +122,9 @@ async def run_examples(session) -> None:
     print()
 
     # ==================================================================
-    # Test 5: Remove map key via fluent CDT write builder
+    # Test 5: Remove map key via chainable CDT write builder
     # ==================================================================
-    print("=== Test 5: Remove map key 'c' via fluent write builder ===")
+    print("=== Test 5: Remove map key 'c' via chainable write builder ===")
     print("Expected: map becomes {a: 1, b: 2, d: 4, e: 5}")
     try:
         await (
@@ -151,7 +151,7 @@ async def run_examples(session) -> None:
     )
 
     # ==================================================================
-    # Test 6: Map key range read via fluent CDT
+    # Test 6: Map key range read via chainable CDT
     # ==================================================================
     print("=== Test 6: Map key range 'b'..'d' count ===")
     print("Expected: count of keys in range [b, d) = 2 (b, c)")
@@ -193,7 +193,7 @@ async def run_examples(session) -> None:
     print()
 
     # ==================================================================
-    # Test 8: Map clear via fluent CDT write
+    # Test 8: Map clear via chainable CDT write
     # ==================================================================
     print("=== Test 8: Map clear ===")
     print("Expected: map becomes empty {}")
@@ -221,9 +221,9 @@ async def run_examples(session) -> None:
     print()
 
     # ==================================================================
-    # Test 9: DSL comparison on map value
+    # Test 9: AEL comparison on map value
     # ==================================================================
-    print("=== Test 9: DSL filter on map key value ===")
+    print("=== Test 9: AEL filter on map key value ===")
     print("Filter: $.m.c.get(type: INT) > 2")
     print("Expected: record passes filter (m.c = 3 > 2)")
     try:

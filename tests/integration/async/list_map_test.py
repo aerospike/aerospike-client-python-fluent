@@ -16,14 +16,14 @@
 """Tests for list and map data types."""
 
 import pytest
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -36,7 +36,7 @@ def test_set():
 class TestListMap:
     """Test storing and retrieving list and map data types."""
 
-    async def test_list_strings(self, client: FluentClient, test_set: DataSet):
+    async def test_list_strings(self, client: Client, test_set: DataSet):
         """Test storing and retrieving a list of strings."""
         session = client.create_session()
         key = test_set.id("listStrings")
@@ -68,7 +68,7 @@ class TestListMap:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_list_complex(self, client: FluentClient, test_set: DataSet):
+    async def test_list_complex(self, client: Client, test_set: DataSet):
         """Test storing and retrieving a list with mixed types."""
         session = client.create_session()
         key = test_set.id("listComplex")
@@ -102,7 +102,7 @@ class TestListMap:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_map_strings(self, client: FluentClient, test_set: DataSet):
+    async def test_map_strings(self, client: Client, test_set: DataSet):
         """Test storing and retrieving a map of strings."""
         session = client.create_session()
         key = test_set.id("mapStrings")
@@ -138,7 +138,7 @@ class TestListMap:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_map_complex(self, client: FluentClient, test_set: DataSet):
+    async def test_map_complex(self, client: Client, test_set: DataSet):
         """Test storing and retrieving a map with mixed types."""
         session = client.create_session()
         key = test_set.id("mapComplex")
@@ -190,7 +190,7 @@ class TestListMap:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_list_sorted(self, client: FluentClient, test_set: DataSet):
+    async def test_list_sorted(self, client: Client, test_set: DataSet):
         """Store a pre-sorted list and verify order is preserved on retrieval."""
         session = client.create_session()
         key = test_set.id("listSorted")
@@ -214,7 +214,7 @@ class TestListMap:
 
         await session.delete(key).execute()
 
-    async def test_map_with_integer_keys(self, client: FluentClient, test_set: DataSet):
+    async def test_map_with_integer_keys(self, client: Client, test_set: DataSet):
         """Store a map with integer keys and mixed value types."""
         session = client.create_session()
         key = test_set.id("mapIntKeys")
@@ -238,7 +238,7 @@ class TestListMap:
 
         await session.delete(key).execute()
 
-    async def test_multiple_bin_list_and_map(self, client: FluentClient, test_set: DataSet):
+    async def test_multiple_bin_list_and_map(self, client: Client, test_set: DataSet):
         """Store list in one bin and map in another, verify independent retrieval."""
         session = client.create_session()
         key = test_set.id("multiBinListMap")
@@ -266,7 +266,7 @@ class TestListMap:
 
         await session.delete(key).execute()
 
-    async def test_empty_list_and_map(self, client: FluentClient, test_set: DataSet):
+    async def test_empty_list_and_map(self, client: Client, test_set: DataSet):
         """Store and retrieve empty list and empty map."""
         session = client.create_session()
         key = test_set.id("emptyListMap")
@@ -290,7 +290,7 @@ class TestListMap:
 
         await session.delete(key).execute()
 
-    async def test_list_map_combined(self, client: FluentClient, test_set: DataSet):
+    async def test_list_map_combined(self, client: Client, test_set: DataSet):
         """Test storing and retrieving nested lists and maps."""
         session = client.create_session()
         key = test_set.id("listMapCombined")

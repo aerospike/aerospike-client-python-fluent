@@ -13,4 +13,4 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Sync tests for the Aerospike Fluent Client."""
+"""Sync tests for the Aerospike Python SDK."""

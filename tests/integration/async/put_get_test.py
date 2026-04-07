@@ -13,20 +13,20 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Integration tests for put/get and core fluent operations."""
+"""Integration tests for put/get and core SDK operations."""
 
 import pytest
 from aerospike_async import ListOperation, ListPolicy, ListOrderType, MapOperation, MapPolicy, MapReturnType, Operation, WritePolicy
 from aerospike_async.exceptions import ResultCode
-from aerospike_fluent import FluentClient
-from aerospike_fluent.dataset import DataSet
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import Client
+from aerospike_sdk.dataset import DataSet
+from aerospike_sdk.exceptions import AerospikeError
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         test_ds = DataSet.of("test", "test")
         await session.delete(test_ds.id(1)).execute()
@@ -240,8 +240,8 @@ async def test_string_key(client):
     assert first.record_or_raise().bins == {"name": "John"}
 
 
-async def test_fluent_chaining(client):
-    """Test that fluent method chaining works correctly."""
+async def test_chaining(client):
+    """Test that method chaining works correctly."""
     session = client.create_session()
     k = DataSet.of("test", "test").id(1)
 

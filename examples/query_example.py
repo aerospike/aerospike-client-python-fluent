@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Query examples demonstrating the full query API surface.
 
-Covers CRUD, map CDT operations, DSL where filters, batch reads with
+Covers CRUD, map CDT operations, AEL where filters, batch reads with
 includeMissingKeys/failOnFilteredOut, limit, header-only reads, bin
 projection, background tasks, records-per-second, client-side sort/page
 (Python idiom for NavigatableRecordStream), expression read/write,
@@ -14,9 +14,9 @@ from datetime import timedelta
 from typing import Any
 
 import _env
-from aerospike_fluent import Behavior, DataSet
-from aerospike_fluent.aio.operations.query import QueryHint
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import Behavior, DataSet
+from aerospike_sdk.aio.operations.query import QueryHint
+from aerospike_sdk.exceptions import AerospikeError
 
 SET = DataSet.of("test", "person")
 

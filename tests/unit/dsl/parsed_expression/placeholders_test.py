@@ -13,21 +13,21 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for DSL placeholder expressions. Order matches PlaceholdersTests.
+"""Unit tests for AEL placeholder expressions. Order matches PlaceholdersTests.
 
 """
 
 import pytest
 
 from aerospike_async import CTX, ExpType, Filter, ListReturnType, MapReturnType
-from aerospike_fluent import (
-    DslParseException,
+from aerospike_sdk import (
+    AelParseException,
     Exp,
     Index,
     IndexContext,
     IndexTypeEnum,
-    parse_dsl,
-    parse_dsl_with_index,
+    parse_ael,
+    parse_ael_with_index,
 )
 
 NAMESPACE = "test"
@@ -38,17 +38,17 @@ class TestPlaceholders:
 
     def test_int_placeholder(self):
         expected = Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(100))
-        assert parse_dsl("$.intBin1 > ?0", 100) == expected
+        assert parse_ael("$.intBin1 > ?0", 100) == expected
 
     def test_string_placeholder(self):
         expected = Exp.gt(Exp.string_bin("strBin1"), Exp.string_val("str"))
-        assert parse_dsl("$.strBin1 > ?0", "str") == expected
+        assert parse_ael("$.strBin1 > ?0", "str") == expected
 
         expected_quoted = Exp.gt(Exp.string_bin("strBin1"), Exp.string_val("'str'"))
-        assert parse_dsl("$.strBin1 > ?0", "'str'") == expected_quoted
+        assert parse_ael("$.strBin1 > ?0", "'str'") == expected_quoted
 
         expected_double = Exp.gt(Exp.string_bin("strBin1"), Exp.string_val('"str"'))
-        assert parse_dsl("$.strBin1 > ?0", '"str"') == expected_double
+        assert parse_ael("$.strBin1 > ?0", '"str"') == expected_double
 
     def test_blob_placeholder(self):
         data = bytes([1, 2, 3])
@@ -56,33 +56,33 @@ class TestPlaceholders:
             Exp.blob_bin("blobBin1"),
             Exp.blob_val(list(data)),
         )
-        assert parse_dsl("$.blobBin1.get(type: BLOB) > ?0", data) == expected
+        assert parse_ael("$.blobBin1.get(type: BLOB) > ?0", data) == expected
 
     def test_float_placeholder(self):
         expected = Exp.gt(Exp.float_bin("floatBin"), Exp.float_val(3.14))
-        assert parse_dsl("$.floatBin > ?0", 3.14) == expected
+        assert parse_ael("$.floatBin > ?0", 3.14) == expected
 
     def test_bool_placeholder(self):
         expected = Exp.eq(Exp.bool_bin("active"), Exp.bool_val(True))
-        assert parse_dsl("$.active == ?0", True) == expected
+        assert parse_ael("$.active == ?0", True) == expected
 
     def test_multiple_placeholders(self):
         expected = Exp.and_([
             Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(100)),
             Exp.gt(Exp.int_bin("intBin2"), Exp.int_val(200))
         ])
-        assert parse_dsl("$.intBin1 > ?0 and $.intBin2 > ?1", 100, 200) == expected
+        assert parse_ael("$.intBin1 > ?0 and $.intBin2 > ?1", 100, 200) == expected
 
     def test_placeholder_in_arithmetic(self):
         expected = Exp.gt(
             Exp.num_add([Exp.int_bin("apples"), Exp.int_val(5)]),
             Exp.int_val(10)
         )
-        assert parse_dsl("($.apples + ?0) > ?1", 5, 10) == expected
+        assert parse_ael("($.apples + ?0) > ?1", 5, 10) == expected
 
     def test_placeholder_with_metadata(self):
         expected = Exp.le(Exp.ttl(), Exp.int_val(86400))
-        assert parse_dsl("$.ttl() <= ?0", 86400) == expected
+        assert parse_ael("$.ttl() <= ?0", 86400) == expected
 
     def test_placeholder_in_when(self):
         expected = Exp.cond([
@@ -92,22 +92,22 @@ class TestPlaceholders:
             Exp.string_val("fred"),
             Exp.string_val("other")
         ])
-        assert parse_dsl(
+        assert parse_ael(
             "when ($.who == ?0 => ?1, $.who == ?2 => ?3, default => ?4)",
             1, "bob", 2, "fred", "other",
         ) == expected
 
     def test_missing_placeholder_value_raises_error(self):
-        with pytest.raises(DslParseException, match="no placeholder values provided"):
-            parse_dsl("$.intBin1 > ?0")
+        with pytest.raises(AelParseException, match="no placeholder values provided"):
+            parse_ael("$.intBin1 > ?0")
 
     def test_missing_second_placeholder_raises_error(self):
-        with pytest.raises(DslParseException, match="Missing value for placeholder \\?1"):
-            parse_dsl("$.intBin1 > ?0 and $.intBin2 > ?1", 100)
+        with pytest.raises(AelParseException, match="Missing value for placeholder \\?1"):
+            parse_ael("$.intBin1 > ?0 and $.intBin2 > ?1", 100)
 
     def test_extra_placeholder_values_ignored(self):
         expected = Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(100))
-        assert parse_dsl("$.intBin1 > ?0", 100, 200) == expected
+        assert parse_ael("$.intBin1 > ?0", 100, 200) == expected
 
     def test_int_bin_gt_has_index(self):
         indexes = [
@@ -115,7 +115,7 @@ class TestPlaceholders:
             Index(bin="intBin2", index_type=IndexTypeEnum.NUMERIC, namespace=NAMESPACE, bin_values_ratio=1),
         ]
         ctx = IndexContext.of(NAMESPACE, indexes)
-        result = parse_dsl_with_index("$.intBin1 > ?0", ctx, (100,))
+        result = parse_ael_with_index("$.intBin1 > ?0", ctx, (100,))
         assert result.filter is not None
         assert str(result.filter) == str(Filter.range("intBin1", 101, 2**63 - 1))
         assert result.exp is None
@@ -126,7 +126,7 @@ class TestPlaceholders:
             Index(bin="intBin2", index_type=IndexTypeEnum.NUMERIC, namespace=NAMESPACE, bin_values_ratio=1),
         ]
         ctx = IndexContext.of(NAMESPACE, indexes)
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > ?0 and $.intBin2 > ?1",
             ctx,
             (100, 100),
@@ -142,7 +142,7 @@ class TestPlaceholders:
             Index(bin="bananas", index_type=IndexTypeEnum.NUMERIC, namespace=NAMESPACE, bin_values_ratio=1),
         ]
         ctx = IndexContext.of(NAMESPACE, indexes)
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.apples + ?0) > ?1",
             ctx,
             (5, 10),
@@ -162,11 +162,11 @@ class TestPlaceholders:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.bb.bcc > ?0", 200)
+        result = parse_ael("$.mapBin1.a.bb.bcc > ?0", 200)
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT) > ?0", 200)
+        result = parse_ael("$.mapBin1.a.bb.bcc.get(type: INT) > ?0", 200)
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT, return: VALUE) > ?0", 200)
+        result = parse_ael("$.mapBin1.a.bb.bcc.get(type: INT, return: VALUE) > ?0", 200)
         assert result == expected_int
 
         expected_str = Exp.eq(
@@ -179,11 +179,11 @@ class TestPlaceholders:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.mapBin1.a.bb.bcc == ?0', "stringVal")
+        result = parse_ael('$.mapBin1.a.bb.bcc == ?0', "stringVal")
         assert result == expected_str
-        result = parse_dsl('$.mapBin1.a.bb.bcc.get(type: STRING) == ?0', "stringVal")
+        result = parse_ael('$.mapBin1.a.bb.bcc.get(type: STRING) == ?0', "stringVal")
         assert result == expected_str
-        result = parse_dsl(
+        result = parse_ael(
             '$.mapBin1.a.bb.bcc.get(type: STRING, return: VALUE) == ?0',
             "stringVal",
         )
@@ -200,9 +200,9 @@ class TestPlaceholders:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.listBin1.[5].[#-1] == ?0', "stringVal")
+        result = parse_ael('$.listBin1.[5].[#-1] == ?0', "stringVal")
         assert result == expected_rank
-        result = parse_dsl('$.listBin1.[5].[#-1].get(type: STRING) == ?0', "stringVal")
+        result = parse_ael('$.listBin1.[5].[#-1].get(type: STRING) == ?0', "stringVal")
         assert result == expected_rank
 
         expected_value = Exp.eq(
@@ -214,7 +214,7 @@ class TestPlaceholders:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.listBin1.[5].[#-1].[=100] == ?0", 200)
+        result = parse_ael("$.listBin1.[5].[#-1].[=100] == ?0", 200)
         assert result == expected_value
 
     def test_fourth_degree_complicated_explicit_float(self):
@@ -225,7 +225,7 @@ class TestPlaceholders:
             ]),
             Exp.float_val(10.5),
         )
-        result = parse_dsl(
+        result = parse_ael(
             "(($.apples.get(type: FLOAT) + $.bananas.get(type: FLOAT))"
             " + ($.oranges.get(type: FLOAT) + $.acai.get(type: FLOAT))) > ?0",
             10.5,
@@ -242,7 +242,7 @@ class TestPlaceholders:
                 Exp.string_val("hello"),
             ]),
         )
-        result = parse_dsl(
+        result = parse_ael(
             "$.a.get(type: STRING) == "
             "(when($.b == ?0 => $.a1.get(type: STRING),"
             " $.b == ?1 => $.a2.get(type: STRING),"
@@ -257,7 +257,7 @@ class TestPlaceholders:
             Exp.eq(Exp.string_bin("hand"), Exp.string_val("stand")),
             Exp.eq(Exp.string_bin("pun"), Exp.string_val("done")),
         ])
-        result = parse_dsl(
+        result = parse_ael(
             'exclusive($.hand == ?0, $.pun == ?1)',
             "stand", "done",
         )

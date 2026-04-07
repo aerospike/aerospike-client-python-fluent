@@ -18,7 +18,7 @@
 import pytest
 from aerospike_async import AuthMode
 
-from aerospike_fluent.aio.cluster_definition import ClusterDefinition, Host
+from aerospike_sdk.aio.cluster_definition import ClusterDefinition, Host
 
 
 class TestAuthMode:
@@ -140,7 +140,7 @@ class TestPkiValidation:
         cd._validate()
 
 
-class TestFluentChaining:
+class TestClusterDefinitionChaining:
     def test_full_chain_with_native_credentials(self):
         cd = (
             ClusterDefinition("localhost", 3000)
@@ -201,7 +201,7 @@ class TestIpMap:
         policy = cd._get_policy()
         assert policy.ip_map is None
 
-    def test_ip_map_fluent_chaining(self):
+    def test_ip_map_chaining(self):
         cd = (
             ClusterDefinition("localhost", 3000)
             .with_native_credentials("admin", "pass")
@@ -240,7 +240,7 @@ class TestFailIfNotConnected:
         policy = cd._get_policy()
         assert policy.fail_if_not_connected is False
 
-    def test_fluent_chaining(self):
+    def test_chaining(self):
         cd = (
             ClusterDefinition("localhost", 3000)
             .with_native_credentials("admin", "pass")

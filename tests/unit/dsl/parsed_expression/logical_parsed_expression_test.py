@@ -13,26 +13,26 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for logical parsed expressions (filter + exp from DSL)."""
+"""Unit tests for logical parsed expressions (filter + exp from AEL)."""
 
 import pytest
-from aerospike_fluent import (
+from aerospike_sdk import (
     Exp,
     Index,
     IndexContext,
     IndexTypeEnum,
-    parse_dsl_with_index,
+    parse_ael_with_index,
 )
 
 
 class TestFilterGeneration:
-    """Test filter generation from DSL."""
+    """Test filter generation from AEL."""
 
     NAMESPACE = "test"
 
     def test_and_no_indexes(self):
         """Test AND expression with no indexes returns only Exp."""
-        result = parse_dsl_with_index("$.intBin1 > 100 and $.intBin2 > 100")
+        result = parse_ael_with_index("$.intBin1 > 100 and $.intBin2 > 100")
 
         assert result.filter is None
         expected = Exp.and_([
@@ -49,7 +49,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
 
         assert result.filter is not None
         expected_exp = Exp.gt(Exp.int_bin("intBin1"), Exp.int_val(100))
@@ -62,7 +62,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
 
         assert result.filter is not None
         expected_exp = Exp.gt(Exp.int_bin("intBin2"), Exp.int_val(100))
@@ -70,7 +70,7 @@ class TestFilterGeneration:
 
     def test_and_and_no_indexes(self):
         """Test triple AND with no indexes returns only Exp."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 and $.intBin3 > 100"
         )
 
@@ -91,7 +91,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 and $.intBin3 > 100", ctx
         )
 
@@ -104,7 +104,7 @@ class TestFilterGeneration:
 
     def test_or_no_indexes(self):
         """Test OR expression with no indexes - cannot use Filter."""
-        result = parse_dsl_with_index("$.intBin1 > 100 or $.intBin2 > 100")
+        result = parse_ael_with_index("$.intBin1 > 100 or $.intBin2 > 100")
 
         assert result.filter is None
         expected = Exp.or_([
@@ -121,7 +121,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100 or $.intBin2 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100 or $.intBin2 > 100", ctx)
 
         assert result.filter is None
         expected = Exp.or_([
@@ -137,7 +137,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100", ctx)
 
         assert result.filter is not None
         assert result.exp is None
@@ -149,7 +149,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 >= 100", ctx)
+        result = parse_ael_with_index("$.intBin1 >= 100", ctx)
 
         assert result.filter is not None
         assert result.exp is None
@@ -161,7 +161,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 < 100", ctx)
+        result = parse_ael_with_index("$.intBin1 < 100", ctx)
 
         assert result.filter is not None
         assert result.exp is None
@@ -173,7 +173,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 <= 100", ctx)
+        result = parse_ael_with_index("$.intBin1 <= 100", ctx)
 
         assert result.filter is not None
         assert result.exp is None
@@ -185,7 +185,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 == 100", ctx)
+        result = parse_ael_with_index("$.intBin1 == 100", ctx)
 
         assert result.filter is not None
         assert result.exp is None
@@ -197,7 +197,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index('$.stringBin1 == "text"', ctx)
+        result = parse_ael_with_index('$.stringBin1 == "text"', ctx)
 
         assert result.filter is not None
         assert result.exp is None
@@ -209,7 +209,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index('$.stringBin1 > "text"', ctx)
+        result = parse_ael_with_index('$.stringBin1 > "text"', ctx)
 
         assert result.filter is None
         assert result.exp is not None
@@ -221,7 +221,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100", ctx)
 
         assert result.filter is None
         assert result.exp is not None
@@ -238,7 +238,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100", ctx)
 
         assert result.filter is None
         assert result.exp is not None
@@ -251,7 +251,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
 
         assert result.filter is not None
         expected_exp = Exp.gt(Exp.int_bin("intBin2"), Exp.int_val(100))
@@ -265,7 +265,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100 and $.intBin2 > 100", ctx)
 
         assert result.filter is not None
         expected_exp = Exp.gt(Exp.int_bin("intBin2"), Exp.int_val(100))
@@ -273,7 +273,7 @@ class TestFilterGeneration:
 
     def test_and_or_or_no_indexes(self):
         """(a AND b) OR c OR d - top level OR."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 or $.intBin3 > 100 or $.intBin4 > 100"
         )
 
@@ -290,7 +290,7 @@ class TestFilterGeneration:
 
     def test_or_and_and_no_indexes(self):
         """a OR (b AND c AND d)."""
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 or $.intBin2 > 100 and $.intBin3 > 100 and $.intBin4 > 100"
         )
 
@@ -314,7 +314,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 or $.intBin3 > 100", ctx
         )
 
@@ -337,7 +337,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin3 > 100 and ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
 
@@ -357,7 +357,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin3 > 100 or ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
 
@@ -380,7 +380,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin3 > 100 or ($.intBin2 > 100 and $.intBin1 > 100)", ctx
         )
 
@@ -404,7 +404,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 and $.intBin4 > 100) or ($.intBin2 > 100 and $.intBin1 > 100)", ctx
         )
 
@@ -431,7 +431,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 or $.intBin4 > 100) and ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
 
@@ -458,7 +458,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 or $.intBin4 > 100) and ($.intBin2 > 100 and $.intBin1 > 100)", ctx
         )
 
@@ -479,7 +479,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index("$.intBin1 > 100 or $.intBin2 > 100", ctx)
+        result = parse_ael_with_index("$.intBin1 > 100 or $.intBin2 > 100", ctx)
 
         assert result.filter is None
         expected = Exp.or_([
@@ -497,7 +497,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 or $.intBin2 > 100 or $.intBin3 > 100", ctx
         )
 
@@ -517,7 +517,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 and $.intBin3 > 100", ctx
         )
 
@@ -537,7 +537,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 and $.intBin3 > 100", ctx
         )
 
@@ -557,7 +557,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 and $.intBin3 > 100", ctx
         )
 
@@ -577,7 +577,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin3 > 100 and ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
 
@@ -595,10 +595,10 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result1 = parse_dsl_with_index(
+        result1 = parse_ael_with_index(
             "$.intBin3 > 100 and ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
-        result2 = parse_dsl_with_index(
+        result2 = parse_ael_with_index(
             "($.intBin3 > 100 and ($.intBin2 > 100 or $.intBin1 > 100))", ctx
         )
 
@@ -616,7 +616,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 and $.intBin2 > 100 and $.intBin3 > 100", ctx
         )
 
@@ -636,7 +636,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin1 > 100 or $.intBin2 > 100 or $.intBin3 > 100", ctx
         )
 
@@ -657,7 +657,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin3 > 100 and ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
 
@@ -677,7 +677,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin3 > 100 or ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
 
@@ -700,7 +700,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.intBin3 > 100 or ($.intBin2 > 100 and $.intBin1 > 100)", ctx
         )
 
@@ -724,7 +724,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 and $.intBin4 > 100) or ($.intBin2 > 100 and $.intBin1 > 100)", ctx
         )
 
@@ -751,7 +751,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 or $.intBin4 > 100) and ($.intBin2 > 100 or $.intBin1 > 100)", ctx
         )
 
@@ -778,7 +778,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 or $.intBin4 > 100) and ($.intBin2 > 100 and $.intBin1 > 100)", ctx
         )
 
@@ -802,7 +802,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 or $.intBin4 > 100 and $.intBin2 > 100) and $.intBin1 > 100", ctx
         )
 
@@ -826,7 +826,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 or $.intBin4 > 100 and $.intBin2 > 100) and $.intBin1 > 100", ctx
         )
 
@@ -850,7 +850,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "($.intBin3 > 100 or $.intBin4 > 100 and $.intBin2 > 100) and $.intBin1 > 100", ctx
         )
 
@@ -874,7 +874,7 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "(($.intBin3 > 100 or $.intBin4 > 100) and $.intBin2 > 100) and $.intBin1 > 100", ctx
         )
 
@@ -900,11 +900,11 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        dsl = (
+        ael = (
             "(($.intBin3 > 100 or $.intBin4 > 100) or ($.intBin5 > 100 and $.intBin6 > 100)) "
             "and ($.intBin2 > 100 and $.intBin1 > 100)"
         )
-        result = parse_dsl_with_index(dsl, ctx)
+        result = parse_ael_with_index(ael, ctx)
 
         assert result.filter is not None
         expected = Exp.and_([
@@ -936,11 +936,11 @@ class TestFilterGeneration:
         ]
         ctx = IndexContext.of(self.NAMESPACE, indexes)
 
-        dsl = (
+        ael = (
             "(($.intBin3 > 100 or $.intBin4 > 100) or ($.intBin5 > 100 and $.intBin6 > 100)) "
             "and (($.intBin2 > 100 and $.intBin1 > 100) or ($.intBin7 > 100 and $.intBin8 > 100))"
         )
-        result = parse_dsl_with_index(dsl, ctx)
+        result = parse_ael_with_index(ael, ctx)
 
         assert result.filter is None
         expected = Exp.and_([
@@ -969,7 +969,7 @@ class TestFilterGeneration:
 
     def test_exclusive_no_indexes(self):
         """exclusive() operator with no indexes."""
-        result = parse_dsl_with_index('exclusive($.hand == "stand", $.pun == "done")')
+        result = parse_ael_with_index('exclusive($.hand == "stand", $.pun == "done")')
 
         assert result.filter is None
         expected = Exp.xor([

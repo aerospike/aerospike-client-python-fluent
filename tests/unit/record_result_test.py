@@ -21,8 +21,8 @@ from types import SimpleNamespace
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.exceptions import AerospikeError, GenerationError
-from aerospike_fluent.record_result import RecordResult, batch_records_to_results
+from aerospike_sdk.exceptions import AerospikeError, GenerationError
+from aerospike_sdk.record_result import RecordResult, batch_records_to_results
 
 
 def _key(val: int = 1) -> Key:

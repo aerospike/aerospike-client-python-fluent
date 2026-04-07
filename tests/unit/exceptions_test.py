@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for the fluent exception hierarchy, factory, and dependency converter."""
+"""Tests for the SDK exception hierarchy, factory, and dependency converter."""
 
 import pytest
 from aerospike_async.exceptions import (
@@ -26,7 +26,7 @@ from aerospike_async.exceptions import (
 )
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.exceptions import (
+from aerospike_sdk.exceptions import (
     AerospikeError,
     AuthenticationError,
     AuthorizationError,
@@ -237,11 +237,11 @@ class TestNoApplicableFilterError:
     """Verify NoApplicableFilterError is independent of AerospikeError."""
 
     def test_is_exception(self):
-        from aerospike_fluent.dsl.exceptions import NoApplicableFilterError
+        from aerospike_sdk.ael.exceptions import NoApplicableFilterError
         assert issubclass(NoApplicableFilterError, Exception)
         assert not issubclass(NoApplicableFilterError, AerospikeError)
 
     def test_raise_and_catch(self):
-        from aerospike_fluent.dsl.exceptions import NoApplicableFilterError
+        from aerospike_sdk.ael.exceptions import NoApplicableFilterError
         with pytest.raises(NoApplicableFilterError):
             raise NoApplicableFilterError("no filter for this expression")

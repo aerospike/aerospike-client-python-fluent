@@ -7,7 +7,7 @@ Covers: DataSet.of, .id(), .ids(), .id_from_digest(), key types.
 import asyncio
 
 import _env
-from aerospike_fluent import Behavior, DataSet
+from aerospike_sdk import Behavior, DataSet
 
 
 async def main() -> None:

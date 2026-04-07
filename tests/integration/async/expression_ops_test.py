@@ -33,8 +33,8 @@ import pytest
 
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode, ServerError
-from aerospike_fluent import FluentClient
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import Client
+from aerospike_sdk.exceptions import AerospikeError
 
 
 NS = "test"
@@ -45,8 +45,8 @@ KEY_B = "exp_B"
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client, seed test data, yield the client, cleanup."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
+    """Setup SDK client, seed test data, yield the client, cleanup."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
         # Clean slate
         try:
@@ -79,7 +79,7 @@ def _key(name: str) -> Key:
 class TestSelectFrom:
 
     async def test_select_from_returns_int(self, client):
-        """select_from evaluating an integer DSL expression."""
+        """select_from evaluating an integer AEL expression."""
         rs = await (
             client.query(_key(KEY_A)).bin("ev").select_from("$.A + 4")
                 .execute()
@@ -88,7 +88,7 @@ class TestSelectFrom:
         assert result.record.bins["ev"] == 5
 
     async def test_select_from_returns_string(self, client):
-        """select_from evaluating a string DSL expression."""
+        """select_from evaluating a string AEL expression."""
         rs = await (
             client.query(_key(KEY_A)).bin("ev").select_from("'hello'")
                 .execute()
@@ -97,7 +97,7 @@ class TestSelectFrom:
         assert result.record.bins["ev"] == "hello"
 
     async def test_select_from_returns_boolean(self, client):
-        """select_from evaluating a boolean DSL expression."""
+        """select_from evaluating a boolean AEL expression."""
         rs = await (
             client.query(_key(KEY_A)).bin("ev").select_from("$.A == 1")
                 .execute()

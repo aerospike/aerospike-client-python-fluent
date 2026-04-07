@@ -24,15 +24,15 @@ Tests both:
 import pytest
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
+from aerospike_sdk.exceptions import AerospikeError
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -45,7 +45,7 @@ def users():
 class TestBatchOperations:
     """Test batch operation builder with multi-key chaining."""
 
-    async def test_batch_insert_multiple_keys(self, client: FluentClient, users: DataSet):
+    async def test_batch_insert_multiple_keys(self, client: Client, users: DataSet):
         """Test inserting multiple records in a single batch."""
         session = client.create_session()
         
@@ -101,7 +101,7 @@ class TestBatchOperations:
         await session.delete(key2).execute()
         await session.delete(key3).execute()
 
-    async def test_batch_mixed_operations(self, client: FluentClient, users: DataSet):
+    async def test_batch_mixed_operations(self, client: Client, users: DataSet):
         """Test batch with mixed insert, update, and delete operations."""
         session = client.create_session()
         
@@ -152,7 +152,7 @@ class TestBatchOperations:
         await session.delete(key1).execute()
         await session.delete(key3).execute()
 
-    async def test_batch_upsert_operations(self, client: FluentClient, users: DataSet):
+    async def test_batch_upsert_operations(self, client: Client, users: DataSet):
         """Test batch upsert operations."""
         session = client.create_session()
         
@@ -200,7 +200,7 @@ class TestBatchOperations:
         await session.delete(key1).execute()
         await session.delete(key2).execute()
 
-    async def test_batch_delete_multiple_keys(self, client: FluentClient, users: DataSet):
+    async def test_batch_delete_multiple_keys(self, client: Client, users: DataSet):
         """Test deleting multiple records in a single batch."""
         session = client.create_session()
         
@@ -231,14 +231,14 @@ class TestBatchOperations:
             result = await exists_stream.first()
             assert result is not None and result.as_bool() is False
 
-    async def test_batch_empty_raises_error(self, client: FluentClient):
+    async def test_batch_empty_raises_error(self, client: Client):
         """Test that executing an empty batch raises an error."""
         session = client.create_session()
         
         with pytest.raises(ValueError, match="No operations to execute"):
             await session.batch().execute()
 
-    async def test_batch_bin_string_operations(self, client: FluentClient, users: DataSet):
+    async def test_batch_bin_string_operations(self, client: Client, users: DataSet):
         """Test batch with string bin operations (append/prepend)."""
         session = client.create_session()
         
@@ -283,7 +283,7 @@ class TestHomogeneousBatchOperations:
     """
 
     @pytest.fixture
-    async def setup_batch_data(self, client: FluentClient, users: DataSet):
+    async def setup_batch_data(self, client: Client, users: DataSet):
         """Setup test data for batch operations."""
         session = client.create_session()
         size = 10
@@ -324,7 +324,7 @@ class TestHomogeneousBatchOperations:
                 pass
 
     async def test_batch_exists_homogeneous(
-        self, client: FluentClient, users: DataSet, setup_batch_data
+        self, client: Client, users: DataSet, setup_batch_data
     ):
         """
         Test batch exists operation on multiple keys.
@@ -347,7 +347,7 @@ class TestHomogeneousBatchOperations:
             assert result.as_bool() is True, f"exists[{i}] is False"
 
     async def test_batch_reads_homogeneous(
-        self, client: FluentClient, users: DataSet, setup_batch_data
+        self, client: Client, users: DataSet, setup_batch_data
     ):
         """
         Test batch read operation on multiple keys via query.
@@ -379,7 +379,7 @@ class TestHomogeneousBatchOperations:
                 assert val == i + 1, f"record[{i}] has wrong integer value"
 
     async def test_batch_read_headers_homogeneous(
-        self, client: FluentClient, users: DataSet, setup_batch_data
+        self, client: Client, users: DataSet, setup_batch_data
     ):
         """
         Test batch read headers (metadata only) via query.
@@ -405,7 +405,7 @@ class TestHomogeneousBatchOperations:
             assert rec.generation != 0, f"record[{i}] generation is 0"
 
     async def test_batch_delete_homogeneous(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """
         Test batch delete operation on multiple keys.
@@ -441,7 +441,7 @@ class TestHomogeneousBatchOperations:
             assert result.as_bool() is False
 
     async def test_batch_exists_with_varargs(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """Test batch exists using varargs style."""
         session = client.create_session()
@@ -469,7 +469,7 @@ class TestHomogeneousBatchOperations:
         await session.delete(key2).execute()
 
     async def test_batch_delete_with_varargs(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """Test batch delete using varargs style."""
         session = client.create_session()
@@ -500,7 +500,7 @@ class TestRecordResultIntegration:
     """Verify RecordResult / RecordStream behavior against a live server."""
 
     async def test_exists_mixed_result_codes(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """Exists with mixed present/absent keys yields per-key result codes."""
         session = client.create_session()
@@ -529,7 +529,7 @@ class TestRecordResultIntegration:
         await session.delete(key_exists).execute()
 
     async def test_or_raise_on_not_found_result(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """or_raise() raises a PFC exception for a KEY_NOT_FOUND result."""
         session = client.create_session()
@@ -560,7 +560,7 @@ class TestRecordResultIntegration:
         await session.delete(key_exists).execute()
 
     async def test_failures_filters_stream(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """failures() returns only non-OK results from a mixed stream."""
         session = client.create_session()
@@ -589,7 +589,7 @@ class TestRecordResultIntegration:
         await session.delete(key2).execute()
 
     async def test_first_on_query_stream(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """first() returns the first RecordResult from a single-key query."""
         session = client.create_session()
@@ -607,7 +607,7 @@ class TestRecordResultIntegration:
         await session.delete(key).execute()
 
     async def test_first_or_raise_on_batch_query_with_missing_key(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """first_or_raise() raises when the first batch-query result is not OK."""
         session = client.create_session()
@@ -628,7 +628,7 @@ class TestRecordResultIntegration:
             await stream.first_or_raise()
 
     async def test_batch_delete_returns_results_for_all_keys(
-        self, client: FluentClient, users: DataSet
+        self, client: Client, users: DataSet
     ):
         """Batch delete returns a RecordResult per key."""
         session = client.create_session()
@@ -648,7 +648,7 @@ class TestRecordResultIntegration:
 class TestBatchExpressionOps:
     """Test batch operations with expression reads and writes."""
 
-    async def test_batch_upsert_from(self, client: FluentClient, users: DataSet):
+    async def test_batch_upsert_from(self, client: Client, users: DataSet):
         """upsert_from across multiple batch keys."""
         session = client.create_session()
         keys = [users.id(f"bexp_{i}") for i in range(3)]
@@ -673,7 +673,7 @@ class TestBatchExpressionOps:
             rec = await rs.first_or_raise()
             assert rec.record.bins["C"] == (i + 1) * 10 + 1
 
-    async def test_batch_select_from(self, client: FluentClient, users: DataSet):
+    async def test_batch_select_from(self, client: Client, users: DataSet):
         """select_from (expression read) in batch context."""
         session = client.create_session()
         keys = [users.id(f"bexp_sel_{i}") for i in range(2)]
@@ -693,7 +693,7 @@ class TestBatchExpressionOps:
         assert results[1].record.bins["sum"] == 17
 
     async def test_batch_mixed_set_to_and_expression(
-        self, client: FluentClient, users: DataSet,
+        self, client: Client, users: DataSet,
     ):
         """set_to + upsert_from on same key in batch."""
         session = client.create_session()

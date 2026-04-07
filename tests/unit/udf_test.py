@@ -13,16 +13,16 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-"""Unit tests for foreground UDF fluent builders."""
+"""Unit tests for foreground UDF chainable builders."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aerospike_async import Key
 
-from aerospike_fluent.aio.operations.query import QueryBuilder, _OperationSpec
-from aerospike_fluent.aio.operations.udf import UdfFunctionBuilder
-from aerospike_fluent.policy.behavior import Behavior
+from aerospike_sdk.aio.operations.query import QueryBuilder, _OperationSpec
+from aerospike_sdk.aio.operations.udf import UdfFunctionBuilder
+from aerospike_sdk.policy.behavior import Behavior
 
 
 def _connected_qb() -> QueryBuilder:
