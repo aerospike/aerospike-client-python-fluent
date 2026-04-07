@@ -13,12 +13,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for DSL list expressions."""
+"""Unit tests for AEL list expressions."""
 
 import pytest
 from aerospike_async import CTX, ExpType, ListReturnType
-from aerospike_fluent import Exp, parse_dsl
-from aerospike_fluent.dsl.exceptions import DslParseException
+from aerospike_sdk import Exp, parse_ael
+from aerospike_sdk.ael.exceptions import AelParseException
 
 
 class TestListExpressions:
@@ -36,11 +36,11 @@ class TestListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[0] == 100")
+        result = parse_ael("$.listBin1.[0] == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[0].get(type: INT) == 100")
+        result = parse_ael("$.listBin1.[0].get(type: INT) == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[0].get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.listBin1.[0].get(type: INT, return: VALUE) == 100")
         assert result == expected
 
     def test_list_by_index_other_types(self):
@@ -55,11 +55,11 @@ class TestListExpressions:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.listBin1.[0] == "stringVal"')
+        result = parse_ael('$.listBin1.[0] == "stringVal"')
         assert result == expected_str
-        result = parse_dsl('$.listBin1.[0].get(type: STRING) == "stringVal"')
+        result = parse_ael('$.listBin1.[0].get(type: STRING) == "stringVal"')
         assert result == expected_str
-        result = parse_dsl('$.listBin1.[0].get(type: STRING, return: VALUE) == "stringVal"')
+        result = parse_ael('$.listBin1.[0].get(type: STRING, return: VALUE) == "stringVal"')
         assert result == expected_str
 
         expected_bool = Exp.eq(
@@ -72,11 +72,11 @@ class TestListExpressions:
             ),
             Exp.bool_val(True),
         )
-        result = parse_dsl("$.listBin1.[0] == true")
+        result = parse_ael("$.listBin1.[0] == true")
         assert result == expected_bool
-        result = parse_dsl("$.listBin1.[0].get(type: BOOL) == true")
+        result = parse_ael("$.listBin1.[0].get(type: BOOL) == true")
         assert result == expected_bool
-        result = parse_dsl("$.listBin1.[0].get(type: BOOL, return: VALUE) == true")
+        result = parse_ael("$.listBin1.[0].get(type: BOOL, return: VALUE) == true")
         assert result == expected_bool
 
     def test_list_by_value(self):
@@ -90,11 +90,11 @@ class TestListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[=100] == 100")
+        result = parse_ael("$.listBin1.[=100] == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[=100].get(type: INT) == 100")
+        result = parse_ael("$.listBin1.[=100].get(type: INT) == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[=100].get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.listBin1.[=100].get(type: INT, return: VALUE) == 100")
         assert result == expected
 
     def test_list_by_value_count(self):
@@ -108,9 +108,9 @@ class TestListExpressions:
             ),
             Exp.int_val(0),
         )
-        result = parse_dsl("$.listBin1.[=100].count() > 0")
+        result = parse_ael("$.listBin1.[=100].count() > 0")
         assert result == expected
-        result = parse_dsl("$.listBin1.[=100].[].count() > 0")
+        result = parse_ael("$.listBin1.[=100].[].count() > 0")
         assert result == expected
 
     def test_list_by_rank(self):
@@ -125,11 +125,11 @@ class TestListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[#-1] == 100")
+        result = parse_ael("$.listBin1.[#-1] == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[#-1].get(type: INT) == 100")
+        result = parse_ael("$.listBin1.[#-1].get(type: INT) == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[#-1].get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.listBin1.[#-1].get(type: INT, return: VALUE) == 100")
         assert result == expected
 
     def test_list_bin_element_equals_nested(self):
@@ -144,11 +144,11 @@ class TestListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[0].[0].[0] == 100")
+        result = parse_ael("$.listBin1.[0].[0].[0] == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[0].[0].[0].get(type: INT) == 100")
+        result = parse_ael("$.listBin1.[0].[0].[0].get(type: INT) == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[0].[0].[0].get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.listBin1.[0].[0].[0].get(type: INT, return: VALUE) == 100")
         assert result == expected
 
     def test_list_size(self):
@@ -157,9 +157,9 @@ class TestListExpressions:
             Exp.list_size(Exp.list_bin("listBin1"), []),
             Exp.int_val(1),
         )
-        result = parse_dsl("$.listBin1.[].count() == 1")
+        result = parse_ael("$.listBin1.[].count() == 1")
         assert result == expected
-        result = parse_dsl("$.listBin1.count() == 1")
+        result = parse_ael("$.listBin1.count() == 1")
         assert result == expected
 
     def test_nested_list_size(self):
@@ -177,9 +177,9 @@ class TestListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[1].[].count() == 100")
+        result = parse_ael("$.listBin1.[1].[].count() == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[1].count() == 100")
+        result = parse_ael("$.listBin1.[1].count() == 100")
         assert result == expected
 
     def test_nested_list_size_with_context(self):
@@ -197,9 +197,9 @@ class TestListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[1].[2].[].count() == 100")
+        result = parse_ael("$.listBin1.[1].[2].[].count() == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[1].[2].count() == 100")
+        result = parse_ael("$.listBin1.[1].[2].count() == 100")
         assert result == expected
 
     def test_nested_lists(self):
@@ -214,7 +214,7 @@ class TestListExpressions:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.listBin1.[5].[1].get(type: STRING) == "stringVal"')
+        result = parse_ael('$.listBin1.[5].[1].get(type: STRING) == "stringVal"')
         assert result == expected
 
     def test_nested_lists_with_different_context_types(self):
@@ -229,9 +229,9 @@ class TestListExpressions:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.listBin1.[5].[#-1] == "stringVal"')
+        result = parse_ael('$.listBin1.[5].[#-1] == "stringVal"')
         assert result == expected_rank
-        result = parse_dsl('$.listBin1.[5].[#-1].get(type: STRING) == "stringVal"')
+        result = parse_ael('$.listBin1.[5].[#-1].get(type: STRING) == "stringVal"')
         assert result == expected_rank
 
         expected_value = Exp.eq(
@@ -243,7 +243,7 @@ class TestListExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.listBin1.[5].[#-1].[=100] == 200")
+        result = parse_ael("$.listBin1.[5].[#-1].[=100] == 200")
         assert result == expected_value
 
     def test_list_bin_element_count(self):
@@ -261,15 +261,15 @@ class TestListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[0].count() == 100")
+        result = parse_ael("$.listBin1.[0].count() == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[0].[].count() == 100")
+        result = parse_ael("$.listBin1.[0].[].count() == 100")
         assert result == expected
 
     def test_negative_syntax_list(self):
         """Invalid list index syntax raises."""
-        with pytest.raises(DslParseException):
-            parse_dsl('$.listBin1.[stringValue] == 100')
+        with pytest.raises(AelParseException):
+            parse_ael('$.listBin1.[stringValue] == 100')
 
     def test_list_index_range(self):
         """$.listBin1.[1:3], [-3:1], [!2:4], [1:]."""
@@ -280,7 +280,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[1:3]")
+        result = parse_ael("$.listBin1.[1:3]")
         assert result == expected_1_3
 
         expected_neg = Exp.list_get_by_index_range_count(
@@ -290,7 +290,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[-3:1]")
+        result = parse_ael("$.listBin1.[-3:1]")
         assert result == expected_neg
 
         expected_inv = Exp.list_get_by_index_range_count(
@@ -300,7 +300,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[!2:4]")
+        result = parse_ael("$.listBin1.[!2:4]")
         assert result == expected_inv
 
         expected_open = Exp.list_get_by_index_range(
@@ -309,7 +309,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[1:]")
+        result = parse_ael("$.listBin1.[1:]")
         assert result == expected_open
 
     def test_list_value_list(self):
@@ -320,9 +320,9 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[=a,b,c]")
+        result = parse_ael("$.listBin1.[=a,b,c]")
         assert result == expected_str
-        result = parse_dsl('$.listBin1.[="a","b","c"]')
+        result = parse_ael('$.listBin1.[="a","b","c"]')
         assert result == expected_str
 
         expected_int = Exp.list_get_by_value_list(
@@ -331,7 +331,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[=1,2,3]")
+        result = parse_ael("$.listBin1.[=1,2,3]")
         assert result == expected_int
 
         expected_inv = Exp.list_get_by_value_list(
@@ -340,9 +340,9 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[!=a,b,c]")
+        result = parse_ael("$.listBin1.[!=a,b,c]")
         assert result == expected_inv
-        result = parse_dsl('$.listBin1.[!="a","b","c"]')
+        result = parse_ael('$.listBin1.[!="a","b","c"]')
         assert result == expected_inv
 
     def test_list_value_range(self):
@@ -354,7 +354,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[=111:334]")
+        result = parse_ael("$.listBin1.[=111:334]")
         assert result == expected
 
         expected_inv = Exp.list_get_by_value_range(
@@ -364,7 +364,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[!=10:20]")
+        result = parse_ael("$.listBin1.[!=10:20]")
         assert result == expected_inv
 
         expected_open = Exp.list_get_by_value_range(
@@ -374,7 +374,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[=111:]")
+        result = parse_ael("$.listBin1.[=111:]")
         assert result == expected_open
 
     def test_list_rank_range(self):
@@ -386,7 +386,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[#0:3]")
+        result = parse_ael("$.listBin1.[#0:3]")
         assert result == expected
 
         expected_inv = Exp.list_get_by_rank_range_count(
@@ -396,7 +396,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[!#0:3]")
+        result = parse_ael("$.listBin1.[!#0:3]")
         assert result == expected_inv
 
         expected_open = Exp.list_get_by_rank_range(
@@ -405,7 +405,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[#-3:]")
+        result = parse_ael("$.listBin1.[#-3:]")
         assert result == expected_open
 
         expected_ctx = Exp.list_get_by_rank_range(
@@ -414,7 +414,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [CTX.list_index(5)],
         )
-        result = parse_dsl("$.listBin1.[5].[#-3:]")
+        result = parse_ael("$.listBin1.[5].[#-3:]")
         assert result == expected_ctx
 
     def test_list_rank_range_relative(self):
@@ -427,7 +427,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[#-3:-1~b]")
+        result = parse_ael("$.listBin1.[#-3:-1~b]")
         assert result == expected
 
         expected_inv = Exp.list_get_by_value_relative_rank_range_count(
@@ -438,7 +438,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[!#-3:-1~b]")
+        result = parse_ael("$.listBin1.[!#-3:-1~b]")
         assert result == expected_inv
 
         expected_open = Exp.list_get_by_value_relative_rank_range(
@@ -448,7 +448,7 @@ class TestListExpressions:
             Exp.list_bin("listBin1"),
             [],
         )
-        result = parse_dsl("$.listBin1.[#-3:~b]")
+        result = parse_ael("$.listBin1.[#-3:~b]")
         assert result == expected_open
 
     def test_list_return_types(self):
@@ -463,7 +463,7 @@ class TestListExpressions:
             ),
             Exp.int_val(5),
         )
-        result = parse_dsl("$.listBin1.[0].get(return: COUNT) == 5")
+        result = parse_ael("$.listBin1.[0].get(return: COUNT) == 5")
         assert result == expected_count
 
         expected_exists = Exp.eq(
@@ -476,7 +476,7 @@ class TestListExpressions:
             ),
             Exp.bool_val(True),
         )
-        result = parse_dsl("$.listBin1.[0].get(return: EXISTS) == true")
+        result = parse_ael("$.listBin1.[0].get(return: EXISTS) == true")
         assert result == expected_exists
 
         expected_index = Exp.eq(
@@ -489,5 +489,5 @@ class TestListExpressions:
             ),
             Exp.int_val(1),
         )
-        result = parse_dsl("$.listBin1.[0].get(return: INDEX) == 1")
+        result = parse_ael("$.listBin1.[0].get(return: INDEX) == 1")
         assert result == expected_index

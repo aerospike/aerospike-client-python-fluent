@@ -56,7 +56,7 @@ def _configure_logging() -> None:
     handler.setFormatter(logging.Formatter(
         "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     ))
-    for prefix in ("aerospike_core", "aerospike_async", "aerospike_fluent"):
+    for prefix in ("aerospike_core", "aerospike_async", "aerospike_sdk"):
         logger = logging.getLogger(prefix)
         logger.setLevel(numeric)
         logger.addHandler(handler)
@@ -81,7 +81,7 @@ def _services_alternate() -> bool:
 
 def connect():
     """Build an async ClusterDefinition from environment variables."""
-    from aerospike_fluent import ClusterDefinition
+    from aerospike_sdk import ClusterDefinition
 
     hostname, port = _host_and_port()
     defn = ClusterDefinition(hostname, port)
@@ -92,7 +92,7 @@ def connect():
 
 def sync_connect():
     """Build a sync ClusterDefinition from environment variables."""
-    from aerospike_fluent.sync import ClusterDefinition
+    from aerospike_sdk.sync import ClusterDefinition
 
     hostname, port = _host_and_port()
     defn = ClusterDefinition(hostname, port)

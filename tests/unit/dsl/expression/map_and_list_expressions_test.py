@@ -13,10 +13,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for DSL map and list combined expressions."""
+"""Unit tests for AEL map and list combined expressions."""
 
 from aerospike_async import CTX, ExpType, ListReturnType, MapReturnType
-from aerospike_fluent import Exp, parse_dsl
+from aerospike_sdk import Exp, parse_ael
 
 
 class TestMapAndListExpressions:
@@ -34,7 +34,7 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.a.[0] == 100")
+        result = parse_ael("$.mapBin1.a.[0] == 100")
         assert result == expected
 
         expected_gt = Exp.gt(
@@ -47,7 +47,7 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.a.cc.[2].get(type: INT) > 100")
+        result = parse_ael("$.mapBin1.a.cc.[2].get(type: INT) > 100")
         assert result == expected_gt
 
     def test_map_list_list(self):
@@ -62,7 +62,7 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.a.[0].[0] == 100")
+        result = parse_ael("$.mapBin1.a.[0].[0] == 100")
         assert result == expected
 
     def test_map_inside_a_list(self):
@@ -77,7 +77,7 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[2].cc.get(type: INT) > 100")
+        result = parse_ael("$.listBin1.[2].cc.get(type: INT) > 100")
         assert result == expected
 
     def test_list_map_map(self):
@@ -92,9 +92,9 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[2].aa.cc > 100")
+        result = parse_ael("$.listBin1.[2].aa.cc > 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[2].aa.cc.get(type: INT) > 100")
+        result = parse_ael("$.listBin1.[2].aa.cc.get(type: INT) > 100")
         assert result == expected
 
     def test_list_map_list(self):
@@ -109,7 +109,7 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[1].a.[0] == 100")
+        result = parse_ael("$.listBin1.[1].a.[0] == 100")
         assert result == expected
 
     def test_list_map_list_size(self):
@@ -127,9 +127,9 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin1.[1].a.[0].count() == 100")
+        result = parse_ael("$.listBin1.[1].a.[0].count() == 100")
         assert result == expected
-        result = parse_dsl("$.listBin1.[1].a.[0].[].count() == 100")
+        result = parse_ael("$.listBin1.[1].a.[0].[].count() == 100")
         assert result == expected
 
     def test_map_list_map(self):
@@ -144,9 +144,9 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.a.[0].cc > 100")
+        result = parse_ael("$.mapBin1.a.[0].cc > 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.a.[0].cc.get(type: INT) > 100")
+        result = parse_ael("$.mapBin1.a.[0].cc.get(type: INT) > 100")
         assert result == expected
 
     def test_nested_list_access(self):
@@ -161,7 +161,7 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.listBin.[0].[0] == 100")
+        result = parse_ael("$.listBin.[0].[0] == 100")
         assert result == expected
 
     def test_nested_map_access(self):
@@ -176,5 +176,5 @@ class TestMapAndListExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin.a.bb.ccc == 200")
+        result = parse_ael("$.mapBin.a.bb.ccc == 200")
         assert result == expected

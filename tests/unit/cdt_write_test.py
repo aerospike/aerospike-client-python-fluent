@@ -39,16 +39,16 @@ from aerospike_async import (
     MapWriteFlags,
 )
 
-from aerospike_fluent.aio.operations.cdt_read import (
+from aerospike_sdk.aio.operations.cdt_read import (
     CdtReadBuilder,
     CdtReadInvertableBuilder,
     _map_item_pairs,
 )
-from aerospike_fluent.aio.operations.cdt_write import (
+from aerospike_sdk.aio.operations.cdt_write import (
     CdtWriteBuilder,
     CdtWriteInvertableBuilder,
 )
-from aerospike_fluent.aio.operations.query import (
+from aerospike_sdk.aio.operations.query import (
     QueryBinBuilder,
     QueryBuilder,
     WriteBinBuilder,

@@ -18,7 +18,7 @@
 import pytest
 
 from aerospike_async import CTX, CollectionIndexType, Filter
-from aerospike_fluent import Exp, Index, IndexContext, IndexTypeEnum, parse_dsl_with_index
+from aerospike_sdk import Exp, Index, IndexContext, IndexTypeEnum, parse_ael_with_index
 
 NAMESPACE = "test1"
 
@@ -83,20 +83,20 @@ class TestListExpressionsFilters:
 
     def test_list_expression_no_filter(self):
         """List CDT expressions do not produce secondary index Filters."""
-        result = parse_dsl_with_index("$.listBin.[0] == 100")
+        result = parse_ael_with_index("$.listBin.[0] == 100")
         assert result.filter is None
         assert result.exp is not None
 
     def test_list_expression(self):
         """$.listBin1 == \"stringVal\" and .get(type: STRING) variants → equal(listBin1, 'stringVal')."""
-        result = parse_dsl_with_index('$.listBin1 == "stringVal"', INDEX_FILTER_INPUT)
+        result = parse_ael_with_index('$.listBin1 == "stringVal"', INDEX_FILTER_INPUT)
         _assert_equal_filter(result, "listBin1", "stringVal")
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.get(type: STRING) == "stringVal"',
             INDEX_FILTER_INPUT,
         )
         _assert_equal_filter(result, "listBin1", "stringVal")
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.get(type: STRING, return: VALUE) == "stringVal"',
             INDEX_FILTER_INPUT,
         )
@@ -105,17 +105,17 @@ class TestListExpressionsFilters:
     def test_list_expression_nested_one_level(self):
         """$.listBin1.[5] == \"stringVal\" and .get(type: STRING) variants → equal(listBin1, 'stringVal', list_index(5))."""
         expected_ctx = [CTX.list_index(5)]
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.[5] == "stringVal"',
             INDEX_FILTER_INPUT,
         )
         _assert_equal_filter_with_ctx(result, "listBin1", "stringVal", expected_ctx)
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.[5].get(type: STRING) == "stringVal"',
             INDEX_FILTER_INPUT,
         )
         _assert_equal_filter_with_ctx(result, "listBin1", "stringVal", expected_ctx)
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.[5].get(type: STRING, return: VALUE) == "stringVal"',
             INDEX_FILTER_INPUT,
         )
@@ -124,24 +124,24 @@ class TestListExpressionsFilters:
     def test_list_expression_nested_two_levels(self):
         """$.listBin1.[5].[1] == \"stringVal\" and [=5].[#10] variants → equal with two-level ctx."""
         expected_ctx_5_1 = [CTX.list_index(5), CTX.list_index(1)]
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.[5].[1] == "stringVal"',
             INDEX_FILTER_INPUT,
         )
         _assert_equal_filter_with_ctx(result, "listBin1", "stringVal", expected_ctx_5_1)
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.[5].[1].get(type: STRING) == "stringVal"',
             INDEX_FILTER_INPUT,
         )
         _assert_equal_filter_with_ctx(result, "listBin1", "stringVal", expected_ctx_5_1)
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.[5].[1].get(type: STRING, return: VALUE) == "stringVal"',
             INDEX_FILTER_INPUT,
         )
         _assert_equal_filter_with_ctx(result, "listBin1", "stringVal", expected_ctx_5_1)
 
         expected_ctx_value_rank = [CTX.list_value(5), CTX.list_rank(10)]
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             '$.listBin1.[=5].[#10] == "stringVal"',
             INDEX_FILTER_INPUT,
         )

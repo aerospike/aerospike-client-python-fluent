@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Fluent client example tests from the spec.
+"""Python SDK example tests aligned with the Java SDK reference spec.
 
 These tests provide simple, focused examples for documentation.
 """
@@ -22,7 +22,7 @@ import asyncio
 
 import pytest
 from aerospike_async import Key
-from aerospike_fluent import ClusterDefinition, DataSet, Behavior
+from aerospike_sdk import ClusterDefinition, DataSet, Behavior
 
 
 @pytest.fixture

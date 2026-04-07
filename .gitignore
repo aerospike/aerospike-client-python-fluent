@@ -58,5 +58,5 @@ requirements-local.txt
 Thumbs.db
 
 
-aerospike_fluent/dsl/antlr4/generated/
+aerospike_sdk/ael/antlr4/generated/
 antlr-*.jar

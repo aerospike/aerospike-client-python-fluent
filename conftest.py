@@ -67,7 +67,7 @@ def pytest_configure(config):
             handler.setFormatter(logging.Formatter(
                 "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
             ))
-            for prefix in ("aerospike_core", "aerospike_async", "aerospike_fluent"):
+            for prefix in ("aerospike_core", "aerospike_async", "aerospike_sdk"):
                 logger = logging.getLogger(prefix)
                 logger.setLevel(numeric)
                 logger.addHandler(handler)

@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aerospike-fluent-client-python"
+name = "aerospike-sdk"
 dynamic = ["version"]
-description = "Fluent API wrapper for the Aerospike Python Async Client"
+description = "Aerospike Python SDK — high-level API on the Aerospike Python Async Client"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 dependencies = [
-    "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.11",
+    "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.12",
     "antlr4-python3-runtime>=4.13.0",
 ]
 classifiers = [
@@ -33,16 +33,19 @@ dev = [
     "antlr4-python3-runtime>=4.13.0",
 ]
 docs = [
-    "mkdocs>=1.6,<2",
-    "mkdocs-material>=9.0,<10",
-    "mkdocstrings[python]>=0.27",
+    "sphinx>=8.0",
+    "furo",
+    "myst-parser>=4.0",
+    "sphinx-design",
+    "sphinx-autodoc-typehints",
+    "sphinx-autobuild",
 ]
 
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}
 
 [tool.setuptools.packages.find]
-include = ["aerospike_fluent*"]
+include = ["aerospike_sdk*"]
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]

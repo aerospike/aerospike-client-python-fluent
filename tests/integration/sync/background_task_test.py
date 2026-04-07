@@ -18,7 +18,7 @@
 import pytest
 from aerospike_async import UDFLang
 
-from aerospike_fluent import DataSet, SyncFluentClient
+from aerospike_sdk import DataSet, SyncClient
 
 NS = "test"
 SET = "pfc_bg_task"
@@ -49,7 +49,7 @@ end
 """
 
 
-def _wait_task(client: SyncFluentClient, task) -> bool:
+def _wait_task(client: SyncClient, task) -> bool:
     async def _run():
         return await task.wait_till_complete()
 
@@ -58,7 +58,7 @@ def _wait_task(client: SyncFluentClient, task) -> bool:
 
 @pytest.fixture
 def client(aerospike_host, client_policy):
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as c:
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as c:
         ac = c._ensure_connected()
         raw = ac._client
         assert raw is not None

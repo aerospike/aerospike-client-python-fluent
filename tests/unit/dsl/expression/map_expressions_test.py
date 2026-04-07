@@ -13,10 +13,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for DSL map expressions. Order matches MapExpressionsTests."""
+"""Unit tests for AEL map expressions. Order matches MapExpressionsTests."""
 
 from aerospike_async import CTX, ExpType, MapReturnType
-from aerospike_fluent import Exp, parse_dsl
+from aerospike_sdk import Exp, parse_ael
 
 
 class TestMapExpressions:
@@ -34,11 +34,11 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a == 200")
+        result = parse_ael("$.mapBin1.a == 200")
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.a.get(type: INT) == 200")
+        result = parse_ael("$.mapBin1.a.get(type: INT) == 200")
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.a.get(type: INT, return: VALUE) == 200")
+        result = parse_ael("$.mapBin1.a.get(type: INT, return: VALUE) == 200")
         assert result == expected_int
 
         expected_str = Exp.eq(
@@ -51,11 +51,11 @@ class TestMapExpressions:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.mapBin1.a == "stringVal"')
+        result = parse_ael('$.mapBin1.a == "stringVal"')
         assert result == expected_str
-        result = parse_dsl('$.mapBin1.a.get(type: STRING) == "stringVal"')
+        result = parse_ael('$.mapBin1.a.get(type: STRING) == "stringVal"')
         assert result == expected_str
-        result = parse_dsl('$.mapBin1.a.get(type: STRING, return: VALUE) == "stringVal"')
+        result = parse_ael('$.mapBin1.a.get(type: STRING, return: VALUE) == "stringVal"')
         assert result == expected_str
 
     def test_map_nested_level_expressions(self):
@@ -70,11 +70,11 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.bb.bcc > 200")
+        result = parse_ael("$.mapBin1.a.bb.bcc > 200")
         assert result == expected_gt
-        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT) > 200")
+        result = parse_ael("$.mapBin1.a.bb.bcc.get(type: INT) > 200")
         assert result == expected_gt
-        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT, return: VALUE) > 200")
+        result = parse_ael("$.mapBin1.a.bb.bcc.get(type: INT, return: VALUE) > 200")
         assert result == expected_gt
 
         expected_eq = Exp.eq(
@@ -87,11 +87,11 @@ class TestMapExpressions:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.mapBin1.a.bb.bcc == "stringVal"')
+        result = parse_ael('$.mapBin1.a.bb.bcc == "stringVal"')
         assert result == expected_eq
-        result = parse_dsl('$.mapBin1.a.bb.bcc.get(type: STRING) == "stringVal"')
+        result = parse_ael('$.mapBin1.a.bb.bcc.get(type: STRING) == "stringVal"')
         assert result == expected_eq
-        result = parse_dsl('$.mapBin1.a.bb.bcc.get(type: STRING, return: VALUE) == "stringVal"')
+        result = parse_ael('$.mapBin1.a.bb.bcc.get(type: STRING, return: VALUE) == "stringVal"')
         assert result == expected_eq
 
     def test_quoted_string_in_expression_path(self):
@@ -106,11 +106,11 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.bb.bcc.get(type: INT) > 200")
+        result = parse_ael("$.mapBin1.a.bb.bcc.get(type: INT) > 200")
         assert result == expected
-        result = parse_dsl('$.mapBin1.a."bb".bcc.get(type: INT) > 200')
+        result = parse_ael('$.mapBin1.a."bb".bcc.get(type: INT) > 200')
         assert result == expected
-        result = parse_dsl("$.mapBin1.a.'bb'.bcc.get(type: INT) > 200")
+        result = parse_ael("$.mapBin1.a.'bb'.bcc.get(type: INT) > 200")
         assert result == expected
 
         expected_ip = Exp.gt(
@@ -123,9 +123,9 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl('$.mapBin1."127.0.0.1".bcc.get(type: INT) > 200')
+        result = parse_ael('$.mapBin1."127.0.0.1".bcc.get(type: INT) > 200')
         assert result == expected_ip
-        result = parse_dsl("$.mapBin1.'127.0.0.1'.bcc.get(type: INT) > 200")
+        result = parse_ael("$.mapBin1.'127.0.0.1'.bcc.get(type: INT) > 200")
         assert result == expected_ip
 
         expected_spaces = Exp.gt(
@@ -138,21 +138,21 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl('$.mapBin1."127 0 0 1".bcc.get(type: INT) > 200')
+        result = parse_ael('$.mapBin1."127 0 0 1".bcc.get(type: INT) > 200')
         assert result == expected_spaces
-        result = parse_dsl("$.mapBin1.'127 0 0 1'.bcc.get(type: INT) > 200")
+        result = parse_ael("$.mapBin1.'127 0 0 1'.bcc.get(type: INT) > 200")
         assert result == expected_spaces
 
     def test_map_size(self):
         """$.mapBin1.{}.count() uses map_size; $.mapBin1.count() defaults to list_size."""
-        result = parse_dsl("$.mapBin1.{}.count() > 200")
+        result = parse_ael("$.mapBin1.{}.count() > 200")
         expected_map = Exp.gt(
             Exp.map_size(Exp.map_bin("mapBin1"), []),
             Exp.int_val(200),
         )
         assert result == expected_map
 
-        result = parse_dsl("$.mapBin1.count() > 200")
+        result = parse_ael("$.mapBin1.count() > 200")
         expected_list = Exp.gt(
             Exp.list_size(Exp.list_bin("mapBin1"), []),
             Exp.int_val(200),
@@ -174,7 +174,7 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.{}.count() == 200")
+        result = parse_ael("$.mapBin1.a.{}.count() == 200")
         assert result == expected_map
 
         expected_list = Exp.eq(
@@ -190,7 +190,7 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.count() == 200")
+        result = parse_ael("$.mapBin1.a.count() == 200")
         assert result == expected_list
 
     def test_nested_map_size_with_context(self):
@@ -208,7 +208,7 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.b.{}.count() == 200")
+        result = parse_ael("$.mapBin1.a.b.{}.count() == 200")
         assert result == expected_map
 
         expected_list = Exp.eq(
@@ -224,7 +224,7 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.a.b.count() == 200")
+        result = parse_ael("$.mapBin1.a.b.count() == 200")
         assert result == expected_list
 
     def test_map_by_index(self):
@@ -239,11 +239,11 @@ class TestMapExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.{0} == 100")
+        result = parse_ael("$.mapBin1.{0} == 100")
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.{0}.get(type: INT) == 100")
+        result = parse_ael("$.mapBin1.{0}.get(type: INT) == 100")
         assert result == expected_int
-        result = parse_dsl("$.mapBin1.{0}.get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.mapBin1.{0}.get(type: INT, return: VALUE) == 100")
         assert result == expected_int
 
         expected_str = Exp.eq(
@@ -256,11 +256,11 @@ class TestMapExpressions:
             ),
             Exp.string_val("value"),
         )
-        result = parse_dsl("$.mapBin1.{0} == 'value'")
+        result = parse_ael("$.mapBin1.{0} == 'value'")
         assert result == expected_str
-        result = parse_dsl("$.mapBin1.{0}.get(type: STRING) == 'value'")
+        result = parse_ael("$.mapBin1.{0}.get(type: STRING) == 'value'")
         assert result == expected_str
-        result = parse_dsl("$.mapBin1.{0}.get(type: STRING, return: VALUE) == 'value'")
+        result = parse_ael("$.mapBin1.{0}.get(type: STRING, return: VALUE) == 'value'")
         assert result == expected_str
 
     def test_map_by_value(self):
@@ -274,11 +274,11 @@ class TestMapExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.{=100} == 100")
+        result = parse_ael("$.mapBin1.{=100} == 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.{=100}.get(type: INT) == 100")
+        result = parse_ael("$.mapBin1.{=100}.get(type: INT) == 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.{=100}.get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.mapBin1.{=100}.get(type: INT, return: VALUE) == 100")
         assert result == expected
 
     def test_map_by_value_count(self):
@@ -292,9 +292,9 @@ class TestMapExpressions:
             ),
             Exp.int_val(0),
         )
-        result = parse_dsl("$.mapBin1.{=100}.count() > 0")
+        result = parse_ael("$.mapBin1.{=100}.count() > 0")
         assert result == expected
-        result = parse_dsl("$.mapBin1.{=100}.{}.count() > 0")
+        result = parse_ael("$.mapBin1.{=100}.{}.count() > 0")
         assert result == expected
 
     def test_map_by_rank(self):
@@ -309,11 +309,11 @@ class TestMapExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.{#-1} == 100")
+        result = parse_ael("$.mapBin1.{#-1} == 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.{#-1}.get(type: INT) == 100")
+        result = parse_ael("$.mapBin1.{#-1}.get(type: INT) == 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.{#-1}.get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.mapBin1.{#-1}.get(type: INT, return: VALUE) == 100")
         assert result == expected
 
     def test_map_by_rank_with_nesting(self):
@@ -328,11 +328,11 @@ class TestMapExpressions:
             ),
             Exp.int_val(100),
         )
-        result = parse_dsl("$.mapBin1.a.{#-1} == 100")
+        result = parse_ael("$.mapBin1.a.{#-1} == 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.a.{#-1}.get(type: INT) == 100")
+        result = parse_ael("$.mapBin1.a.{#-1}.get(type: INT) == 100")
         assert result == expected
-        result = parse_dsl("$.mapBin1.a.{#-1}.get(type: INT, return: VALUE) == 100")
+        result = parse_ael("$.mapBin1.a.{#-1}.get(type: INT, return: VALUE) == 100")
         assert result == expected
 
     def test_nested_lists_with_different_context_types(self):
@@ -347,9 +347,9 @@ class TestMapExpressions:
             ),
             Exp.string_val("stringVal"),
         )
-        result = parse_dsl('$.mapBin1.{5}.{#-1} == "stringVal"')
+        result = parse_ael('$.mapBin1.{5}.{#-1} == "stringVal"')
         assert result == expected_rank
-        result = parse_dsl('$.mapBin1.{5}.{#-1}.get(type: STRING) == "stringVal"')
+        result = parse_ael('$.mapBin1.{5}.{#-1}.get(type: STRING) == "stringVal"')
         assert result == expected_rank
 
         expected_value = Exp.eq(
@@ -361,7 +361,7 @@ class TestMapExpressions:
             ),
             Exp.int_val(200),
         )
-        result = parse_dsl("$.mapBin1.{5}.{#-1}.{=100} == 200")
+        result = parse_ael("$.mapBin1.{5}.{#-1}.{=100} == 200")
         assert result == expected_value
 
     def test_map_key_range(self):
@@ -373,9 +373,9 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{a-c}")
+        result = parse_ael("$.mapBin1.{a-c}")
         assert result == expected
-        result = parse_dsl('$.mapBin1.{"a"-"c"}')
+        result = parse_ael('$.mapBin1.{"a"-"c"}')
         assert result == expected
 
         expected_inv = Exp.map_get_by_key_range(
@@ -385,9 +385,9 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!a-c}")
+        result = parse_ael("$.mapBin1.{!a-c}")
         assert result == expected_inv
-        result = parse_dsl('$.mapBin1.{!"a"-"c"}')
+        result = parse_ael('$.mapBin1.{!"a"-"c"}')
         assert result == expected_inv
 
         expected_open = Exp.map_get_by_key_range(
@@ -397,9 +397,9 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{a-}")
+        result = parse_ael("$.mapBin1.{a-}")
         assert result == expected_open
-        result = parse_dsl('$.mapBin1.{"a"-}')
+        result = parse_ael('$.mapBin1.{"a"-}')
         assert result == expected_open
 
     def test_map_key_list(self):
@@ -410,9 +410,9 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{a,b,c}")
+        result = parse_ael("$.mapBin1.{a,b,c}")
         assert result == expected
-        result = parse_dsl('$.mapBin1.{"a","b","c"}')
+        result = parse_ael('$.mapBin1.{"a","b","c"}')
         assert result == expected
 
         expected_inv = Exp.map_get_by_key_list(
@@ -421,9 +421,9 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!a,b,c}")
+        result = parse_ael("$.mapBin1.{!a,b,c}")
         assert result == expected_inv
-        result = parse_dsl('$.mapBin1.{!"a","b","c"}')
+        result = parse_ael('$.mapBin1.{!"a","b","c"}')
         assert result == expected_inv
 
     def test_map_index_range(self):
@@ -435,7 +435,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{1:3}")
+        result = parse_ael("$.mapBin1.{1:3}")
         assert result == expected
 
         expected_neg = Exp.map_get_by_index_range_count(
@@ -445,7 +445,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{-3:1}")
+        result = parse_ael("$.mapBin1.{-3:1}")
         assert result == expected_neg
 
         expected_inv = Exp.map_get_by_index_range_count(
@@ -455,7 +455,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!2:4}")
+        result = parse_ael("$.mapBin1.{!2:4}")
         assert result == expected_inv
 
         expected_open = Exp.map_get_by_index_range(
@@ -464,7 +464,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{1:}")
+        result = parse_ael("$.mapBin1.{1:}")
         assert result == expected_open
 
     def test_map_value_list(self):
@@ -475,9 +475,9 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{=a,b,c}")
+        result = parse_ael("$.mapBin1.{=a,b,c}")
         assert result == expected_str
-        result = parse_dsl('$.mapBin1.{="a","b","c"}')
+        result = parse_ael('$.mapBin1.{="a","b","c"}')
         assert result == expected_str
 
         expected_int = Exp.map_get_by_value_list(
@@ -486,7 +486,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{=1,2,3}")
+        result = parse_ael("$.mapBin1.{=1,2,3}")
         assert result == expected_int
 
         expected_inv = Exp.map_get_by_value_list(
@@ -495,9 +495,9 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!=a,b,c}")
+        result = parse_ael("$.mapBin1.{!=a,b,c}")
         assert result == expected_inv
-        result = parse_dsl('$.mapBin1.{!="a","b","c"}')
+        result = parse_ael('$.mapBin1.{!="a","b","c"}')
         assert result == expected_inv
 
     def test_map_value_range(self):
@@ -509,7 +509,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{=111:334}")
+        result = parse_ael("$.mapBin1.{=111:334}")
         assert result == expected
 
         expected_inv = Exp.map_get_by_value_range(
@@ -519,7 +519,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!=10:20}")
+        result = parse_ael("$.mapBin1.{!=10:20}")
         assert result == expected_inv
 
         expected_open = Exp.map_get_by_value_range(
@@ -529,7 +529,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{=111:}")
+        result = parse_ael("$.mapBin1.{=111:}")
         assert result == expected_open
 
     def test_map_rank_range(self):
@@ -541,7 +541,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{#0:3}")
+        result = parse_ael("$.mapBin1.{#0:3}")
         assert result == expected
 
         expected_inv = Exp.map_get_by_rank_range_count(
@@ -551,7 +551,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!#0:3}")
+        result = parse_ael("$.mapBin1.{!#0:3}")
         assert result == expected_inv
 
         expected_open = Exp.map_get_by_rank_range(
@@ -560,7 +560,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{#-3:}")
+        result = parse_ael("$.mapBin1.{#-3:}")
         assert result == expected_open
 
         expected_ctx = Exp.map_get_by_rank_range(
@@ -569,7 +569,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [CTX.map_index(5)],
         )
-        result = parse_dsl("$.mapBin1.{5}.{#-3:}")
+        result = parse_ael("$.mapBin1.{5}.{#-3:}")
         assert result == expected_ctx
 
     def test_map_rank_range_relative(self):
@@ -582,7 +582,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{#-1:1~10}")
+        result = parse_ael("$.mapBin1.{#-1:1~10}")
         assert result == expected
 
         expected_inv = Exp.map_get_by_value_relative_rank_range_count(
@@ -593,7 +593,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!#-1:1~10}")
+        result = parse_ael("$.mapBin1.{!#-1:1~10}")
         assert result == expected_inv
 
         expected_open = Exp.map_get_by_value_relative_rank_range(
@@ -603,7 +603,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{#-2:~10}")
+        result = parse_ael("$.mapBin1.{#-2:~10}")
         assert result == expected_open
 
     def test_map_index_range_relative(self):
@@ -616,7 +616,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{0:1~a}")
+        result = parse_ael("$.mapBin1.{0:1~a}")
         assert result == expected
 
         expected_inv = Exp.map_get_by_key_relative_index_range_count(
@@ -627,7 +627,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{!0:1~a}")
+        result = parse_ael("$.mapBin1.{!0:1~a}")
         assert result == expected_inv
 
         expected_open = Exp.map_get_by_key_relative_index_range(
@@ -637,7 +637,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.{0:~a}")
+        result = parse_ael("$.mapBin1.{0:~a}")
         assert result == expected_open
 
     def test_map_return_types(self):
@@ -652,7 +652,7 @@ class TestMapExpressions:
             ),
             Exp.int_val(5),
         )
-        result = parse_dsl("$.mapBin1.a.get(type: INT, return: COUNT) == 5")
+        result = parse_ael("$.mapBin1.a.get(type: INT, return: COUNT) == 5")
         assert result == expected_count
 
         expected_ordered = Exp.map_get_by_key(
@@ -662,7 +662,7 @@ class TestMapExpressions:
             Exp.map_bin("mapBin1"),
             [],
         )
-        result = parse_dsl("$.mapBin1.a.get(return: ORDERED_MAP)")
+        result = parse_ael("$.mapBin1.a.get(return: ORDERED_MAP)")
         assert result == expected_ordered
 
         expected_rank = Exp.eq(
@@ -675,5 +675,5 @@ class TestMapExpressions:
             ),
             Exp.int_val(5),
         )
-        result = parse_dsl("$.mapBin1.a.get(type: INT, return: RANK) == 5")
+        result = parse_ael("$.mapBin1.a.get(type: INT, return: RANK) == 5")
         assert result == expected_rank

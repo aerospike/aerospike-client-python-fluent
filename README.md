@@ -1,6 +1,6 @@
-# Aerospike Fluent Client for Python
+# Aerospike Python SDK
 
-A fluent API wrapper for the Aerospike Python Async Client, providing a more intuitive and chainable interface for database operations.
+A high-level API on the Aerospike Python Async Client, providing an intuitive and chainable interface for database operations.
 
 > **Status:** Pre-alpha -- internal development.
 
@@ -9,21 +9,21 @@ A fluent API wrapper for the Aerospike Python Async Client, providing a more int
 - **Python** 3.10 - 3.14 (recommended: [pyenv](https://github.com/pyenv/pyenv) with a dedicated environment for this repo)
 - **Aerospike server** -- required for integration tests
 - **Rust toolchain** (rustc + cargo) -- only needed if building the Aerospike Python Async Client from source
-- **Java 11+** -- only needed if regenerating the ANTLR DSL parser
+- **Java 11+** -- only needed if regenerating the ANTLR AEL parser
 
 ## Install the Aerospike Python Async Client
 
-The fluent client depends on the [Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async).
+This SDK depends on the [Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async).
 The version is pinned in `pyproject.toml` (git tag). `pip install -e ".[dev]"` installs PAC from Git (requires Rust to build unless you pre-install a wheel).
 
 ### Option 1: Pre-built wheel (no Rust)
 
 Download the wheel for your platform and Python version from the
 [GitHub Releases page](https://github.com/aerospike/aerospike-client-python-async/releases),
-then install it with the **same pyenv-backed Python** you use for the fluent client **before** installing this package:
+then install it with the **same pyenv-backed Python** you use for this SDK **before** installing this package:
 
 ```bash
-# e.g. pyenv activate fluent_client_3_14_2_crsr   # your env name
+# e.g. pyenv activate sdk_client_3_14_2_crsr   # your env name
 pip install aerospike_async-0.3.0a10-cp313-cp313-macosx_11_0_arm64.whl  # example; match your Python and platform
 pip install -e ".[dev]" --no-deps   # if PAC is already satisfied
 ```
@@ -42,7 +42,7 @@ See the [Aerospike Python Async Client README](https://github.com/aerospike/aero
 
 ### Local PAC checkout (temporary)
 
-To test against an **unreleased** sibling PAC tree, install it explicitly, then install the fluent client without re-resolving PAC from git:
+To test against an **unreleased** sibling PAC tree, install it explicitly, then install this SDK without re-resolving PAC from git:
 
 ```bash
 pip install -e /path/to/aerospike-client-python-async
@@ -51,7 +51,7 @@ pip install -e ".[dev]" --no-deps
 
 Or adjust and use `requirements-local.txt` (gitignored path example).
 
-## Install the Fluent Client
+## Install this package
 
 Use the interpreter from your pyenv environment (see `.cursor/rules/guiding-principles.mdc` for the usual env name), then:
 
@@ -88,11 +88,24 @@ ulimit -n 4096
 
 To make this permanent, add it to your shell profile (`~/.zshrc` or `~/.bash_profile`).
 
+## Documentation
+
+API docs are built with [Sphinx](https://www.sphinx-doc.org/) (Furo theme, MyST-Parser for Markdown).
+
+```bash
+pip install -e ".[docs]"   # one-time: install Sphinx toolchain
+
+make docs                  # build static HTML to docs/_build/html/
+make docs-serve            # live-reloading local preview
+```
+
+Docstrings use Google style with Sphinx cross-references (`:meth:`, `:class:`, etc.).
+
 ## Development
 
 ```bash
-# Regenerate the ANTLR DSL parser (requires Java 11+)
-make generate-dsl
+# Regenerate the ANTLR AEL parser (requires Java 11+)
+make generate-ael
 
 # Lint
 ruff check .
@@ -102,18 +115,18 @@ ruff check .
 
 ```python
 import asyncio
-from aerospike_fluent import Behavior, DataSet, FluentClient
+from aerospike_sdk import Behavior, DataSet, Client
 
 async def main():
-    async with FluentClient("localhost:3100") as client:
+    async with Client("localhost:3100") as client:
         session = client.create_session(Behavior.DEFAULT)
         users = DataSet.of("test", "users")
 
-        # Fluent key-value operations
+        # High-level key-value operations
         await session.upsert(key=users.id(1)).put({"name": "Alice", "age": 28, "country": "UK"})
         await session.upsert(key=users.id(2)).put({"name": "Bob", "age": 35, "country": "US"})
 
-        # Query with string DSL -- stream results one at a time (memory-efficient)
+        # Query with string AEL -- stream results one at a time (memory-efficient)
         results = await (
             session.query(users)
             .where("$.age > %s and $.country == '%s'", 25, "US")

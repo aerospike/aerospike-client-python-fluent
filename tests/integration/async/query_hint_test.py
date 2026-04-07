@@ -20,9 +20,9 @@ import asyncio
 import pytest
 from aerospike_async import Filter, QueryDuration
 
-from aerospike_fluent import (
+from aerospike_sdk import (
     DataSet,
-    FluentClient,
+    Client,
     QueryHint,
 )
 
@@ -34,7 +34,7 @@ INDEX_NAME = "pfc_qhint_age_idx"
 @pytest.fixture
 async def client(aerospike_host, client_policy, enterprise):
     """Setup client, data, and a secondary index for hint tests."""
-    async with FluentClient(
+    async with Client(
         seeds=aerospike_host,
         policy=client_policy,
         # refresh interval set super-small to spped up testing:
@@ -129,8 +129,8 @@ class TestIndexNameHint:
         stream.close()
         assert count == 5
 
-    async def test_index_name_via_dsl(self, client):
-        """DSL where() + index_name hint with auto-discovered index."""
+    async def test_index_name_via_ael(self, client):
+        """AEL where() + index_name hint with auto-discovered index."""
         stream = await (
             client.query("test", SET_NAME)
             .where("$.age >= 25")
@@ -167,8 +167,8 @@ class TestIndexNameHint:
 class TestBinNameHint:
     """bin_name hint redirects the filter to a different bin."""
 
-    async def test_bin_name_via_dsl(self, client):
-        """DSL referencing $.age with bin_name hint and auto-discovered index."""
+    async def test_bin_name_via_ael(self, client):
+        """AEL referencing $.age with bin_name hint and auto-discovered index."""
         stream = await (
             client.query("test", SET_NAME)
             .where("$.age == 25")

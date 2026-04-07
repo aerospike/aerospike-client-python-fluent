@@ -20,7 +20,7 @@ from aerospike_async import (
     MapOperation, MapOrder, MapPolicy, MapReturnType,
     WritePolicy,
 )
-from aerospike_fluent import DataSet, FluentClient
+from aerospike_sdk import DataSet, Client
 
 
 NS = "test"
@@ -31,7 +31,7 @@ DS = DataSet.of(NS, SET)
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
+    async with Client(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
         for key in range(1, 25):
             await session.delete(DS.id(key)).execute()
@@ -389,8 +389,8 @@ class TestEdgeCases:
         assert values == [100, 200, 300]
 
 
-class TestFluentApiOrdering:
-    """Verify ordering through the fluent BinBuilder path."""
+class TestCdtOrdering:
+    """Verify ordering through the chainable BinBuilder path."""
 
     async def test_set_to_ordered_bin(self, client):
         """set_to() on a K-ordered map bin, then read back sorted."""

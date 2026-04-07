@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-"""Integration tests for foreground UDF fluent API (sync)."""
+"""Integration tests for foreground UDF SDK API (sync)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ import pytest
 from aerospike_async import UDFLang
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent import DataSet, SyncFluentClient
+from aerospike_sdk import DataSet, SyncClient
 
 NS = "test"
 SET = "test"
@@ -35,7 +35,7 @@ SERVER_PATH = "record_example.lua"
 MODULE = "record_example"
 
 
-def _wait_task(client: SyncFluentClient, task) -> bool:
+def _wait_task(client: SyncClient, task) -> bool:
     async def _w():
         return await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
 
@@ -44,7 +44,7 @@ def _wait_task(client: SyncFluentClient, task) -> bool:
 
 @pytest.fixture
 def client_with_udf(aerospike_host, client_policy):
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as client:
         try:
             rm = client.remove_udf(SERVER_PATH)
             _wait_task(client, rm)

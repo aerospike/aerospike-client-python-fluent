@@ -18,9 +18,9 @@
 Tests the two forms: where(str) and where(FilterExpression).
 """
 
-from aerospike_fluent import Exp, parse_dsl
-from aerospike_fluent.aio.operations.query import QueryBuilder
-from aerospike_fluent.sync.operations.query import SyncQueryBuilder
+from aerospike_sdk import Exp, parse_ael
+from aerospike_sdk.aio.operations.query import QueryBuilder
+from aerospike_sdk.sync.operations.query import SyncQueryBuilder
 
 
 def _query_builder():
@@ -31,19 +31,19 @@ def _query_builder():
 class TestQueryBuilderWhere:
     """Test QueryBuilder.where() overloads."""
 
-    def test_where_dsl_string_sets_filter_expression(self):
-        """where(str) parses DSL and sets _filter_expression."""
+    def test_where_ael_string_sets_filter_expression(self):
+        """where(str) parses AEL and sets _filter_expression."""
         builder = _query_builder()
-        expected = parse_dsl("$.age > 20")
+        expected = parse_ael("$.age > 20")
         result = builder.where("$.age > 20")
         assert result is builder
         assert builder._filter_expression == expected
 
-    def test_where_dsl_fstring_sets_filter_expression(self):
+    def test_where_ael_fstring_sets_filter_expression(self):
         """where(str) with f-string interpolation."""
         builder = _query_builder()
         age = 21
-        expected = parse_dsl("$.age > 21")
+        expected = parse_ael("$.age > 21")
         result = builder.where(f"$.age > {age}")
         assert result is builder
         assert builder._filter_expression == expected
@@ -77,10 +77,10 @@ class TestSyncQueryBuilderWhere:
             loop_manager=object(),
         )
 
-    def test_where_dsl_string_sets_filter_expression(self):
-        """where(str) parses DSL and sets _filter_expression on the delegate."""
+    def test_where_ael_string_sets_filter_expression(self):
+        """where(str) parses AEL and sets _filter_expression on the delegate."""
         builder = self._sync_builder()
-        expected = parse_dsl("$.age > 20")
+        expected = parse_ael("$.age > 20")
         result = builder.where("$.age > 20")
         assert result is builder
         assert builder._qb._filter_expression == expected

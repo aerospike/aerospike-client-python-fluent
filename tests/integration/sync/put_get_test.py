@@ -13,18 +13,18 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Integration tests for synchronous put/get and core fluent operations."""
+"""Integration tests for synchronous put/get and core SDK operations."""
 
 import pytest
 from aerospike_async.exceptions import ResultCode
-from aerospike_fluent import DataSet, SyncFluentClient
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk import DataSet, SyncClient
+from aerospike_sdk.exceptions import AerospikeError
 
 
 @pytest.fixture
 def client(aerospike_host, client_policy):
-    """Setup sync fluent client for testing."""
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup sync SDK client for testing."""
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "test")
         try:

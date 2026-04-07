@@ -19,7 +19,7 @@ import asyncio
 
 import pytest
 
-from aerospike_fluent import DataSet, FluentClient
+from aerospike_sdk import DataSet, Client
 
 
 SET_NAME = "idx_monitor_integ"
@@ -30,7 +30,7 @@ NAMESPACE = "test"
 @pytest.fixture
 async def client(aerospike_host, client_policy, enterprise):
     """Client with seed data and a numeric secondary index on 'age'."""
-    async with FluentClient(
+    async with Client(
         seeds=aerospike_host,
         policy=client_policy,
         # refresh interval set super-small to spped up testing:
@@ -76,8 +76,8 @@ async def client(aerospike_host, client_policy, enterprise):
 class TestAutoIndexDiscovery:
     """Queries that rely on the monitor auto-discovering secondary indexes."""
 
-    async def test_dsl_query_uses_auto_discovered_index(self, client):
-        """DSL where() should auto-generate a secondary index filter."""
+    async def test_ael_query_uses_auto_discovered_index(self, client):
+        """AEL where() should auto-generate a secondary index filter."""
         stream = await (
             client.query(NAMESPACE, SET_NAME)
             .where("$.age >= 25")
@@ -91,8 +91,8 @@ class TestAutoIndexDiscovery:
         ages = sorted(r.bins["age"] for r in records)
         assert ages == [25, 26, 27, 28, 29]
 
-    async def test_dsl_equality_with_auto_index(self, client):
-        """DSL equality predicate on an indexed bin."""
+    async def test_ael_equality_with_auto_index(self, client):
+        """AEL equality predicate on an indexed bin."""
         stream = await (
             client.query(NAMESPACE, SET_NAME)
             .where("$.age == 23")
@@ -107,7 +107,7 @@ class TestAutoIndexDiscovery:
 
     async def test_explicit_index_context_overrides_monitor(self, client):
         """An explicit with_index_context() should take precedence."""
-        from aerospike_fluent import Index, IndexContext, IndexTypeEnum
+        from aerospike_sdk import Index, IndexContext, IndexTypeEnum
 
         ctx = IndexContext.of(NAMESPACE, [
             Index(

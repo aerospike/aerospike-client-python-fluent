@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Example demonstrating the synchronous fluent API.
+"""Example demonstrating the synchronous SDK API.
 
-Covers: SyncFluentClient connection, put, get, exists, delete — no async/await.
+Covers: SyncClient connection, put, get, exists, delete — no async/await.
 """
 
 import _env
-from aerospike_fluent import Behavior, DataSet, SyncFluentClient
+from aerospike_sdk import Behavior, DataSet, SyncClient
 
 
 def main() -> None:

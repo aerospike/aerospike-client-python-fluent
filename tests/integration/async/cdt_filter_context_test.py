@@ -15,11 +15,11 @@
 
 """Integration tests for query Filter with CDT context (nested map path).
 
-:meth:`~aerospike_fluent.aio.client.FluentClient.query` /
-:class:`~aerospike_fluent.aio.operations.query.QueryBuilder` accept native
+:meth:`~aerospike_sdk.aio.client.Client.query` /
+:class:`~aerospike_sdk.aio.operations.query.QueryBuilder` accept native
 ``Filter`` objects, including ``Filter.equal(...).context([...])``. Secondary
 indexes on CDT paths are created here via :meth:`Client.create_index` because
-the fluent :class:`~aerospike_fluent.aio.operations.index.IndexBuilder` does
+the SDK :class:`~aerospike_sdk.aio.operations.index.IndexBuilder` does
 not expose ``ctx`` yet.
 """
 
@@ -28,7 +28,7 @@ import asyncio
 import pytest
 from aerospike_async import CTX, Filter, IndexType
 
-from aerospike_fluent import DataSet, FluentClient
+from aerospike_sdk import DataSet, Client
 
 _NS = "test"
 _SET = "cdt_filter_ctx_test"
@@ -49,7 +49,7 @@ def _require_filter_context() -> None:
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 

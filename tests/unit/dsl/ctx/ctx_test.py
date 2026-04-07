@@ -13,14 +13,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for DSL CTX parsing. Order matches CtxTests."""
+"""Unit tests for AEL CTX parsing. Order matches CtxTests."""
 
 import io
 import contextlib
 import pytest
 
 from aerospike_async import CTX
-from aerospike_fluent import DslParseException, parse_ctx
+from aerospike_sdk import AelParseException, parse_ctx
 
 
 def _parse_ctx_quiet(path: str):
@@ -36,23 +36,23 @@ def _assert_ctx_eq(path: str, expected: list):
 
 
 class TestCtx:
-    """Test CTX parsing from DSL paths."""
+    """Test CTX parsing from AEL paths."""
 
     def test_list_expression_only_bin_no_ctx(self):
-        with pytest.raises(DslParseException, match="CDT context is not provided"):
+        with pytest.raises(AelParseException, match="CDT context is not provided"):
             parse_ctx("$.listBin1")
 
     def test_list_expression_empty_or_malformed_input(self):
-        with pytest.raises(DslParseException, match="Path must not be null or empty"):
+        with pytest.raises(AelParseException, match="Path must not be null or empty"):
             parse_ctx(None)
 
-        with pytest.raises(DslParseException, match="Path must not be null or empty"):
+        with pytest.raises(AelParseException, match="Path must not be null or empty"):
             parse_ctx("")
 
-        with pytest.raises(DslParseException, match=r"Could not parse the given DSL path input|no viable alternative|line \d+:\d+"):
+        with pytest.raises(AelParseException, match=r"Could not parse the given AEL path input|no viable alternative|line \d+:\d+"):
             _parse_ctx_quiet("$..listBin1")
 
-        with pytest.raises(DslParseException, match=r"Could not parse the given DSL path input|no viable alternative|line \d+:\d+"):
+        with pytest.raises(AelParseException, match=r"Could not parse the given AEL path input|no viable alternative|line \d+:\d+"):
             _parse_ctx_quiet("$listBin1")
 
     def test_list_expression_one_level(self):
@@ -61,23 +61,23 @@ class TestCtx:
         _assert_ctx_eq("$.listBin1.[#-1]", [CTX.list_rank(-1)])
 
     def test_list_expression_one_level_with_path_function(self):
-        with pytest.raises(DslParseException, match="Path function is unsupported"):
+        with pytest.raises(AelParseException, match="Path function is unsupported"):
             parse_ctx("$.listBin1.[0].get(type: INT)")
 
-        with pytest.raises(DslParseException, match="Path function is unsupported"):
+        with pytest.raises(AelParseException, match="Path function is unsupported"):
             parse_ctx("$.listBin1.[=100].get(type: INT, return: VALUE)")
 
-        with pytest.raises(DslParseException, match="Path function is unsupported"):
+        with pytest.raises(AelParseException, match="Path function is unsupported"):
             parse_ctx("$.listBin1.[#-1].asInt()")
 
-    def test_list_expression_one_level_with_full_dsl_expression(self):
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+    def test_list_expression_one_level_with_full_ael_expression(self):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.listBin1.[0] == 100")
 
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.listBin1.[=100].get(type: INT, return: VALUE) == 100")
 
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.listBin1.[#-1].asInt() == 100")
 
     def test_list_expression_two_levels(self):
@@ -100,7 +100,7 @@ class TestCtx:
         )
 
     def test_map_expression_only_bin_no_ctx(self):
-        with pytest.raises(DslParseException, match="CDT context is not provided"):
+        with pytest.raises(AelParseException, match="CDT context is not provided"):
             parse_ctx("$.mapBin1")
 
     def test_map_expression_one_level(self):
@@ -110,32 +110,32 @@ class TestCtx:
         _assert_ctx_eq("$.mapBin1.{=100}", [CTX.map_value(100)])
 
     def test_map_expression_one_level_with_path_function(self):
-        with pytest.raises(DslParseException, match="Path function is unsupported"):
+        with pytest.raises(AelParseException, match="Path function is unsupported"):
             parse_ctx("$.mapBin1.a.get(type: INT)")
 
-        with pytest.raises(DslParseException, match="Path function is unsupported"):
+        with pytest.raises(AelParseException, match="Path function is unsupported"):
             parse_ctx("$.mapBin1.{0}.get(type: INT)")
 
-        with pytest.raises(DslParseException, match="Path function is unsupported"):
+        with pytest.raises(AelParseException, match="Path function is unsupported"):
             parse_ctx("$.mapBin1.{=100}.get(type: INT, return: VALUE)")
 
-        with pytest.raises(DslParseException, match="Path function is unsupported"):
+        with pytest.raises(AelParseException, match="Path function is unsupported"):
             parse_ctx("$.mapBin1.{#-1}.asInt()")
 
-    def test_map_expression_one_level_with_full_dsl_expression(self):
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+    def test_map_expression_one_level_with_full_ael_expression(self):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.mapBin1.a == 100")
 
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.mapBin1.{0}.get(type: INT, return: VALUE) == 100")
 
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.mapBin1.{=100}.asInt() == 100")
 
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.mapBin1.{#-1}.asInt() == 100")
 
-        with pytest.raises(DslParseException, match="EXPRESSION_CONTAINER"):
+        with pytest.raises(AelParseException, match="EXPRESSION_CONTAINER"):
             parse_ctx("$.mapBin1.a > 50")
 
     def test_map_expression_two_levels(self):

@@ -17,7 +17,7 @@
 
 import pytest
 
-from aerospike_fluent import ClusterDefinition, Host, Behavior
+from aerospike_sdk import ClusterDefinition, Host, Behavior
 
 
 @pytest.fixture

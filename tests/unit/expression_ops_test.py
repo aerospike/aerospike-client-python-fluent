@@ -17,7 +17,7 @@
 
 Covers:
 - _build_exp_write_flags bitmask construction
-- parse_dsl DSL -> FilterExpression conversion
+- parse_ael -> FilterExpression conversion
 - QueryBinBuilder.select_from
 - OP_NOT_APPLICABLE guard on dataset queries with expression ops
 - BatchBinBuilder expression methods
@@ -29,7 +29,7 @@ from unittest.mock import MagicMock, patch
 from aerospike_async import ExpOperation, FilterExpression, Key
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.aio.operations.query import (
+from aerospike_sdk.aio.operations.query import (
     QueryBinBuilder,
     QueryBuilder,
     _EXP_READ_DEFAULT,
@@ -42,7 +42,7 @@ from aerospike_fluent.aio.operations.query import (
     _EXP_WRITE_UPDATE_ONLY,
     _build_exp_write_flags,
 )
-from aerospike_fluent.exceptions import AerospikeError
+from aerospike_sdk.exceptions import AerospikeError
 
 
 # ---------------------------------------------------------------------------
@@ -104,14 +104,14 @@ class TestBuildWriteFlags:
 
 
 # ===================================================================
-# parse_dsl
+# parse_ael
 # ===================================================================
 
-class TestParseDsl:
+class TestParseAel:
 
-    def test_string_converted_via_parse_dsl(self):
-        from aerospike_fluent.dsl.parser import parse_dsl
-        result = parse_dsl("$.age + 1")
+    def test_string_converted_via_parse_ael(self):
+        from aerospike_sdk.ael.parser import parse_ael
+        result = parse_ael("$.age + 1")
         assert isinstance(result, FilterExpression)
 
 
@@ -129,8 +129,8 @@ class TestQueryBinBuilderSelectFrom:
         assert len(collector.operations) == 1
 
     def test_select_from_filter_expression(self):
-        from aerospike_fluent.dsl.parser import parse_dsl
-        expr = parse_dsl("$.A + 4")
+        from aerospike_sdk.ael.parser import parse_ael
+        expr = parse_ael("$.A + 4")
         collector = _OpCollector()
         qbb = QueryBinBuilder(collector, "ev")
         qbb.select_from(expr)
@@ -170,7 +170,7 @@ class TestDatasetQueryGuard:
 class TestBatchBinBuilderExpression:
 
     def _make_batch_builder(self, bin_name: str = "ev"):
-        from aerospike_fluent.aio.operations.batch import (
+        from aerospike_sdk.aio.operations.batch import (
             BatchBinBuilder, BatchKeyOperationBuilder, BatchOperationBuilder, BatchOpType,
         )
         batch = BatchOperationBuilder(client=MagicMock())
@@ -207,7 +207,7 @@ class TestBatchBinBuilderExpression:
         assert len(key_op._operations) == 1
 
     def test_chaining_set_to_and_expression(self):
-        from aerospike_fluent.aio.operations.batch import (
+        from aerospike_sdk.aio.operations.batch import (
             BatchBinBuilder, BatchKeyOperationBuilder, BatchOperationBuilder, BatchOpType,
         )
         batch = BatchOperationBuilder(client=MagicMock())

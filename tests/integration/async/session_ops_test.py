@@ -16,13 +16,13 @@
 """Integration tests for session-level operations and TransactionalSession."""
 
 import pytest
-from aerospike_fluent import DataSet, FluentClient
+from aerospike_sdk import DataSet, Client
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         session = client.create_session()
         ds = DataSet.of("test", "test")
         for key in (1, 2, "user1"):

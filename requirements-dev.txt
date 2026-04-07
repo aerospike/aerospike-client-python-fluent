@@ -1,4 +1,4 @@
-# Development dependencies for aerospike-fluent-client-python
+# Development dependencies for aerospike-sdk-python
 #
 # Install with:
 #   pip install -r requirements-dev.txt

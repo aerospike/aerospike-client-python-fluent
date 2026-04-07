@@ -16,15 +16,15 @@
 """Tests for generation (optimistic locking) operations."""
 
 import pytest
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
-from aerospike_fluent.exceptions import GenerationError
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
+from aerospike_sdk.exceptions import GenerationError
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -37,7 +37,7 @@ def test_set():
 class TestGeneration:
     """Test generation-based optimistic locking."""
 
-    async def test_generation_basic(self, client: FluentClient, test_set: DataSet):
+    async def test_generation_basic(self, client: Client, test_set: DataSet):
         """Test that generation increments with each update."""
         session = client.create_session()
         key = test_set.id("generation_basic")
@@ -67,7 +67,7 @@ class TestGeneration:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_generation_check_success(self, client: FluentClient, test_set: DataSet):
+    async def test_generation_check_success(self, client: Client, test_set: DataSet):
         """Test successful update with correct generation."""
         session = client.create_session()
         key = test_set.id("generation_check_success")
@@ -101,7 +101,7 @@ class TestGeneration:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_generation_check_failure(self, client: FluentClient, test_set: DataSet):
+    async def test_generation_check_failure(self, client: Client, test_set: DataSet):
         """Test that update fails with incorrect generation."""
         session = client.create_session()
         key = test_set.id("generation_check_failure")
@@ -131,7 +131,7 @@ class TestGeneration:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_generation_concurrent_update(self, client: FluentClient, test_set: DataSet):
+    async def test_generation_concurrent_update(self, client: Client, test_set: DataSet):
         """Test optimistic locking pattern for concurrent updates."""
         session = client.create_session()
         key = test_set.id("generation_concurrent")

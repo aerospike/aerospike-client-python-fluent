@@ -20,15 +20,15 @@ import asyncio
 import pytest
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
-from aerospike_fluent.policy.behavior import Behavior
-from aerospike_fluent.policy.behavior_settings import Settings
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
+from aerospike_sdk.policy.behavior import Behavior
+from aerospike_sdk.policy.behavior_settings import Settings
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as c:
+    async with Client(seeds=aerospike_host, policy=client_policy) as c:
         yield c
 
 

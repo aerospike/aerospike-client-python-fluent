@@ -20,7 +20,7 @@ from datetime import timedelta
 import pytest
 from aerospike_async import ClientPolicy
 
-from aerospike_fluent.policy.system_settings import SystemSettings
+from aerospike_sdk.policy.system_settings import SystemSettings
 
 
 class TestSystemSettingsApplyTo:
@@ -84,9 +84,9 @@ class TestSystemSettingsImmutability:
 class TestClusterDefinitionWithSystemSettings:
     """Verify SystemSettings integrates with both async and sync
     ClusterDefinition builders, correctly populating the ClientPolicy
-    produced by _get_policy() and supporting fluent chaining."""
+    produced by _get_policy() and supporting method chaining."""
     def test_async_cluster_definition_applies_settings(self):
-        from aerospike_fluent.aio.cluster_definition import ClusterDefinition
+        from aerospike_sdk.aio.cluster_definition import ClusterDefinition
 
         cd = ClusterDefinition("localhost", 3000)
         ss = SystemSettings(
@@ -99,7 +99,7 @@ class TestClusterDefinitionWithSystemSettings:
         assert policy.tend_interval == 3_000
 
     def test_sync_cluster_definition_applies_settings(self):
-        from aerospike_fluent.sync.cluster_definition import ClusterDefinition
+        from aerospike_sdk.sync.cluster_definition import ClusterDefinition
 
         cd = ClusterDefinition("localhost", 3000)
         ss = SystemSettings(
@@ -111,8 +111,8 @@ class TestClusterDefinitionWithSystemSettings:
         assert policy.max_conns_per_node == 300
         assert policy.tend_interval == 3_000
 
-    def test_fluent_chaining(self):
-        from aerospike_fluent.aio.cluster_definition import ClusterDefinition
+    def test_chaining(self):
+        from aerospike_sdk.aio.cluster_definition import ClusterDefinition
 
         cd = ClusterDefinition("localhost", 3000) \
             .with_system_settings(SystemSettings(max_connections_per_node=400)) \

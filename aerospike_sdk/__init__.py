@@ -1,0 +1,97 @@
+# Copyright 2025-2026 Aerospike, Inc.
+#
+# Portions may be licensed to Aerospike, Inc. under one or more contributor
+# license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+"""Aerospike Python SDK — high-level API built on the ``aerospike_async`` package."""
+
+from aerospike_async import AuthMode
+
+from aerospike_sdk.aio import Client, Session, TransactionalSession, ClusterDefinition, Host
+from aerospike_sdk.aio.operations.query import QueryHint
+from aerospike_sdk.dataset import DataSet
+from aerospike_sdk.ael.exceptions import AelParseException
+from aerospike_sdk.ael.filter_gen import Index, IndexContext, IndexTypeEnum, ParseResult
+from aerospike_sdk.ael.parser import parse_ctx, parse_ael, parse_ael_with_index
+from aerospike_sdk.exceptions import (
+    AerospikeError,
+    AuthenticationError,
+    AuthorizationError,
+    BackoffError,
+    CommitError,
+    ConnectionError,
+    GenerationError,
+    InvalidNamespaceError,
+    InvalidNodeError,
+    QueryTerminatedError,
+    QuotaError,
+    SecurityError,
+    SerializationError,
+    TimeoutError,
+)
+from aerospike_sdk.error_strategy import ErrorHandler, ErrorStrategy, OnError
+from aerospike_sdk.exp import Exp, val, in_list, map_keys, map_values
+from aerospike_sdk.policy.behavior import Behavior
+from aerospike_sdk.record_result import RecordResult
+from aerospike_sdk.record_stream import RecordStream
+from aerospike_sdk.sync import SyncClient
+from aerospike_sdk.sync.record_stream import SyncRecordStream
+
+__version__ = "0.1.0"
+
+__all__ = [
+    "AerospikeError",
+    "AuthenticationError",
+    "AuthMode",
+    "AuthorizationError",
+    "BackoffError",
+    "Behavior",
+    "ClusterDefinition",
+    "CommitError",
+    "ConnectionError",
+    "DataSet",
+    "AelParseException",
+    "ErrorHandler",
+    "ErrorStrategy",
+    "Exp",
+    "Client",
+    "in_list",
+    "GenerationError",
+    "Host",
+    "Index",
+    "IndexContext",
+    "IndexTypeEnum",
+    "InvalidNamespaceError",
+    "InvalidNodeError",
+    "OnError",
+    "parse_ctx",
+    "parse_ael",
+    "parse_ael_with_index",
+    "ParseResult",
+    "QueryHint",
+    "QueryTerminatedError",
+    "QuotaError",
+    "RecordResult",
+    "RecordStream",
+    "SecurityError",
+    "SerializationError",
+    "Session",
+    "SyncClient",
+    "SyncRecordStream",
+    "TimeoutError",
+    "TransactionalSession",
+    "map_keys",
+    "map_values",
+    "val",
+]
+

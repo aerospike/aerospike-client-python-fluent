@@ -16,14 +16,14 @@
 """Tests for delete bin operations."""
 
 import pytest
-from aerospike_fluent.aio.client import FluentClient
-from aerospike_fluent.dataset import DataSet
+from aerospike_sdk.aio.client import Client
+from aerospike_sdk.dataset import DataSet
 
 
 @pytest.fixture
 async def client(aerospike_host, client_policy):
-    """Setup fluent client for testing."""
-    async with FluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Setup SDK client for testing."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
         yield client
 
 
@@ -36,7 +36,7 @@ def test_set():
 class TestDeleteBin:
     """Test deleting individual bins from records."""
 
-    async def test_delete_bin(self, client: FluentClient, test_set: DataSet):
+    async def test_delete_bin(self, client: Client, test_set: DataSet):
         """Test deleting a single bin from a record."""
         session = client.create_session()
         key = test_set.id("deleteBin")
@@ -69,7 +69,7 @@ class TestDeleteBin:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_delete_multiple_bins(self, client: FluentClient, test_set: DataSet):
+    async def test_delete_multiple_bins(self, client: Client, test_set: DataSet):
         """Test deleting multiple bins from a record."""
         session = client.create_session()
         key = test_set.id("deleteMultipleBins")
@@ -101,7 +101,7 @@ class TestDeleteBin:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_delete_bin_nonexistent(self, client: FluentClient, test_set: DataSet):
+    async def test_delete_bin_nonexistent(self, client: Client, test_set: DataSet):
         """Test removing a bin that doesn't exist (should not error)."""
         session = client.create_session()
         key = test_set.id("deleteNonexistentBin")
@@ -120,7 +120,7 @@ class TestDeleteBin:
         # Cleanup
         await session.delete(key).execute()
 
-    async def test_delete_and_set_bin(self, client: FluentClient, test_set: DataSet):
+    async def test_delete_and_set_bin(self, client: Client, test_set: DataSet):
         """Test deleting one bin while setting another in same operation."""
         session = client.create_session()
         key = test_set.id("deleteAndSetBin")

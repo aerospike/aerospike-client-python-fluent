@@ -13,14 +13,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for SyncFluentClient."""
+"""Tests for SyncClient."""
 
-from aerospike_fluent import SyncFluentClient
+from aerospike_sdk import SyncClient
 
 
 def test_client_connection(aerospike_host, client_policy):
-    """Test that we can connect to Aerospike using the sync fluent client."""
-    with SyncFluentClient(seeds=aerospike_host, policy=client_policy) as client:
+    """Test that we can connect to Aerospike using the sync SDK client."""
+    with SyncClient(seeds=aerospike_host, policy=client_policy) as client:
         assert client.is_connected
         # Test that we can create a session and perform operations
         session = client.create_session()
@@ -28,12 +28,12 @@ def test_client_connection(aerospike_host, client_policy):
 
 def test_client_context_manager(aerospike_host, client_policy):
     """Test that the context manager properly manages connection lifecycle."""
-    client = SyncFluentClient(seeds=aerospike_host, policy=client_policy)
+    client = SyncClient(seeds=aerospike_host, policy=client_policy)
     assert not client.is_connected
 
 def test_client_manual_connect_close(aerospike_host, client_policy):
     """Test manual connect and close methods."""
-    client = SyncFluentClient(seeds=aerospike_host, policy=client_policy)
+    client = SyncClient(seeds=aerospike_host, policy=client_policy)
     assert not client.is_connected
 
     client.connect()

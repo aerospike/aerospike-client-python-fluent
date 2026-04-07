@@ -8,7 +8,7 @@ in a single execute).
 import asyncio
 
 import _env
-from aerospike_fluent import Behavior, DataSet
+from aerospike_sdk import Behavior, DataSet
 
 SET = DataSet.of("test", "set")
 

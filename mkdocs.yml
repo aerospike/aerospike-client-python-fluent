@@ -1,7 +1,7 @@
-site_name: Aerospike Python Fluent Client
-site_description: Fluent API for the Aerospike Python Async Client
-repo_url: https://github.com/aerospike/aerospike-client-python-fluent
-repo_name: aerospike-client-python-fluent
+site_name: Aerospike Python SDK
+site_description: High-level Aerospike API for Python, built on the Aerospike Python Async Client
+repo_url: https://github.com/aerospike/aerospike-client-python-sdk
+repo_name: aerospike-client-python-sdk
 
 theme:
   name: material
@@ -75,7 +75,7 @@ nav:
     - Reading Data: guide/reads.md
     - Writing Data: guide/writes.md
     - CDT Operations: guide/cdt-operations.md
-    - Expression DSL: guide/expression-dsl.md
+    - Expression language (AEL): guide/expression-ael.md
     - Error Handling: guide/error-handling.md
     - Background Tasks & UDF: guide/background-udf.md
     - Secondary Indexes: guide/indexes.md
@@ -83,7 +83,7 @@ nav:
   - API Reference:
     - Overview: api/index.md
     - Async:
-      - FluentClient: api/client.md
+      - Client: api/client.md
       - Cluster: api/cluster.md
       - Session: api/session.md
       - Query Builders: api/query.md
@@ -97,7 +97,7 @@ nav:
       - InfoCommands: api/info.md
       - TransactionalSession: api/transactional-session.md
     - Sync:
-      - SyncFluentClient: api/sync/client.md
+      - SyncClient: api/sync/client.md
       - SyncCluster: api/sync/cluster.md
       - SyncSession: api/sync/session.md
       - Sync Query Builders: api/sync/query.md
@@ -119,7 +119,7 @@ nav:
       - Exceptions: api/exceptions.md
       - QueryHint: api/query-hint.md
       - IndexesMonitor: api/indexes-monitor.md
-    - DSL:
-      - Parser: api/dsl-parser.md
-      - Filter Generation: api/dsl-filter-gen.md
+    - AEL:
+      - Parser: api/ael-parser.md
+      - Filter Generation: api/ael-filter-gen.md
       - Expression Builder: api/exp.md

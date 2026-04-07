@@ -28,7 +28,7 @@ from aerospike_async import (
     WritePolicy,
 )
 
-from aerospike_fluent.policy.policy_mapper import (
+from aerospike_sdk.policy.policy_mapper import (
     apply_to_read_policy,
     apply_to_write_policy,
     to_batch_policy,
@@ -36,7 +36,7 @@ from aerospike_fluent.policy.policy_mapper import (
     to_query_policy,
     to_write_policy,
 )
-from aerospike_fluent.policy.behavior_settings import Settings
+from aerospike_sdk.policy.behavior_settings import Settings
 
 
 class TestToReadPolicy:

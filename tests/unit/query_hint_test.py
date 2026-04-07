@@ -18,8 +18,8 @@
 import pytest
 from aerospike_async import Filter, QueryDuration
 
-from aerospike_fluent import QueryHint
-from aerospike_fluent.aio.operations.query import QueryBuilder, _FilterRecord
+from aerospike_sdk import QueryHint
+from aerospike_sdk.aio.operations.query import QueryBuilder, _FilterRecord
 
 
 def _query_builder():
@@ -98,17 +98,17 @@ class TestWithHint:
         assert builder._query_hint is not None
         assert builder._filter_expression is not None
 
-    def test_where_stores_dsl_string(self):
+    def test_where_stores_ael_string(self):
         builder = _query_builder()
         builder.where("$.age > 30")
-        assert builder._where_dsl == "$.age > 30"
+        assert builder._where_ael == "$.age > 30"
 
-    def test_where_filter_expression_clears_dsl_string(self):
-        from aerospike_fluent import Exp
+    def test_where_filter_expression_clears_ael_string(self):
+        from aerospike_sdk import Exp
         builder = _query_builder()
         builder.where("$.age > 30")
         builder.where(Exp.gt(Exp.int_bin("age"), Exp.int_val(30)))
-        assert builder._where_dsl is None
+        assert builder._where_ael is None
 
 
 class TestFilterRecord:
@@ -170,20 +170,20 @@ class TestFilterRecord:
 
 
 class TestFilterGenHintOverrides:
-    """parse_dsl_with_index with hint_index_name and hint_bin_name overrides."""
+    """parse_ael_with_index with hint_index_name and hint_bin_name overrides."""
 
     def test_hint_index_name_produces_by_index_filter(self):
-        from aerospike_fluent import (
+        from aerospike_sdk import (
             Index,
             IndexContext,
             IndexTypeEnum,
-            parse_dsl_with_index,
+            parse_ael_with_index,
         )
         ctx = IndexContext.of("test", [
             Index(bin="age", index_type=IndexTypeEnum.NUMERIC,
                   namespace="test", bin_values_ratio=1),
         ])
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.age == 30", ctx, hint_index_name="age_idx",
         )
         assert result.filter is not None
@@ -191,17 +191,17 @@ class TestFilterGenHintOverrides:
         assert str(result.filter) == str(expected)
 
     def test_hint_bin_name_overrides_filter_bin(self):
-        from aerospike_fluent import (
+        from aerospike_sdk import (
             Index,
             IndexContext,
             IndexTypeEnum,
-            parse_dsl_with_index,
+            parse_ael_with_index,
         )
         ctx = IndexContext.of("test", [
             Index(bin="age", index_type=IndexTypeEnum.NUMERIC,
                   namespace="test", bin_values_ratio=1),
         ])
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.age > 10", ctx, hint_bin_name="alt_age",
         )
         assert result.filter is not None
@@ -209,33 +209,33 @@ class TestFilterGenHintOverrides:
         assert str(result.filter) == str(expected)
 
     def test_no_hint_uses_default_bin(self):
-        from aerospike_fluent import (
+        from aerospike_sdk import (
             Index,
             IndexContext,
             IndexTypeEnum,
-            parse_dsl_with_index,
+            parse_ael_with_index,
         )
         ctx = IndexContext.of("test", [
             Index(bin="age", index_type=IndexTypeEnum.NUMERIC,
                   namespace="test", bin_values_ratio=1),
         ])
-        result = parse_dsl_with_index("$.age == 42", ctx)
+        result = parse_ael_with_index("$.age == 42", ctx)
         assert result.filter is not None
         expected = Filter.equal("age", 42)
         assert str(result.filter) == str(expected)
 
     def test_hint_index_name_range_ge(self):
-        from aerospike_fluent import (
+        from aerospike_sdk import (
             Index,
             IndexContext,
             IndexTypeEnum,
-            parse_dsl_with_index,
+            parse_ael_with_index,
         )
         ctx = IndexContext.of("test", [
             Index(bin="score", index_type=IndexTypeEnum.NUMERIC,
                   namespace="test", bin_values_ratio=1),
         ])
-        result = parse_dsl_with_index(
+        result = parse_ael_with_index(
             "$.score >= 50", ctx, hint_index_name="score_idx",
         )
         assert result.filter is not None

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Comprehensive example demonstrating all common fluent API operations.
+"""Comprehensive example demonstrating all common SDK API operations.
 
 Covers truncate, upsert, query, exists, touch, delete, batch operations,
-DSL filters, secondary index queries, background tasks, expression
+AEL filters, secondary index queries, background tasks, expression
 read/write, and query hints.
 """
 
 import asyncio
 
 import _env
-from aerospike_fluent import Behavior, DataSet
+from aerospike_sdk import Behavior, DataSet
 
 SET = DataSet.of("test", "set")
 
@@ -148,7 +148,7 @@ async def run_examples(session) -> None:
     await session.upsert(SET.id(14)).put({"name": "User1", "age": 201}).execute()
 
     # ------------------------------------------------------------------
-    # Query with DSL where (filter expression)
+    # Query with AEL where (filter expression)
     # ------------------------------------------------------------------
     print("\nTest filtering out")
     stream = await (
@@ -176,7 +176,7 @@ async def run_examples(session) -> None:
     stream.close()
 
     # ------------------------------------------------------------------
-    # respond_all_keys + DSL filter
+    # respond_all_keys + AEL filter
     # ------------------------------------------------------------------
     stream = await (
         session.query(SET.id(2))
@@ -194,7 +194,7 @@ async def run_examples(session) -> None:
     # ------------------------------------------------------------------
     # fail_on_filtered_out
     # ------------------------------------------------------------------
-    from aerospike_fluent.exceptions import AerospikeError
+    from aerospike_sdk.exceptions import AerospikeError
 
     try:
         stream = await (
@@ -234,7 +234,7 @@ async def run_examples(session) -> None:
     await asyncio.sleep(0.3)
 
     # ------------------------------------------------------------------
-    # Secondary index query with DSL where
+    # Secondary index query with AEL where
     # ------------------------------------------------------------------
     print("Foreground secondary index query")
     stream = await session.query(SET).where("$.age > 200").execute()
@@ -255,7 +255,7 @@ async def run_examples(session) -> None:
     stream.close()
 
     # ------------------------------------------------------------------
-    # Background update with DSL where
+    # Background update with AEL where
     # ------------------------------------------------------------------
     print("\nBackground query")
     task = await (
@@ -314,7 +314,7 @@ async def run_examples(session) -> None:
     # ------------------------------------------------------------------
     # Query hints
     # ------------------------------------------------------------------
-    from aerospike_fluent.aio.operations.query import QueryHint
+    from aerospike_sdk.aio.operations.query import QueryHint
 
     print("\nQuery with hint")
     stream = await (

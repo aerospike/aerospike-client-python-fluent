@@ -22,8 +22,8 @@ from typing import AsyncIterator
 from aerospike_async import Key
 from aerospike_async.exceptions import ResultCode
 
-from aerospike_fluent.record_result import RecordResult
-from aerospike_fluent.record_stream import RecordStream
+from aerospike_sdk.record_result import RecordResult
+from aerospike_sdk.record_stream import RecordStream
 
 
 def _key(val: int = 1) -> Key:
@@ -205,7 +205,7 @@ class TestFirst:
             await stream.first_or_raise()
 
     async def test_first_or_raise_error(self):
-        from aerospike_fluent.exceptions import AerospikeError
+        from aerospike_sdk.exceptions import AerospikeError
         stream = RecordStream.from_list([_fail_result()])
         with pytest.raises(AerospikeError):
             await stream.first_or_raise()
