@@ -333,6 +333,26 @@ and a child Behavior inherits from its parent.</p>
 <dd><p>Like READ_FAST with rack-preferred replica.</p>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">DEFAULT</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.14)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior" title="aerospike_sdk.policy.behavior.Behavior"><span class="pre">Behavior</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='DEFAULT',</span> <span class="pre">total_timeout=0:00:30,</span> <span class="pre">socket_timeout=0:00:05,</span> <span class="pre">max_retries=2)</span></span><a class="headerlink" href="#id0" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">READ_FAST</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.14)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior" title="aerospike_sdk.policy.behavior.Behavior"><span class="pre">Behavior</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='READ_FAST',</span> <span class="pre">total_timeout=0:00:00.200000,</span> <span class="pre">socket_timeout=0:00:00.050000,</span> <span class="pre">max_retries=3)</span></span><a class="headerlink" href="#id1" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">STRICTLY_CONSISTENT</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.14)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior" title="aerospike_sdk.policy.behavior.Behavior"><span class="pre">Behavior</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='STRICTLY_CONSISTENT',</span> <span class="pre">total_timeout=0:00:30,</span> <span class="pre">socket_timeout=0:00:05,</span> <span class="pre">max_retries=2)</span></span><a class="headerlink" href="#id2" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">FAST_RACK_AWARE</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.14)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior" title="aerospike_sdk.policy.behavior.Behavior"><span class="pre">Behavior</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='FAST_RACK_AWARE',</span> <span class="pre">total_timeout=0:00:00.200000,</span> <span class="pre">socket_timeout=0:00:00.050000,</span> <span class="pre">max_retries=3)</span></span><a class="headerlink" href="#id3" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="aerospike_sdk.policy.behavior.Behavior.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">patches</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/policy/behavior.html#Behavior.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.policy.behavior.Behavior.__init__" title="Link to this definition">¶</a></dt>
@@ -462,26 +482,6 @@ can be combined; flat kwargs are merged into the <code class="docutils literal n
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">send_key</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#aerospike_sdk.policy.behavior.Behavior.send_key" title="Link to this definition">¶</a></dt>
 <dd><p>Whether to send the user key with point reads (from <code class="docutils literal notranslate"><span class="pre">READ:POINT:AP</span></code> scope).</p>
 </dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="id0">
-<span class="sig-name descname"><span class="pre">DEFAULT</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='DEFAULT',</span> <span class="pre">total_timeout=0:00:30,</span> <span class="pre">socket_timeout=0:00:05,</span> <span class="pre">max_retries=2)</span></span><a class="headerlink" href="#id0" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="id1">
-<span class="sig-name descname"><span class="pre">FAST_RACK_AWARE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='FAST_RACK_AWARE',</span> <span class="pre">total_timeout=0:00:00.200000,</span> <span class="pre">socket_timeout=0:00:00.050000,</span> <span class="pre">max_retries=3)</span></span><a class="headerlink" href="#id1" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="id2">
-<span class="sig-name descname"><span class="pre">READ_FAST</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='READ_FAST',</span> <span class="pre">total_timeout=0:00:00.200000,</span> <span class="pre">socket_timeout=0:00:00.050000,</span> <span class="pre">max_retries=3)</span></span><a class="headerlink" href="#id2" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="id3">
-<span class="sig-name descname"><span class="pre">STRICTLY_CONSISTENT</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">Behavior(name='STRICTLY_CONSISTENT',</span> <span class="pre">total_timeout=0:00:30,</span> <span class="pre">socket_timeout=0:00:05,</span> <span class="pre">max_retries=2)</span></span><a class="headerlink" href="#id3" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
 
 </dd></dl>
 
@@ -805,6 +805,10 @@ more-specific scopes override less-specific ones.</p>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.READ_FAST"><code class="docutils literal notranslate"><span class="pre">Behavior.READ_FAST</span></code></a></li>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.STRICTLY_CONSISTENT"><code class="docutils literal notranslate"><span class="pre">Behavior.STRICTLY_CONSISTENT</span></code></a></li>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.FAST_RACK_AWARE"><code class="docutils literal notranslate"><span class="pre">Behavior.FAST_RACK_AWARE</span></code></a></li>
+<li><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">Behavior.DEFAULT</span></code></a></li>
+<li><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">Behavior.READ_FAST</span></code></a></li>
+<li><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">Behavior.STRICTLY_CONSISTENT</span></code></a></li>
+<li><a class="reference internal" href="#id3"><code class="docutils literal notranslate"><span class="pre">Behavior.FAST_RACK_AWARE</span></code></a></li>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.__init__"><code class="docutils literal notranslate"><span class="pre">Behavior.__init__()</span></code></a></li>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.name"><code class="docutils literal notranslate"><span class="pre">Behavior.name</span></code></a></li>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.parent"><code class="docutils literal notranslate"><span class="pre">Behavior.parent</span></code></a></li>
@@ -819,10 +823,6 @@ more-specific scopes override less-specific ones.</p>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.max_retries"><code class="docutils literal notranslate"><span class="pre">Behavior.max_retries</span></code></a></li>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.retry_delay"><code class="docutils literal notranslate"><span class="pre">Behavior.retry_delay</span></code></a></li>
 <li><a class="reference internal" href="#aerospike_sdk.policy.behavior.Behavior.send_key"><code class="docutils literal notranslate"><span class="pre">Behavior.send_key</span></code></a></li>
-<li><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">Behavior.DEFAULT</span></code></a></li>
-<li><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">Behavior.FAST_RACK_AWARE</span></code></a></li>
-<li><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">Behavior.READ_FAST</span></code></a></li>
-<li><a class="reference internal" href="#id3"><code class="docutils literal notranslate"><span class="pre">Behavior.STRICTLY_CONSISTENT</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-aerospike_sdk.policy.behavior_settings">Behavior Settings</a><ul>

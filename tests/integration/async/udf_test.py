@@ -53,7 +53,6 @@ async def client_with_udf(aerospike_host, client_policy):
         except Exception:
             pass
 
-
 async def test_write_using_udf(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_write_1")
@@ -72,7 +71,6 @@ async def test_write_using_udf(client_with_udf):
     assert rec.record is not None
     assert rec.record.bins.get("udfbin1") == "string value"
 
-
 async def test_first_udf_result_read_bin(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_read_1")
@@ -85,7 +83,6 @@ async def test_first_udf_result_read_bin(client_with_udf):
     )
     val = await stream.first_udf_result()
     assert val == "stored"
-
 
 async def test_write_read_blob_via_udf(client_with_udf):
     session = client_with_udf.create_session()
@@ -106,7 +103,6 @@ async def test_write_read_blob_via_udf(client_with_udf):
     )
     val = await stream.first_udf_result()
     assert bytes(val) == payload
-
 
 async def test_nested_list_map_round_trip_via_udf_read_bin(client_with_udf):
     session = client_with_udf.create_session()
@@ -131,7 +127,6 @@ async def test_nested_list_map_round_trip_via_udf_read_bin(client_with_udf):
     val = await stream.first_udf_result()
     assert val == expected
 
-
 async def test_batch_udf(client_with_udf):
     session = client_with_udf.create_session()
     k1 = DS.id("batch_udf_1")
@@ -153,7 +148,6 @@ async def test_batch_udf(client_with_udf):
         assert rr.record is not None
         assert rr.record.bins.get("B5") == "value5"
 
-
 async def test_batch_udf_validation_error_in_stream(client_with_udf):
     session = client_with_udf.create_session()
     k1 = DS.id("batch_udf_err_1")
@@ -172,7 +166,6 @@ async def test_batch_udf_validation_error_in_stream(client_with_udf):
     for r in results:
         assert r.result_code == ResultCode.UDF_BAD_RESPONSE
         assert r.record is not None
-
 
 async def test_batch_udf_respond_all_keys_includes_filtered_out(client_with_udf):
     session = client_with_udf.create_session()
@@ -211,7 +204,6 @@ async def test_batch_udf_respond_all_keys_includes_filtered_out(client_with_udf)
     assert r1.is_ok
     assert r2.result_code == ResultCode.FILTERED_OUT
 
-
 async def test_get_generation_udf_result(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_gen_read")
@@ -224,7 +216,6 @@ async def test_get_generation_udf_result(client_with_udf):
     gen = await stream.first_udf_result()
     assert isinstance(gen, int)
     assert gen >= 1
-
 
 async def test_write_if_generation_not_changed(client_with_udf):
     session = client_with_udf.create_session()
@@ -263,7 +254,6 @@ async def test_write_if_generation_not_changed(client_with_udf):
     assert rr2.record is not None
     assert rr2.record.bins.get("gcol") == "b"
 
-
 async def test_write_unique_idempotent(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_write_unique")
@@ -286,7 +276,6 @@ async def test_write_unique_idempotent(client_with_udf):
     assert rr.record is not None
     assert rr.record.bins.get("ub") == "first"
 
-
 async def test_append_list_bin_via_udf(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_list_append")
@@ -307,7 +296,6 @@ async def test_append_list_bin_via_udf(client_with_udf):
     assert lst is not None
     assert list(lst) == [10, 20, 30]
 
-
 async def test_process_record_even_adds_to_bin(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_proc_even")
@@ -325,7 +313,6 @@ async def test_process_record_even_adds_to_bin(client_with_udf):
     assert rr.record is not None
     assert rr.record.bins.get("n1") == 7
     assert rr.record.bins.get("n2") == 1
-
 
 async def test_process_record_multiple_of_five_clears_second_bin(client_with_udf):
     session = client_with_udf.create_session()
@@ -345,7 +332,6 @@ async def test_process_record_multiple_of_five_clears_second_bin(client_with_udf
     assert rr.record.bins.get("n1") == 10
     assert rr.record.bins.get("n2") is None
 
-
 async def test_process_record_multiple_of_nine_removes_record(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_proc_nine")
@@ -362,7 +348,6 @@ async def test_process_record_multiple_of_nine_removes_record(client_with_udf):
     assert first is None or not first.is_ok
     if first is not None:
         assert first.record is None
-
 
 async def test_chained_udf(client_with_udf):
     session = client_with_udf.create_session()
@@ -387,7 +372,6 @@ async def test_chained_udf(client_with_udf):
         ).first_or_raise()
         assert rr.record is not None
         assert "B5" in rr.record.bins
-
 
 async def test_chained_udf_three_specs_mixed_ok_and_udf_bad_response(
     client_with_udf,
@@ -432,7 +416,6 @@ async def test_chained_udf_three_specs_mixed_ok_and_udf_bad_response(
     assert r2.record is not None
     assert r2.record.bins.get("cx") == 7
 
-
 async def test_single_key_validation_raises(client_with_udf):
     session = client_with_udf.create_session()
     k = DS.id("udf_val_fail")
@@ -444,3 +427,19 @@ async def test_single_key_validation_raises(client_with_udf):
                 .passing("bx", 99)
                 .execute()
         )
+
+async def test_register_udf_from_bytes(aerospike_host, client_policy):
+    """Round-trip: register UDF from bytes, invoke it, then clean up."""
+    async with Client(seeds=aerospike_host, policy=client_policy) as client:
+        with open(LUA_FILE, "rb") as f:
+            body = f.read()
+        path = "record_example_bytes_async.lua"
+        try:
+            rm = await client.remove_udf(path)
+            await rm.wait_till_complete(sleep_time=0.1, max_attempts=20)
+        except Exception:
+            pass
+        task = await client.register_udf(body, path, UDFLang.LUA)
+        assert await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
+        rm = await client.remove_udf(path)
+        await rm.wait_till_complete(sleep_time=0.1, max_attempts=20)

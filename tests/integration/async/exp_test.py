@@ -770,7 +770,7 @@ class TestCdtPathWithExp:
 
     async def test_list_get_by_index(self, client_with_cdt_data):
         """Test list_get_by_index using Exp builder."""
-        from aerospike_async import CTX, ExpType, ListReturnType
+        from aerospike_async import ExpType, ListReturnType
 
         # Filter: numbers[0] == 10
         filter_exp = Exp.eq(
@@ -799,7 +799,7 @@ class TestCdtPathWithExp:
 
     async def test_map_get_by_key(self, client_with_cdt_data):
         """Test map_get_by_key using Exp builder."""
-        from aerospike_async import CTX, ExpType, MapReturnType
+        from aerospike_async import ExpType, MapReturnType
 
         # Filter: info.age == 30
         filter_exp = Exp.eq(
@@ -1980,3 +1980,71 @@ class TestConvenienceWrappers:
         records = [r.record async for r in stream]
         stream.close()
         assert len(records) == 3
+
+
+class TestAelMapBlobIntegrationQueries:
+    """Extra map and blob AEL filters exercised against a live server."""
+
+    async def test_map_ael_numeric_field_filters_tier(self, client_with_map_data):
+        """Map value filter on ``level`` (``type`` is reserved in the AEL grammar)."""
+        stream = await (
+            client_with_map_data.query("test", "map_ael_test")
+            .where("$.metadata.level != 1")
+            .execute()
+        )
+        records = []
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
+        assert len(records) == 2
+        for rec in records:
+            assert rec.bins["metadata"]["level"] in (2, 3)
+
+    async def test_map_ael_key_list_count_on_server(self, client_with_map_data):
+        """Map key list slice: ``$.scores.{alice,bob}``."""
+        stream = await (
+            client_with_map_data.query("test", "map_ael_test")
+            .where("$.scores.{alice,bob}.count() == 2")
+            .execute()
+        )
+        records = []
+        async for result in stream:
+            records.append(result.record)
+        stream.close()
+        assert len(records) == 1
+        assert "alice" in records[0].bins["scores"]
+        assert "bob" in records[0].bins["scores"]
+
+    async def test_blob_bin_ael_equality_on_server(
+        self,
+        aerospike_host,
+        client_policy,
+        enterprise,
+    ):
+        """BLOB bin filter using a base64 literal in AEL."""
+        import base64
+
+        async with Client(seeds=aerospike_host, policy=client_policy) as client:
+            session = client.create_session()
+            k = DataSet.of("test", "ael_blob_srv_it").id("blob_row")
+            payload = bytes([1, 2, 254])
+            try:
+                await session.delete(k).execute()
+            except Exception:
+                pass
+
+            await session.upsert(k).put({"payload": payload}).execute()
+            await asyncio.sleep(0.25 if not enterprise else 0.01)
+
+            enc = base64.b64encode(payload).decode("ascii")
+            stream = await (
+                session.query("test", "ael_blob_srv_it")
+                    .where(f'$.payload.get(type: BLOB) == "{enc}"')
+                    .execute()
+            )
+            rows = [r.record async for r in stream]
+            stream.close()
+            assert len(rows) == 1
+            assert rows[0].bins["payload"] == payload
+
+            await session.delete(k).execute()

@@ -292,17 +292,16 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">overload</span>
-
-<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AerospikeError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">overload</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_async</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">BasePolicy</span><span class="p">,</span>
+    <span class="n">BitOperation</span><span class="p">,</span>
     <span class="n">CTX</span><span class="p">,</span>
     <span class="n">ExecuteTask</span><span class="p">,</span>
     <span class="n">Filter</span><span class="p">,</span>
     <span class="n">FilterExpression</span><span class="p">,</span>
+    <span class="n">HllOperation</span><span class="p">,</span>
     <span class="n">Key</span><span class="p">,</span>
     <span class="n">ListOperation</span><span class="p">,</span>
     <span class="n">ListOrderType</span><span class="p">,</span>
@@ -325,12 +324,20 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.aio.operations.cdt_write</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">CdtWriteBuilder</span><span class="p">,</span>
     <span class="n">CdtWriteInvertableBuilder</span><span class="p">,</span>
+    <span class="n">_UNORDERED_LIST_POLICY</span><span class="p">,</span>
+    <span class="n">_resolve_list_policy</span><span class="p">,</span>
+    <span class="n">_resolve_map_policy</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.aio.operations.query</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">QueryBinBuilder</span><span class="p">,</span>
     <span class="n">QueryBuilder</span><span class="p">,</span>
     <span class="n">QueryHint</span><span class="p">,</span>
     <span class="n">WriteSegmentBuilder</span><span class="p">,</span>
+    <span class="n">_bit_policy_or_default</span><span class="p">,</span>
+    <span class="n">_bitwise_and</span><span class="p">,</span>
+    <span class="n">_bitwise_not</span><span class="p">,</span>
+    <span class="n">_bitwise_or</span><span class="p">,</span>
+    <span class="n">_resize_flags_or_default</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.ael.filter_gen</span><span class="w"> </span><span class="kn">import</span> <span class="n">IndexContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.error_strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">OnError</span>
@@ -1134,6 +1141,8 @@
 
 <span class="sd">    Per-bin write builder that captures a bin name and delegates</span>
 <span class="sd">    all operations to the parent ``SyncWriteSegmentBuilder``.</span>
+<span class="sd">    HyperLogLog and blob bit operations use ``hll_*`` and ``bit_*`` methods,</span>
+<span class="sd">    matching :class:`~aerospike_sdk.aio.operations.query.WriteBinBuilder`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;_sync_segment&quot;</span><span class="p">,</span> <span class="s2">&quot;_bin&quot;</span><span class="p">)</span>
@@ -1245,34 +1254,59 @@
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.list_add">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_add">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">list_add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_add</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">bounded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add *value* to an ordered list (sorted insert).</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            value: Value to insert.</span>
+<span class="sd">            unique: Reject if the value already exists in the list.</span>
+<span class="sd">            bounded: Reject if index is beyond the current list bounds.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_list_policy</span><span class="p">(</span>
+            <span class="n">ListOrderType</span><span class="o">.</span><span class="n">ORDERED</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="n">unique</span><span class="p">,</span> <span class="n">bounded</span><span class="o">=</span><span class="n">bounded</span><span class="p">,</span>
+            <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
-            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">ListPolicy</span><span class="p">(</span><span class="n">ListOrderType</span><span class="o">.</span><span class="n">ORDERED</span><span class="p">,</span> <span class="kc">None</span><span class="p">)),</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
 
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.list_append">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_append">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">list_append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_append</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">bounded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Append *value* to the end of an unordered list.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            value: Value to append.</span>
+<span class="sd">            unique: Reject if the value already exists in the list.</span>
+<span class="sd">            bounded: Reject if index is beyond the current list bounds.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_list_policy</span><span class="p">(</span>
+            <span class="kc">None</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="n">unique</span><span class="p">,</span> <span class="n">bounded</span><span class="o">=</span><span class="n">bounded</span><span class="p">,</span> <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
-            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">ListPolicy</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)),</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
 
@@ -1305,35 +1339,66 @@
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.map_upsert_items">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_upsert_items">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">map_upsert_items</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">map_upsert_items</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">order</span><span class="p">:</span> <span class="n">MapOrder</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">persist_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Put multiple map entries (create or update each key).</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            items: Mapping or sequence of ``(key, value)`` pairs.</span>
+<span class="sd">            order: Map key order for the policy.</span>
+<span class="sd">            persist_index: Maintain a persistent index on the map.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
+<span class="sd">            partial: Allow partial success for bulk operations.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">pairs</span> <span class="o">=</span> <span class="n">_map_item_pairs</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_map_policy</span><span class="p">(</span>
+            <span class="nb">int</span><span class="p">(</span><span class="n">MapWriteFlags</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">),</span>
+            <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">persist_index</span><span class="o">=</span><span class="n">persist_index</span><span class="p">,</span>
+            <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span> <span class="n">partial</span><span class="o">=</span><span class="n">partial</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
-            <span class="n">MapOperation</span><span class="o">.</span><span class="n">put_items</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">pairs</span><span class="p">,</span> <span class="n">MapPolicy</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)),</span>
+            <span class="n">MapOperation</span><span class="o">.</span><span class="n">put_items</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">pairs</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
 
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.map_insert_items">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_insert_items">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">map_insert_items</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">map_insert_items</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">order</span><span class="p">:</span> <span class="n">MapOrder</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">persist_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Put map entries only for keys that do not yet exist.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            items: Mapping or sequence of ``(key, value)`` pairs.</span>
+<span class="sd">            order: Map key order for the policy.</span>
+<span class="sd">            persist_index: Maintain a persistent index on the map.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
+<span class="sd">            partial: Allow partial success for bulk operations.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">pairs</span> <span class="o">=</span> <span class="n">_map_item_pairs</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
-        <span class="n">policy</span> <span class="o">=</span> <span class="n">MapPolicy</span><span class="o">.</span><span class="n">new_with_flags</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">MapWriteFlags</span><span class="o">.</span><span class="n">CREATE_ONLY</span><span class="p">)</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_map_policy</span><span class="p">(</span>
+            <span class="nb">int</span><span class="p">(</span><span class="n">MapWriteFlags</span><span class="o">.</span><span class="n">CREATE_ONLY</span><span class="p">),</span>
+            <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">persist_index</span><span class="o">=</span><span class="n">persist_index</span><span class="p">,</span>
+            <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span> <span class="n">partial</span><span class="o">=</span><span class="n">partial</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
             <span class="n">MapOperation</span><span class="o">.</span><span class="n">put_items</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">pairs</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
         <span class="p">)</span>
@@ -1342,17 +1407,32 @@
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.map_update_items">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_update_items">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">map_update_items</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">map_update_items</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">order</span><span class="p">:</span> <span class="n">MapOrder</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">persist_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Update existing map entries only (no new keys).</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            items: Mapping or sequence of ``(key, value)`` pairs.</span>
+<span class="sd">            order: Map key order for the policy.</span>
+<span class="sd">            persist_index: Maintain a persistent index on the map.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
+<span class="sd">            partial: Allow partial success for bulk operations.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">pairs</span> <span class="o">=</span> <span class="n">_map_item_pairs</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
-        <span class="n">policy</span> <span class="o">=</span> <span class="n">MapPolicy</span><span class="o">.</span><span class="n">new_with_flags</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">MapWriteFlags</span><span class="o">.</span><span class="n">UPDATE_ONLY</span><span class="p">)</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_map_policy</span><span class="p">(</span>
+            <span class="nb">int</span><span class="p">(</span><span class="n">MapWriteFlags</span><span class="o">.</span><span class="n">UPDATE_ONLY</span><span class="p">),</span>
+            <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">persist_index</span><span class="o">=</span><span class="n">persist_index</span><span class="p">,</span>
+            <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span> <span class="n">partial</span><span class="o">=</span><span class="n">partial</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
             <span class="n">MapOperation</span><span class="o">.</span><span class="n">put_items</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">pairs</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
         <span class="p">)</span>
@@ -1436,38 +1516,64 @@
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.list_append_items">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_append_items">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">list_append_items</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_append_items</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">bounded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Append values to an unordered list.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            items: Values to append.</span>
+<span class="sd">            unique: Reject items that already exist in the list.</span>
+<span class="sd">            bounded: Reject inserts beyond the current list bounds.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
+<span class="sd">            partial: Allow partial success for bulk operations.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_list_policy</span><span class="p">(</span>
+            <span class="kc">None</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="n">unique</span><span class="p">,</span> <span class="n">bounded</span><span class="o">=</span><span class="n">bounded</span><span class="p">,</span>
+            <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span> <span class="n">partial</span><span class="o">=</span><span class="n">partial</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
-            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append_items</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">ListPolicy</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-            <span class="p">),</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append_items</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
 
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.list_add_items">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_add_items">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">list_add_items</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_add_items</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">bounded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert values into an ordered list (sorted positions).</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            items: Values to insert.</span>
+<span class="sd">            unique: Reject items that already exist in the list.</span>
+<span class="sd">            bounded: Reject inserts beyond the current list bounds.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
+<span class="sd">            partial: Allow partial success for bulk operations.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_list_policy</span><span class="p">(</span>
+            <span class="n">ListOrderType</span><span class="o">.</span><span class="n">ORDERED</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="n">unique</span><span class="p">,</span> <span class="n">bounded</span><span class="o">=</span><span class="n">bounded</span><span class="p">,</span>
+            <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span> <span class="n">partial</span><span class="o">=</span><span class="n">partial</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
-            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append_items</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">ListPolicy</span><span class="p">(</span><span class="n">ListOrderType</span><span class="o">.</span><span class="n">ORDERED</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-            <span class="p">),</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">append_items</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
 
@@ -1508,6 +1614,1109 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
 
 
+    <span class="c1"># -- Index-based list (whole-bin) ----------------------------------------</span>
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_insert">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_insert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_insert</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">bounded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert *value* at *index* in an unordered list.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: List index (0-based; negative counts from the end).</span>
+<span class="sd">            value: Element to insert.</span>
+<span class="sd">            unique: Reject if the value already exists in the list.</span>
+<span class="sd">            bounded: Reject if index is beyond the current list bounds.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_list_policy</span><span class="p">(</span>
+            <span class="kc">None</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="n">unique</span><span class="p">,</span> <span class="n">bounded</span><span class="o">=</span><span class="n">bounded</span><span class="p">,</span> <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_insert_items">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_insert_items">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_insert_items</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">items</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">bounded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_fail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert a sequence of values starting at *index*.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: List index at which to insert the first element.</span>
+<span class="sd">            items: Values to insert in order.</span>
+<span class="sd">            unique: Reject items that already exist in the list.</span>
+<span class="sd">            bounded: Reject inserts beyond the current list bounds.</span>
+<span class="sd">            no_fail: Do not raise on write failures.</span>
+<span class="sd">            partial: Allow partial success for bulk operations.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">_resolve_list_policy</span><span class="p">(</span>
+            <span class="kc">None</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="n">unique</span><span class="p">,</span> <span class="n">bounded</span><span class="o">=</span><span class="n">bounded</span><span class="p">,</span>
+            <span class="n">no_fail</span><span class="o">=</span><span class="n">no_fail</span><span class="p">,</span> <span class="n">partial</span><span class="o">=</span><span class="n">partial</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">insert_items</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">policy</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_set">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_set">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Replace the element at *index* with *value*.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_set`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: List index (0-based; negative counts from the end).</span>
+<span class="sd">            value: New element value.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_increment">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_increment">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add *value* to the numeric element at *index* (default increment is ``1``).</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_increment`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: List index (0-based; negative counts from the end).</span>
+<span class="sd">            value: Amount to add; ``1`` uses a dedicated server path.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+                <span class="n">ListOperation</span><span class="o">.</span><span class="n">increment_by_one</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+                <span class="n">ListOperation</span><span class="o">.</span><span class="n">increment</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">_UNORDERED_LIST_POLICY</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_remove">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_remove">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove the element at *index*.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_remove`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: List index (0-based; negative counts from the end).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">ListOperation</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_remove_range">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_remove_range">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_remove_range</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove *count* elements starting at *index*, or all from *index* onward.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_remove_range`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: Starting list index.</span>
+<span class="sd">            count: Number of elements to remove; ``None`` removes through the end.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_range_from</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">op</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_pop">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_pop">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_pop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove and return the element at *index* (read in the operate result).</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_pop`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: List index (0-based; negative counts from the end).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">ListOperation</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_pop_range">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_pop_range">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_pop_range</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pop *count* elements from *index*, or from *index* through the end.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_pop_range`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: Starting list index.</span>
+<span class="sd">            count: Number of elements; ``None`` pops through the end.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">pop_range_from</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">pop_range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">op</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.list_trim">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_trim">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_trim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Keep only *count* elements starting at *index*; remove the rest.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_trim`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index: Starting list index of the range to keep.</span>
+<span class="sd">            count: Number of elements to keep.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">ListOperation</span><span class="o">.</span><span class="n">trim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+    <span class="c1"># -- HyperLogLog ----------------------------------------------------------</span>
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_init">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_init">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_init</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">index_bit_count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">min_hash_bit_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">flags</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize an empty HyperLogLog sketch in this bin.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_init`.</span>
+<span class="sd">        The synchronous API returns :class:`SyncWriteSegmentBuilder` and uses</span>
+<span class="sd">        :meth:`SyncWriteSegmentBuilder.execute` instead of ``await``.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.upsert(key).bin(&quot;visitors&quot;).hll_init(12)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_bit_count: Same as the async method.</span>
+<span class="sd">            min_hash_bit_count: Same as the async method.</span>
+<span class="sd">            flags: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_init`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">HllOperation</span><span class="o">.</span><span class="n">init</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">index_bit_count</span><span class="p">,</span>
+                <span class="n">min_hash_bit_count</span><span class="p">,</span>
+                <span class="n">flags</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_add">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_add">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_add</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">values</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+        <span class="n">index_bit_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">min_hash_bit_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">flags</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add distinct values to the HyperLogLog sketch in this bin.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_add`.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.upsert(key).bin(&quot;visitors&quot;).hll_add([&quot;user-1&quot;, &quot;user-2&quot;])</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            values: Same as the async method.</span>
+<span class="sd">            index_bit_count: Same as the async method.</span>
+<span class="sd">            min_hash_bit_count: Same as the async method.</span>
+<span class="sd">            flags: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_add`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">HllOperation</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="nb">list</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="n">index_bit_count</span><span class="p">,</span>
+                <span class="n">min_hash_bit_count</span><span class="p">,</span>
+                <span class="n">flags</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_set_union">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_set_union">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_set_union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hll_list</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">flags</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Merge other HyperLogLog sketches into this bin.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_set_union`.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;merged&quot;).hll_set_union([other_hll_blob])</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            hll_list: Same as the async method.</span>
+<span class="sd">            flags: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_set_union`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">HllOperation</span><span class="o">.</span><span class="n">set_union</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">hll_list</span><span class="p">),</span> <span class="n">flags</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_fold">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_fold">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_fold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index_bit_count</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reduce sketch precision to a lower index bit count.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;hll&quot;).hll_fold(10)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_bit_count: Same as :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_fold`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_fold`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">HllOperation</span><span class="o">.</span><span class="n">fold</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">index_bit_count</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_refresh_count">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_refresh_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_refresh_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Refresh the cached cardinality estimate stored with the sketch.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;hll&quot;).hll_refresh_count()</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_refresh_count`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">HllOperation</span><span class="o">.</span><span class="n">refresh_count</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_get_count">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_get_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read the estimated cardinality in a multi-operation write.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;hll&quot;).hll_get_count()</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_count`</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_get_count`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">HllOperation</span><span class="o">.</span><span class="n">get_count</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_describe">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_describe">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_describe</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read index and min-hash bit parameters of the stored sketch.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;hll&quot;).hll_describe()</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_describe`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span><span class="n">HllOperation</span><span class="o">.</span><span class="n">describe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_get_union">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_union">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_get_union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hll_list</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read the union sketch without modifying the stored bin.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;hll&quot;).hll_get_union([peer_blob])</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            hll_list: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_union`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">HllOperation</span><span class="o">.</span><span class="n">get_union</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">hll_list</span><span class="p">)),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_get_union_count">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_union_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_get_union_count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hll_list</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read the estimated cardinality of the union with other sketches.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            hll_list: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_union_count`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">HllOperation</span><span class="o">.</span><span class="n">get_union_count</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">hll_list</span><span class="p">)),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_get_intersect_count">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_intersect_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_get_intersect_count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hll_list</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read the estimated intersection cardinality with other sketches.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            hll_list: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_intersect_count`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">HllOperation</span><span class="o">.</span><span class="n">get_intersect_count</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">hll_list</span><span class="p">)),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.hll_get_similarity">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_similarity">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hll_get_similarity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hll_list</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read Jaccard similarity between this sketch and other sketches.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            hll_list: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_similarity`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">HllOperation</span><span class="o">.</span><span class="n">get_similarity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">hll_list</span><span class="p">)),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+    <span class="c1"># -- Bit (blob) -----------------------------------------------------------</span>
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_resize">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_resize">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_resize</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">byte_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">resize_flags</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Grow or shrink the raw bytes backing this bin.</span>
+
+<span class="sd">        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_resize`.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.upsert(key).bin(&quot;flags&quot;).bit_resize(4)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            byte_size: Same as the async method.</span>
+<span class="sd">            resize_flags: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_resize`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">byte_size</span><span class="p">,</span>
+                <span class="n">_resize_flags_or_default</span><span class="p">(</span><span class="n">resize_flags</span><span class="p">),</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_insert">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_insert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_insert</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">byte_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert bytes at a byte offset in the blob bin.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_insert(0, b&quot;\\x01\\x02&quot;)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            byte_offset: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_insert`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">byte_offset</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_remove">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_remove">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_remove</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">byte_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">byte_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove a byte range from the blob bin.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_remove(0, 2)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            byte_offset: Same as :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_remove`.</span>
+<span class="sd">            byte_size: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_remove`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">byte_offset</span><span class="p">,</span>
+                <span class="n">byte_size</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_set">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_set">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_set</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Overwrite a bit range with a new value.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_set(0, 8, b&quot;\\xff&quot;)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_set`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_or">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_or">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_or</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Bitwise OR a value into a bit range.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_or(0, 8, b&quot;\\x0f&quot;)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_or`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">_bitwise_or</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_xor">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_xor">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_xor</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Bitwise XOR a value into a bit range.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_xor(0, 8, b&quot;\\xff&quot;)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_xor`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">xor</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_and">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_and">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_and</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Bitwise AND a value into a bit range.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_and(0, 8, b&quot;\\xf0&quot;)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_and`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">_bitwise_and</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_not">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_not">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_not</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Invert every bit in a range.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_not(0, 8)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_not`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">_bitwise_not</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_lshift">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_lshift">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_lshift</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">shift</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Left-shift the bits in a field.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_lshift(0, 16, 2)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            shift: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_lshift`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">lshift</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">shift</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_rshift">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_rshift">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_rshift</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">shift</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Right-shift the bits in a field.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_rshift(0, 16, 2)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            shift: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_rshift`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">rshift</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">shift</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_add">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_add">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_add</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">signed</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">action</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add to an integer bit field (see :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_add`).</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_add(0, 16, 1, False, BitwiseOverflowActions.WRAP)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            signed: Same as the async method.</span>
+<span class="sd">            action: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_add`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">signed</span><span class="p">,</span>
+                <span class="n">action</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_subtract">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_subtract">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_subtract</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">signed</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">action</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Subtract from an integer bit field (see :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_subtract`).</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_subtract(0, 16, 1, False, BitwiseOverflowActions.SATURATE)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            signed: Same as the async method.</span>
+<span class="sd">            action: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_subtract`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">signed</span><span class="p">,</span>
+                <span class="n">action</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_set_int">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_set_int">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_set_int</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">policy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write an integer value into a bit field.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_set_int(0, 16, 42)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+<span class="sd">            policy: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_set_int`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span>
+                <span class="n">bit_offset</span><span class="p">,</span>
+                <span class="n">bit_size</span><span class="p">,</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">_bit_policy_or_default</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_get">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_get">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read a bit range as bytes in a write operate.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_get(0, 8)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_get`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_count">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Count bits set to 1 in a range.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_count(0, 8)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_count`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_lscan">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_lscan">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_lscan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the leftmost bit index matching a value in a range.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_lscan(0, 8, True)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_lscan`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">lscan</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">,</span> <span class="n">value</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_rscan">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_rscan">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_rscan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the rightmost bit index matching a value in a range.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_rscan(0, 8, False)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            value: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_rscan`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">rscan</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">,</span> <span class="n">value</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
+<div class="viewcode-block" id="SyncWriteBinBuilder.bit_get_int">
+<a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_get_int">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bit_get_int</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">signed</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncWriteSegmentBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Decode an integer from a bit field.</span>
+
+<span class="sd">        Example::</span>
+<span class="sd">            session.update(key).bin(&quot;blob&quot;).bit_get_int(0, 16, False)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bit_offset: Same as the async method.</span>
+<span class="sd">            bit_size: Same as the async method.</span>
+<span class="sd">            signed: Same as the async method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The parent :class:`SyncWriteSegmentBuilder` for chaining.</span>
+
+<span class="sd">        See Also:</span>
+<span class="sd">            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_get_int`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="o">.</span><span class="n">add_operation</span><span class="p">(</span>
+            <span class="n">BitOperation</span><span class="o">.</span><span class="n">get_int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bin</span><span class="p">,</span> <span class="n">bit_offset</span><span class="p">,</span> <span class="n">bit_size</span><span class="p">,</span> <span class="n">signed</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span></div>
+
+
     <span class="c1"># -- Map navigation (singular -&gt; CdtWriteBuilder) -------------------------</span>
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.on_map_index">
@@ -1533,23 +2742,31 @@
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.on_map_key">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_key">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">on_map_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CdtWriteBuilder</span><span class="p">[</span><span class="n">SyncWriteSegmentBuilder</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_map_key</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">create_type</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MapOrder</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CdtWriteBuilder</span><span class="p">[</span><span class="n">SyncWriteSegmentBuilder</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Navigate to a map element by key.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            key: Map key to target.</span>
+<span class="sd">            create_type: If set, use a create-on-missing context for this key</span>
+<span class="sd">                with the given map key order.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            :class:`CdtWriteBuilder` for writing the targeted element.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span>
         <span class="n">_mp</span> <span class="o">=</span> <span class="n">MapPolicy</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">create_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">to_ctx</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">map_key_create</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">create_type</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">to_ctx</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">map_key</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">CdtWriteBuilder</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="p">,</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">get_by_key</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_key</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">map_key</span><span class="p">(</span><span class="n">key</span><span class="p">),</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="n">to_ctx</span><span class="p">,</span>
             <span class="n">set_to_factory</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">_mp</span><span class="p">),</span>
             <span class="n">add_factory</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">increment_value</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">_mp</span><span class="p">),</span>
         <span class="p">)</span></div>
@@ -1595,6 +2812,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">get_by_value</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_value</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">map_value</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
         <span class="p">)</span></div>
 
 
@@ -1621,6 +2839,7 @@
             <span class="n">rm_f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_index_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">CdtWriteInvertableBuilder</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="p">,</span> <span class="n">get_f</span><span class="p">,</span> <span class="n">rm_f</span><span class="p">,</span> <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1644,6 +2863,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">get_by_key_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_key_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1670,6 +2890,7 @@
             <span class="n">rm_f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_rank_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">CdtWriteInvertableBuilder</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="p">,</span> <span class="n">get_f</span><span class="p">,</span> <span class="n">rm_f</span><span class="p">,</span> <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1693,6 +2914,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">get_by_value_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_value_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1721,6 +2943,7 @@
                 <span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">,</span>
             <span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1749,6 +2972,7 @@
                 <span class="n">b</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">,</span>
             <span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1769,6 +2993,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">get_by_key_list</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_key_list</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1789,6 +3014,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">get_by_value_list</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">MapOperation</span><span class="o">.</span><span class="n">remove_by_value_list</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">MapReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1796,22 +3022,37 @@
 
 <div class="viewcode-block" id="SyncWriteBinBuilder.on_list_index">
 <a class="viewcode-back" href="../../../../api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_index">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">on_list_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CdtWriteBuilder</span><span class="p">[</span><span class="n">SyncWriteSegmentBuilder</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_list_index</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">order</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ListOrderType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">pad</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CdtWriteBuilder</span><span class="p">[</span><span class="n">SyncWriteSegmentBuilder</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Navigate to a list element by index.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            index: List index (0-based, negative counts from end).</span>
+<span class="sd">            order: If set (or if *pad* is ``True``), use create-on-missing</span>
+<span class="sd">                list context with this order; when only *pad* is ``True``,</span>
+<span class="sd">                defaults to :data:`~aerospike_async.ListOrderType.UNORDERED`.</span>
+<span class="sd">            pad: When using create-on-missing context, allow sparse indexes.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            :class:`CdtWriteBuilder` for writing the targeted element.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bin</span>
+        <span class="n">use_create</span> <span class="o">=</span> <span class="n">order</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">pad</span>
+        <span class="k">if</span> <span class="n">use_create</span><span class="p">:</span>
+            <span class="n">eff_order</span> <span class="o">=</span> <span class="n">order</span> <span class="k">if</span> <span class="n">order</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">ListOrderType</span><span class="o">.</span><span class="n">UNORDERED</span>
+            <span class="n">to_ctx</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">list_index_create</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">eff_order</span><span class="p">,</span> <span class="n">pad</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">to_ctx</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">list_index</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">CdtWriteBuilder</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_sync_segment</span><span class="p">,</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">get_by_index</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_by_index</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">ListReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">list_index</span><span class="p">(</span><span class="n">index</span><span class="p">),</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="n">to_ctx</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1855,6 +3096,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">get_by_value</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_by_value</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">ListReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">CTX</span><span class="o">.</span><span class="n">list_value</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
         <span class="p">)</span></div>
 
 
@@ -1878,6 +3120,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">get_by_index_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_by_index_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">ListReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1901,6 +3144,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">get_by_rank_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_by_rank_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">ListReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1924,6 +3168,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">get_by_value_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_by_value_range</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">ListReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1952,6 +3197,7 @@
                 <span class="n">b</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">rt</span><span class="p">,</span>
             <span class="p">),</span>
             <span class="n">ListReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -1972,6 +3218,7 @@
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">get_by_value_list</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">rt</span><span class="p">:</span> <span class="n">ListOperation</span><span class="o">.</span><span class="n">remove_by_value_list</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">rt</span><span class="p">),</span>
             <span class="n">ListReturnType</span><span class="p">,</span> <span class="n">is_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">bin_name</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">to_ctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 

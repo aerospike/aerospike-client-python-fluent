@@ -840,6 +840,35 @@ class TestTtlExpiry:
         rr = await rs.first()
         assert rr is None
 
+    async def test_no_change_in_expiration_preserves_ttl(self, session, ds):
+        """After a TTL write, an upsert with ``with_no_change_in_expiration`` keeps TTL."""
+        k = ds.id("ttl_no_change")
+        await _cleanup(session, k)
+
+        await (
+            session.upsert(k)
+                .expire_record_after_seconds(900)
+                .put({"v": 1})
+                .execute()
+        )
+        r1 = await (await session.query(k).execute()).first_or_raise()
+        ttl1 = r1.record.ttl
+        assert ttl1 is not None and ttl1 > 0
+
+        await (
+            session.upsert(k)
+                .with_no_change_in_expiration()
+                .bin("v").set_to(2)
+                .execute()
+        )
+        r2 = await (await session.query(k).execute()).first_or_raise()
+        ttl2 = r2.record.ttl
+        assert ttl2 is not None and ttl2 > 0
+        assert abs(ttl1 - ttl2) <= 2
+        assert r2.record.bins["v"] == 2
+
+        await _cleanup(session, k)
+
     async def test_touch_nonexistent_returns_empty(self, session, ds):
         """Touch on a non-existent key produces no result."""
         k = ds.id("ttl_touch_miss")

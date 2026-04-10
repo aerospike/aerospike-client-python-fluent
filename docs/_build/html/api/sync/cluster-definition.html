@@ -339,16 +339,14 @@
 <p>Mirrors <a class="reference internal" href="../cluster-definition.html#aerospike_sdk.aio.cluster_definition.ClusterDefinition" title="aerospike_sdk.aio.cluster_definition.ClusterDefinition"><code class="xref py py-class docutils literal notranslate"><span class="pre">ClusterDefinition</span></code></a>
 with blocking <a class="reference internal" href="#aerospike_sdk.sync.cluster_definition.ClusterDefinition.connect" title="aerospike_sdk.sync.cluster_definition.ClusterDefinition.connect"><code class="xref py py-meth docutils literal notranslate"><span class="pre">connect()</span></code></a> and context-manager support on
 <a class="reference internal" href="cluster.html#aerospike_sdk.sync.cluster.Cluster" title="aerospike_sdk.sync.cluster.Cluster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cluster</span></code></a>.</p>
-<div class="admonition-example admonition">
-<p class="admonition-title">Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="p">(</span>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="p">(</span>
     <span class="n">ClusterDefinition</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3100</span><span class="p">)</span>
     <span class="o">.</span><span class="n">with_native_credentials</span><span class="p">(</span><span class="s2">&quot;username&quot;</span><span class="p">,</span> <span class="s2">&quot;password&quot;</span><span class="p">)</span>
     <span class="o">.</span><span class="n">connect</span><span class="p">()</span>
 <span class="p">)</span> <span class="k">as</span> <span class="n">cluster</span><span class="p">:</span>
     <span class="n">session</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">create_session</span><span class="p">(</span><span class="n">Behavior</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">)</span>
 </pre></div>
-</div>
 </div>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -591,13 +589,11 @@ to this ClusterDefinition for further configuration.</p>
 parameters. The returned Cluster should be closed when no longer needed
 to properly release resources.</p>
 <p>Example with context manager:</p>
-<blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ClusterDefinition</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3100</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">cluster</span><span class="p">:</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ClusterDefinition</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3100</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">cluster</span><span class="p">:</span>
     <span class="n">session</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">create_session</span><span class="p">(</span><span class="n">Behavior</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">)</span>
     <span class="c1"># Use the session...</span>
 </pre></div>
 </div>
-</div></blockquote>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="cluster.html#aerospike_sdk.sync.cluster.Cluster" title="aerospike_sdk.sync.cluster.Cluster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cluster</span></code></a></span></p>

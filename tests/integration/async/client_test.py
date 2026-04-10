@@ -15,7 +15,6 @@
 
 """Tests for Client."""
 
-import pytest
 from aerospike_sdk import Client
 
 

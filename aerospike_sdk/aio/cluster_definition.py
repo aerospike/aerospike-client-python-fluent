@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import os
-import typing
 from typing import List, Optional, Union
 
 from aerospike_async import AuthMode, ClientPolicy
@@ -97,9 +96,7 @@ class ClusterDefinition:
     Call :meth:`connect` to obtain a live :class:`~aerospike_sdk.aio.cluster.Cluster`.
     The sync counterpart lives under ``aerospike_sdk.sync.cluster_definition``.
 
-    Example:
-
-        .. code-block:: python
+    Example::
 
             cluster = await (
                 ClusterDefinition("localhost", 3100)
@@ -460,9 +457,7 @@ class ClusterDefinition:
         parameters. The returned Cluster should be closed when no longer needed
         to properly release resources.
 
-        Example with async context manager:
-
-            .. code-block:: python
+        Example with async context manager::
 
                 async with await ClusterDefinition("localhost", 3100).connect() as cluster:
                     session = cluster.create_session(Behavior.DEFAULT)

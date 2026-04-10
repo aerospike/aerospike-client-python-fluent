@@ -31,8 +31,7 @@ class TlsBuilder:
     This class provides a SDK API for configuring TLS parameters such as
     TLS name, CA file, protocols, ciphers, and other TLS-specific options.
     
-    Simple example usage:
-        .. code-block:: python
+    Simple example usage::
 
             cluster = ClusterDefinition("localhost", 3100)\
                 .with_tls_config_of()\

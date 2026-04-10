@@ -25,7 +25,7 @@ from aerospike_async.exceptions import ResultCode
 
 from aerospike_sdk.exceptions import _result_code_to_exception
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — needed for forward-reference type annotations and Sphinx autodoc.
     from aerospike_async import BatchRecord
     from aerospike_sdk.exceptions import AerospikeError
 

@@ -300,7 +300,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">_result_code_to_exception</span>
 
-<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>  <span class="c1"># Not unused — needed for forward-reference type annotations and Sphinx autodoc.</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_async</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchRecord</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AerospikeError</span>
 

@@ -15,10 +15,12 @@
 
 """Sync operations for the Aerospike SDK API."""
 
+from aerospike_sdk.sync.operations.batch import SyncBatchOperationBuilder
 from aerospike_sdk.sync.operations.index import SyncIndexBuilder
 from aerospike_sdk.sync.operations.query import SyncQueryBuilder
 
 __all__ = [
+    "SyncBatchOperationBuilder",
     "SyncIndexBuilder",
     "SyncQueryBuilder",
 ]

@@ -22,7 +22,7 @@ from datetime import timedelta
 import pytest
 
 from aerospike_sdk import Behavior, DataSet, Client
-from aerospike_sdk.policy.behavior_settings import OpKind, OpShape, Settings
+from aerospike_sdk.policy.behavior_settings import Settings
 
 
 @pytest.fixture

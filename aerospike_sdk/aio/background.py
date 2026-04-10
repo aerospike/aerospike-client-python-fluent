@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import enum
 import logging
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union, overload
+from typing import TYPE_CHECKING, Any, List, Optional, Union, overload
 
 log = logging.getLogger("aerospike_sdk.background")
 
@@ -40,7 +40,7 @@ from aerospike_sdk.dataset import DataSet
 from aerospike_sdk.ael.parser import parse_ael
 from aerospike_sdk.exceptions import _convert_pac_exception
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotations only.
     from aerospike_sdk.aio.session import Session
 
 

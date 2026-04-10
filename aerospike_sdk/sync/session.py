@@ -28,6 +28,7 @@ from aerospike_sdk.policy.behavior import Behavior
 from aerospike_sdk.sync.background import SyncBackgroundTaskSession
 from aerospike_sdk.sync.client import _EventLoopManager
 from aerospike_sdk.sync.info import SyncInfoCommands
+from aerospike_sdk.sync.operations.batch import SyncBatchOperationBuilder
 from aerospike_sdk.sync.operations.index import SyncIndexBuilder
 from aerospike_sdk.sync.operations.query import SyncQueryBuilder, SyncWriteSegmentBuilder
 from aerospike_sdk.sync.operations.udf import SyncUdfFunctionBuilder
@@ -92,13 +93,14 @@ class SyncSession:
     def query(
         self,
         arg1: Optional[Union[DataSet, Key, List[Key], str]] = None,
-        arg2: Optional[str] = None,
+        arg2: Optional[Union[str, Key]] = None,
         *keys: Key,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         dataset: Optional[DataSet] = None,
         key: Optional[Key] = None,
         keys_list: Optional[List[Key]] = None,
+        behavior: Optional[Behavior] = None,
     ) -> "SyncQueryBuilder":
         """Start a read or secondary-index query (synchronous session).
 
@@ -117,6 +119,7 @@ class SyncSession:
             dataset: Keyword :class:`~aerospike_sdk.dataset.DataSet`.
             key: Keyword single key.
             keys_list: Keyword list of keys for batch read.
+            behavior: Optional per-query behavior override (same as async session).
 
         Returns:
             A :class:`~aerospike_sdk.sync.operations.query.SyncQueryBuilder`.
@@ -124,15 +127,18 @@ class SyncSession:
         # Delegate to async session.query() - pass positional args as positional, keyword args as keyword
         if arg1 is not None or arg2 is not None or keys:
             # Has positional arguments - pass them positionally
-            async_builder = self._async_session.query(arg1, arg2, *keys)
+            async_builder = self._async_session.query(  # type: ignore[call-overload]
+                arg1, arg2, *keys, behavior=behavior,
+            )
         else:
             # Only keyword arguments
-            async_builder = self._async_session.query(
+            async_builder = self._async_session.query(  # type: ignore[call-overload]
                 namespace=namespace,
                 set_name=set_name,
                 dataset=dataset,
                 key=key,
                 keys_list=keys_list,
+                behavior=behavior,
             )
         return SyncQueryBuilder(
             async_client=self._async_session._client,
@@ -141,6 +147,36 @@ class SyncSession:
             loop_manager=self._loop_manager,
             query_builder=async_builder,
         )
+
+    def batch(self) -> "SyncBatchOperationBuilder":
+        """Start a multi-key batch of mixed write operations (synchronous).
+
+        Chain ``insert``, ``update``, ``upsert``, ``replace``, ``delete``, and bin
+        builders, then :meth:`~aerospike_sdk.sync.operations.batch.SyncBatchOperationBuilder.execute`
+        for a :class:`~aerospike_sdk.sync.record_stream.SyncRecordStream`.
+
+        Returns:
+            A :class:`~aerospike_sdk.sync.operations.batch.SyncBatchOperationBuilder`.
+
+        Raises:
+            RuntimeError: If the client is not connected (from the async session).
+
+        Example::
+
+            stream = (
+                session.batch()
+                .insert(key1).put({"name": "Alice", "age": 25})
+                .update(key2).bin("counter").add(1)
+                .execute()
+            )
+            for row in stream:
+                print(row.key, row.result_code)
+
+        See Also:
+            :meth:`~aerospike_sdk.aio.session.Session.batch`
+        """
+        inner = self._async_session.batch()
+        return SyncBatchOperationBuilder(inner, self._loop_manager)
 
     def background_task(self) -> "SyncBackgroundTaskSession":
         """Start a background dataset task chain (synchronous).
@@ -173,6 +209,7 @@ class SyncSession:
         set_name: Optional[str] = None,
         *,
         dataset: Optional[DataSet] = None,
+        behavior: Optional[Behavior] = None,
     ) -> "SyncIndexBuilder":
         """Create a secondary-index builder for this namespace/set (synchronous).
 
@@ -186,6 +223,7 @@ class SyncSession:
         See Also:
             :meth:`~aerospike_sdk.aio.session.Session.index`.
         """
+        _ = behavior
         # Resolve namespace and set_name from dataset if provided
         if dataset:
             namespace = dataset.namespace
@@ -224,9 +262,7 @@ class SyncSession:
         info_on_all_nodes(). With a command string, runs the raw info command
         and returns its result.
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 response = session.info("sindex-list")
                 info = session.info()

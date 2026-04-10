@@ -26,8 +26,6 @@ from aerospike_async import (
     FilterExpression,
     Key,
     Operation,
-    WritePolicy,
-    RecordExistsAction,
 )
 
 from aerospike_sdk.aio.operations.query import (
@@ -44,7 +42,7 @@ from aerospike_sdk.policy.behavior_settings import OpKind, OpShape
 from aerospike_sdk.policy.policy_mapper import to_batch_policy
 from aerospike_sdk.record_stream import RecordStream
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotations only.
     from aerospike_sdk.policy.behavior import Behavior
 
 
@@ -317,8 +315,7 @@ class BatchOperationBuilder:
     This class enables method chaining of operations on different keys,
     which are then executed as a single batch operation.
     
-    Example:
-        .. code-block:: python
+    Example::
 
             results = await session.batch() \\
                 .insert(key1).bin("name").set_to("Alice").bin("age").set_to(25) \\

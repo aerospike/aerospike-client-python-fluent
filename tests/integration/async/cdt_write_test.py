@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Integration tests for CDT write operations: list_add, list_append, remove, exists."""
+"""Integration tests for CDT write operations: list_add, append, pop, trim, remove, exists."""
 
 import pytest
 from aerospike_async import ListOrderType, ListSortFlags, MapOrder
@@ -80,7 +80,7 @@ def _assert_list_get_relative_batch(raw_bin):
 async def client(aerospike_host, client_policy):
     async with Client(seeds=aerospike_host, policy=client_policy) as c:
         session = c.create_session()
-        for key_id in range(1, 100):
+        for key_id in range(1, 130):
             await session.delete(DS.id(key_id)).execute()
         yield c
 
@@ -1160,6 +1160,161 @@ class TestRelativeRangeBatchOrdering:
         )
         lst = (await rs.first_or_raise()).record.bins["lst"]
         assert lst == []
+
+
+# ===================================================================
+# List pop, trim, and remove_range
+# ===================================================================
+
+class TestListPopAndTrim:
+    """Index-based list removal: pop, pop_range, trim, remove_range."""
+
+    async def test_list_pop_returns_element(self, client):
+        """Pop index 0; returned value and remaining list match expectations."""
+        session = client.create_session()
+        k = DS.id(100)
+        await session.upsert(k).put({"items": ["a", "b", "c"]}).execute()
+
+        rs = await session.update(k).bin("items").list_pop(0).execute()
+        out = await rs.first_or_raise()
+        assert out.record.bins["items"] == "a"
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["items"] == ["b", "c"]
+
+    async def test_list_pop_range_returns_elements(self, client):
+        """Pop two elements starting at index 1; verify slice and remainder."""
+        session = client.create_session()
+        k = DS.id(101)
+        await session.upsert(k).put({"nums": [10, 20, 30, 40]}).execute()
+
+        rs = await session.update(k).bin("nums").list_pop_range(1, 2).execute()
+        out = await rs.first_or_raise()
+        assert out.record.bins["nums"] == [20, 30]
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["nums"] == [10, 40]
+
+    async def test_list_pop_range_to_end(self, client):
+        """Pop from index through the end when count is None."""
+        session = client.create_session()
+        k = DS.id(102)
+        await session.upsert(k).put({"nums": [10, 20, 30, 40]}).execute()
+
+        rs = await session.update(k).bin("nums").list_pop_range(2, None).execute()
+        out = await rs.first_or_raise()
+        popped = out.record.bins["nums"]
+        assert list(popped) == [30, 40]
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["nums"] == [10, 20]
+
+    async def test_list_trim_keeps_middle(self, client):
+        """trim(index, count) keeps only that slice of the list."""
+        session = client.create_session()
+        k = DS.id(103)
+        await session.upsert(k).put({"letters": ["a", "b", "c", "d"]}).execute()
+
+        await session.update(k).bin("letters").list_trim(1, 2).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["letters"] == ["b", "c"]
+
+    async def test_list_remove_range(self, client):
+        """remove_range removes a fixed count from an index."""
+        session = client.create_session()
+        k = DS.id(104)
+        await session.upsert(k).put({"nums": [1, 2, 3, 4]}).execute()
+
+        await session.update(k).bin("nums").list_remove_range(0, 2).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["nums"] == [3, 4]
+
+    async def test_list_remove_range_to_end(self, client):
+        """remove_range with count None removes through the end."""
+        session = client.create_session()
+        k = DS.id(105)
+        await session.upsert(k).put({"nums": [1, 2, 3, 4]}).execute()
+
+        await session.update(k).bin("nums").list_remove_range(2, None).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["nums"] == [1, 2]
+
+    async def test_nested_list_pop(self, client):
+        """list_pop after on_map_key on a nested list."""
+        session = client.create_session()
+        k = DS.id(106)
+        await session.upsert(k).put({"wrap": {"items": [1, 2, 3]}}).execute()
+
+        rs = await (
+            session.update(k).bin("wrap").on_map_key("items").list_pop(0).execute()
+        )
+        out = await rs.first_or_raise()
+        assert int(out.record.bins["wrap"]) == 1
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["wrap"]["items"] == [2, 3]
+
+
+class TestListInsertItems:
+    """Bulk list insert via list_insert_items."""
+
+    async def test_list_insert_items(self, client):
+        """Insert multiple values at an index."""
+        session = client.create_session()
+        k = DS.id(107)
+        await session.upsert(k).put({"nums": [1, 2, 3]}).execute()
+
+        await session.update(k).bin("nums").list_insert_items(1, [10, 20]).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["nums"] == [1, 10, 20, 2, 3]
+
+    async def test_nested_list_insert_items(self, client):
+        """list_insert_items on a list under a map key."""
+        session = client.create_session()
+        k = DS.id(108)
+        await session.upsert(k).put({"outer": {"data": [1, 2]}}).execute()
+
+        await (
+            session.update(k).bin("outer").on_map_key("data").list_insert_items(0, [7, 8]).execute()
+        )
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["outer"]["data"] == [7, 8, 1, 2]
+
+
+class TestListSortDropDuplicates:
+    """List sort flags beyond descending order."""
+
+    async def test_list_sort_drop_duplicates(self, client):
+        """Sort with DROP_DUPLICATES collapses equal elements."""
+        session = client.create_session()
+        k = DS.id(109)
+        await session.upsert(k).put({"lst": [3, 1, 2, 1, 3]}).execute()
+
+        await session.update(k).bin("lst").list_sort(ListSortFlags.DROP_DUPLICATES).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["lst"] == [1, 2, 3]
+
+
+class TestNoneElementsInList:
+    """Round-trip for null list elements."""
+
+    async def test_none_elements_round_trip(self, client):
+        """None in a list is stored and read back as null."""
+        session = client.create_session()
+        k = DS.id(110)
+        await session.upsert(k).put({"tags": ["x"]}).execute()
+
+        await session.update(k).bin("tags").list_append_items([None, "y"]).execute()
+
+        result = await (await session.query(k).execute()).first_or_raise()
+        assert result.record.bins["tags"][1] is None
+        assert result.record.bins["tags"] == ["x", None, "y"]
 
 
 # ===================================================================

@@ -15,7 +15,19 @@
 
 """Aerospike Python SDK — high-level API built on the ``aerospike_async`` package."""
 
-from aerospike_async import AuthMode
+from aerospike_async import (
+    AuthMode,
+    BitPolicy,
+    BitwiseOverflowActions,
+    BitwiseResizeFlags,
+    BitwiseWriteFlags,
+    HLLWriteFlags,
+    ListReturnType,
+    ListWriteFlags,
+    MapReturnType,
+    MapWriteFlags,
+    SpecialValue,
+)
 
 from aerospike_sdk.aio import Client, Session, TransactionalSession, ClusterDefinition, Host
 from aerospike_sdk.aio.operations.query import QueryHint
@@ -54,6 +66,10 @@ __all__ = [
     "AuthenticationError",
     "AuthMode",
     "AuthorizationError",
+    "BitPolicy",
+    "BitwiseOverflowActions",
+    "BitwiseResizeFlags",
+    "BitwiseWriteFlags",
     "BackoffError",
     "Behavior",
     "ClusterDefinition",
@@ -68,11 +84,16 @@ __all__ = [
     "in_list",
     "GenerationError",
     "Host",
+    "HLLWriteFlags",
     "Index",
     "IndexContext",
     "IndexTypeEnum",
     "InvalidNamespaceError",
     "InvalidNodeError",
+    "ListReturnType",
+    "ListWriteFlags",
+    "MapReturnType",
+    "MapWriteFlags",
     "OnError",
     "parse_ctx",
     "parse_ael",
@@ -86,6 +107,7 @@ __all__ = [
     "SecurityError",
     "SerializationError",
     "Session",
+    "SpecialValue",
     "SyncClient",
     "SyncRecordStream",
     "TimeoutError",

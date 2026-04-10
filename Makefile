@@ -1,4 +1,4 @@
-.PHONY: antlr generate-ael clean-ael test dev docs docs-serve examples
+.PHONY: antlr generate-ael clean-ael test dev docs docs-clean docs-serve examples
 
 # ANTLR JAR location - download if not present
 ANTLR_JAR ?= antlr-4.13.0-complete.jar
@@ -47,6 +47,10 @@ examples:
 		python "$$f" || exit 1; \
 		echo; \
 	done
+
+docs-clean:
+	@rm -rf docs/_build
+	@echo "Cleaned docs/_build"
 
 docs:
 	sphinx-build -b html docs docs/_build/html -W

@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import types
 import typing
 from typing import NoReturn, Optional
 
@@ -37,9 +38,7 @@ class Cluster:
     :class:`~aerospike_sdk.sync.client.SyncClient` and
     :class:`~aerospike_sdk.sync.session.SyncSession`.
 
-    Example:
-
-        .. code-block:: python
+    Example::
 
             with ClusterDefinition("localhost", 3100).connect() as cluster:
                 session = cluster.create_session(Behavior.DEFAULT)
@@ -97,7 +96,7 @@ class Cluster:
         self,
         exc_type: Optional[type[BaseException]],
         exc_val: Optional[BaseException],
-        exc_tb: Optional[typing.TracebackType],
+        exc_tb: Optional[types.TracebackType],
     ) -> None:
         """Context manager exit."""
         self.close()
@@ -164,9 +163,7 @@ class Cluster:
         This method closes the underlying client connection. It should be called
         when the cluster is no longer needed to ensure proper resource cleanup.
         
-        This method is automatically called when using context manager:
-
-            .. code-block:: python
+        This method is automatically called when using context manager::
 
                 with ClusterDefinition("localhost", 3100).connect() as cluster:
                     # Use the cluster...

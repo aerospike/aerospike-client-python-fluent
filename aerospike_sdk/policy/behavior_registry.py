@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, Optional
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotations only.
     from aerospike_sdk.policy.behavior import Behavior
 
 _registry: Dict[str, Behavior] = {}

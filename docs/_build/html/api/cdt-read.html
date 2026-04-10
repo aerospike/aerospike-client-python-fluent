@@ -173,7 +173,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
       </label>
     </div>
@@ -278,20 +278,631 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
           </label>
         </div>
         <article role="main" id="furo-main-content">
           <section id="cdt-read-builders">
 <h1>CDT Read Builders<a class="headerlink" href="#cdt-read-builders" title="Link to this heading">¶</a></h1>
-<div class="aerospike_sdk.aio.operations.cdt_read docutils">
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>options:
-  show_root_heading: false
-  members_order: source
+<dl class="py class">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">aerospike_sdk.aio.operations.cdt_read.</span></span><span class="sig-name descname"><span class="pre">CdtReadBuilder</span></span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Generic" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Generic</span></code></a>[<code class="xref py py-obj docutils literal notranslate"><span class="pre">T</span></code>]</p>
+<p>Terminal read actions and singular navigation for a CDT path.</p>
+<p>The parent (type <code class="docutils literal notranslate"><span class="pre">T</span></code>) must expose <code class="docutils literal notranslate"><span class="pre">add_operation(op)</span></code> so the
+builder can register the produced operation before returning it.</p>
+<p>Navigation fields (<code class="docutils literal notranslate"><span class="pre">bin_name</span></code>, <code class="docutils literal notranslate"><span class="pre">ctx</span></code>, <code class="docutils literal notranslate"><span class="pre">to_ctx</span></code>) are optional;
+when not provided, further navigation is not available (terminal-only).</p>
+<div class="admonition-example admonition">
+<p class="admonition-title">Example</p>
+<p>Read values from a map key within a query:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">stream</span> <span class="o">=</span> <span class="k">await</span> <span class="p">(</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">bin</span><span class="p">(</span><span class="s2">&quot;settings&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">on_map_key</span><span class="p">(</span><span class="s2">&quot;theme&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">get_values</span><span class="p">()</span>
+        <span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </div>
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">op_factory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_type_cls</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_map</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bin_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_ctx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.__init__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key">
+<span class="sig-name descname"><span class="pre">on_map_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">create_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into a map element by key.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a></span>) – Map key to target.</p></li>
+<li><p><strong>create_type</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">MapOrder</span></code> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – If set, use a create-on-missing context for this key
+with the given map key order.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a> for reading the targeted element.</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Example::</dt><dd><p>.bin(“m”).on_map_key(“x”).get_values()</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index">
+<span class="sig-name descname"><span class="pre">on_map_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into a map element by index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>index</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Map index to target.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a> for reading the targeted element.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank">
+<span class="sig-name descname"><span class="pre">on_map_rank</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rank</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_rank"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into a map element by rank (0 = lowest value).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rank</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Rank position (0 = lowest value).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a> for reading the targeted element.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index">
+<span class="sig-name descname"><span class="pre">on_list_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into a list element by index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>index</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – List index (0-based, negative counts from end).</p></li>
+<li><p><strong>order</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">ListOrderType</span></code> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – If set (or if <em>pad</em> is <code class="docutils literal notranslate"><span class="pre">True</span></code>), use create-on-missing
+list context with this order; when only <em>pad</em> is <code class="docutils literal notranslate"><span class="pre">True</span></code>,
+defaults to <code class="xref py py-data docutils literal notranslate"><span class="pre">UNORDERED</span></code>.</p></li>
+<li><p><strong>pad</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – When using create-on-missing context, allow sparse indexes.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a> for reading the targeted element.</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Example::</dt><dd><p>.bin(“items”).on_list_index(0).get_values()</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank">
+<span class="sig-name descname"><span class="pre">on_list_rank</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rank</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_rank"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into a list element by rank (0 = lowest value).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rank</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Rank position (0 = lowest value).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a> for reading the targeted element.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value">
+<span class="sig-name descname"><span class="pre">on_map_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_value"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map elements matching a value (may match multiple).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>value</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a></span>) – Value to match.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a> for reading the selection;
+further singular navigation is supported when this builder was
+produced from a nested path.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index_range">
+<span class="sig-name descname"><span class="pre">on_map_index_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_index_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map elements by index range.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_range">
+<span class="sig-name descname"><span class="pre">on_map_key_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_key_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map elements by key range <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">end)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank_range">
+<span class="sig-name descname"><span class="pre">on_map_rank_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rank</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_rank_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map elements by rank range.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_range">
+<span class="sig-name descname"><span class="pre">on_map_value_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_value_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map elements by value range <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">end)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_relative_index_range">
+<span class="sig-name descname"><span class="pre">on_map_key_relative_index_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_key_relative_index_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_relative_index_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map entries by index range relative to an anchor key.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_relative_rank_range">
+<span class="sig-name descname"><span class="pre">on_map_value_relative_rank_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_value_relative_rank_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_relative_rank_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map entries by value rank range relative to an anchor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_list">
+<span class="sig-name descname"><span class="pre">on_map_key_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">keys</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_key_list"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_list" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map elements matching a list of keys.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_list">
+<span class="sig-name descname"><span class="pre">on_map_value_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_map_value_list"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_list" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into map elements matching a list of values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value">
+<span class="sig-name descname"><span class="pre">on_list_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_value"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into list elements matching a value.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index_range">
+<span class="sig-name descname"><span class="pre">on_list_index_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_index_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into list elements by index range.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank_range">
+<span class="sig-name descname"><span class="pre">on_list_rank_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rank</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_rank_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into list elements by rank range.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_range">
+<span class="sig-name descname"><span class="pre">on_list_value_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_value_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into list elements by value range <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">end)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_relative_rank_range">
+<span class="sig-name descname"><span class="pre">on_list_value_relative_rank_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_value_relative_rank_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_relative_rank_range" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into list elements by value rank range relative to anchor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_list">
+<span class="sig-name descname"><span class="pre">on_list_value_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.on_list_value_list"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_list" title="Link to this definition">¶</a></dt>
+<dd><p>Navigate into list elements matching a list of values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_values">
+<span class="sig-name descname"><span class="pre">get_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.get_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_values" title="Link to this definition">¶</a></dt>
+<dd><p>Return value(s) at the current CDT selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Example::</dt><dd><p>.bin(“m”).on_map_key(“x”).get_values()</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys">
+<span class="sig-name descname"><span class="pre">get_keys</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.get_keys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys" title="Link to this definition">¶</a></dt>
+<dd><p>Return map keys at the current CDT selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys_and_values">
+<span class="sig-name descname"><span class="pre">get_keys_and_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.get_keys_and_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys_and_values" title="Link to this definition">¶</a></dt>
+<dd><p>Return map key-value pairs at the current CDT selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.count">
+<span class="sig-name descname"><span class="pre">count</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.count"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.count" title="Link to this definition">¶</a></dt>
+<dd><p>Return the count of elements at the current CDT selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_indexes">
+<span class="sig-name descname"><span class="pre">get_indexes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.get_indexes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_indexes" title="Link to this definition">¶</a></dt>
+<dd><p>Return indexes of the selected CDT elements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_indexes">
+<span class="sig-name descname"><span class="pre">get_reverse_indexes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.get_reverse_indexes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_indexes" title="Link to this definition">¶</a></dt>
+<dd><p>Return reverse indexes of the selected CDT elements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_ranks">
+<span class="sig-name descname"><span class="pre">get_ranks</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.get_ranks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_ranks" title="Link to this definition">¶</a></dt>
+<dd><p>Return ranks of the selected CDT elements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_ranks">
+<span class="sig-name descname"><span class="pre">get_reverse_ranks</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.get_reverse_ranks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_ranks" title="Link to this definition">¶</a></dt>
+<dd><p>Return reverse ranks of the selected CDT elements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.exists">
+<span class="sig-name descname"><span class="pre">exists</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.exists"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.exists" title="Link to this definition">¶</a></dt>
+<dd><p>Check whether the selected CDT element(s) exist.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.map_size">
+<span class="sig-name descname"><span class="pre">map_size</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.map_size"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.map_size" title="Link to this definition">¶</a></dt>
+<dd><p>Return the element count of the map at the current CDT path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_size">
+<span class="sig-name descname"><span class="pre">list_size</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.list_size"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_size" title="Link to this definition">¶</a></dt>
+<dd><p>Return the element count of the list at the current CDT path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get">
+<span class="sig-name descname"><span class="pre">list_get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.list_get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get" title="Link to this definition">¶</a></dt>
+<dd><p>Read the list element at <em>index</em> at the current CDT path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get_range">
+<span class="sig-name descname"><span class="pre">list_get_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadBuilder.list_get_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get_range" title="Link to this definition">¶</a></dt>
+<dd><p>Read a slice of the list starting at <em>index</em> (through end if <em>count</em> is <code class="docutils literal notranslate"><span class="pre">None</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">aerospike_sdk.aio.operations.cdt_read.</span></span><span class="sig-name descname"><span class="pre">CdtReadInvertableBuilder</span></span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder" title="aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a>[<code class="xref py py-obj docutils literal notranslate"><span class="pre">T</span></code>]</p>
+<p>Terminal read actions with inverted (all-others) variants.</p>
+<p>Used for range and list selectors where INVERTED makes semantic sense
+(e.g. “all keys <em>except</em> those in this range”).  When constructed with
+<code class="docutils literal notranslate"><span class="pre">to_ctx</span></code> set (e.g. after a singular value selector on a nested path),
+singular navigation methods continue the CDT path.</p>
+<div class="admonition-example admonition">
+<p class="admonition-title">Example</p>
+<p>Get all map values <em>except</em> those in a key range:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">.</span><span class="n">bin</span><span class="p">(</span><span class="s2">&quot;m&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">on_map_key_range</span><span class="p">(</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="s2">&quot;d&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">get_all_other_values</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">op_factory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_type_cls</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_map</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bin_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_ctx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.__init__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_values">
+<span class="sig-name descname"><span class="pre">get_all_other_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.get_all_other_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_values" title="Link to this definition">¶</a></dt>
+<dd><p>Return all values <em>except</em> those matching the selection (INVERTED).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys">
+<span class="sig-name descname"><span class="pre">get_all_other_keys</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.get_all_other_keys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys" title="Link to this definition">¶</a></dt>
+<dd><p>Return all map keys <em>except</em> those matching the selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys_and_values">
+<span class="sig-name descname"><span class="pre">get_all_other_keys_and_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.get_all_other_keys_and_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys_and_values" title="Link to this definition">¶</a></dt>
+<dd><p>Return all map key-value pairs <em>except</em> those matching the selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.count_all_others">
+<span class="sig-name descname"><span class="pre">count_all_others</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.count_all_others"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.count_all_others" title="Link to this definition">¶</a></dt>
+<dd><p>Return the count of elements <em>except</em> those matching the selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_indexes">
+<span class="sig-name descname"><span class="pre">get_all_other_indexes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.get_all_other_indexes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_indexes" title="Link to this definition">¶</a></dt>
+<dd><p>Return indexes of all elements <em>except</em> those matching the selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_indexes">
+<span class="sig-name descname"><span class="pre">get_all_other_reverse_indexes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.get_all_other_reverse_indexes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_indexes" title="Link to this definition">¶</a></dt>
+<dd><p>Return reverse indexes of all elements <em>except</em> those matching the selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_ranks">
+<span class="sig-name descname"><span class="pre">get_all_other_ranks</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.get_all_other_ranks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_ranks" title="Link to this definition">¶</a></dt>
+<dd><p>Return ranks of all elements <em>except</em> those matching the selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_ranks">
+<span class="sig-name descname"><span class="pre">get_all_other_reverse_ranks</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aerospike_sdk/aio/operations/cdt_read.html#CdtReadInvertableBuilder.get_all_other_reverse_ranks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_ranks" title="Link to this definition">¶</a></dt>
+<dd><p>Return reverse ranks of all elements <em>except</em> those matching the selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypeVar</span></code></a>(<code class="docutils literal notranslate"><span class="pre">T</span></code>)</span></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parent builder for chaining.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 
         </article>
@@ -337,8 +948,75 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">CDT Read Builders</a><ul>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder</span></code></a><ul>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.__init__"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.__init__()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_key()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_index()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_rank()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_index()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_rank()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_value()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_index_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_key_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_rank_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_value_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_relative_index_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_key_relative_index_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_relative_rank_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_value_relative_rank_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_list"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_key_list()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_list"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_map_value_list()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_value()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_index_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_rank_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_value_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_relative_rank_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_value_relative_rank_range()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_list"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.on_list_value_list()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_values"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.get_values()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.get_keys()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys_and_values"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.get_keys_and_values()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.count"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.count()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_indexes"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.get_indexes()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_indexes"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.get_reverse_indexes()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_ranks"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.get_ranks()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_ranks"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.get_reverse_ranks()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.exists"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.exists()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.map_size"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.map_size()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_size"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.list_size()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.list_get()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get_range"><code class="docutils literal notranslate"><span class="pre">CdtReadBuilder.list_get_range()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder</span></code></a><ul>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.__init__"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.__init__()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_values"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.get_all_other_values()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.get_all_other_keys()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys_and_values"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.get_all_other_keys_and_values()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.count_all_others"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.count_all_others()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_indexes"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.get_all_other_indexes()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_indexes"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.get_all_other_reverse_indexes()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_ranks"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.get_all_other_ranks()</span></code></a></li>
+<li><a class="reference internal" href="#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_ranks"><code class="docutils literal notranslate"><span class="pre">CdtReadInvertableBuilder.get_all_other_reverse_ranks()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>

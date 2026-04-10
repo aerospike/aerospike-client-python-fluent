@@ -11,7 +11,6 @@ query hints, multi-operation batches, generation checks, and TTL.
 import asyncio
 import time
 from datetime import timedelta
-from typing import Any
 
 import _env
 from aerospike_sdk import Behavior, DataSet

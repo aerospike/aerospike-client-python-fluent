@@ -293,7 +293,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">typing</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_async</span><span class="w"> </span><span class="kn">import</span> <span class="n">AuthMode</span><span class="p">,</span> <span class="n">ClientPolicy</span>
@@ -370,9 +369,7 @@
 <span class="sd">    with blocking :meth:`connect` and context-manager support on</span>
 <span class="sd">    :class:`~aerospike_sdk.sync.cluster.Cluster`.</span>
 
-<span class="sd">    Example:</span>
-
-<span class="sd">        .. code-block:: python</span>
+<span class="sd">    Example::</span>
 
 <span class="sd">            with (</span>
 <span class="sd">                ClusterDefinition(&quot;localhost&quot;, 3100)</span>
@@ -739,9 +736,7 @@
 <span class="sd">        parameters. The returned Cluster should be closed when no longer needed</span>
 <span class="sd">        to properly release resources.</span>
 
-<span class="sd">        Example with context manager:</span>
-
-<span class="sd">            .. code-block:: python</span>
+<span class="sd">        Example with context manager::</span>
 
 <span class="sd">                with ClusterDefinition(&quot;localhost&quot;, 3100).connect() as cluster:</span>
 <span class="sd">                    session = cluster.create_session(Behavior.DEFAULT)</span>

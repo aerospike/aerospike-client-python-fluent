@@ -31,7 +31,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, List, Optional, Sequence, Union
+from typing import Any, List, Optional, Protocol, Sequence, Union, cast
 
 from aerospike_async import (
     CTX,
@@ -44,6 +44,12 @@ from aerospike_async import (
 from aerospike_sdk.ael.antlr4.generated.ConditionParser import ConditionParser
 from aerospike_sdk.ael.antlr4.generated.ConditionVisitor import ConditionVisitor
 from aerospike_sdk.ael.exceptions import AelParseException
+
+
+class _AntlrText(Protocol):
+    """ANTLR parse nodes that expose ``getText()`` (parser or terminal)."""
+
+    def getText(self) -> str: ...
 
 
 class InferredType(Enum):
@@ -1039,7 +1045,14 @@ class CDTPath:
 
 
 # Type alias for visitor return types (can be deferred, typed, CDT path, or raw expression)
-ExprOrDeferred = Union[FilterExpression, DeferredBin, TypedExpr, CDTPath, None]
+ExprOrDeferred = Union[
+    FilterExpression,
+    DeferredBin,
+    DeferredArithmetic,
+    TypedExpr,
+    CDTPath,
+    None,
+]
 
 
 def _unquote(text: str) -> str:
@@ -2046,9 +2059,11 @@ class ExpressionConditionVisitor(ConditionVisitor):
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
         end_ctx = ctx.end() if hasattr(ctx, 'end') and callable(ctx.end) else None
 
-        start = int(start_ctx.getText(), 0) if start_ctx else 0
+        start = (
+            int(cast(_AntlrText, start_ctx).getText(), 0) if start_ctx else 0
+        )
         if end_ctx:
-            end = int(end_ctx.getText(), 0)
+            end = int(cast(_AntlrText, end_ctx).getText(), 0)
             count = end - start
         else:
             count = None
@@ -2061,9 +2076,11 @@ class ExpressionConditionVisitor(ConditionVisitor):
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
         end_ctx = ctx.end() if hasattr(ctx, 'end') and callable(ctx.end) else None
 
-        start = int(start_ctx.getText(), 0) if start_ctx else 0
+        start = (
+            int(cast(_AntlrText, start_ctx).getText(), 0) if start_ctx else 0
+        )
         if end_ctx:
-            end = int(end_ctx.getText(), 0)
+            end = int(cast(_AntlrText, end_ctx).getText(), 0)
             count = end - start
         else:
             count = None
@@ -2106,17 +2123,19 @@ class ExpressionConditionVisitor(ConditionVisitor):
         
         # Get start
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
-        rank = int(start_ctx.getText(), 0) if start_ctx else 0
-        
+        rank = (
+            int(cast(_AntlrText, start_ctx).getText(), 0) if start_ctx else 0
+        )
+
         # Get relativeRankEnd
         rel_end = ctx.relativeRankEnd() if hasattr(ctx, 'relativeRankEnd') else None
         if rel_end is None:
             return (rank, None, None)
-        
+
         # Check for end (count)
         end_ctx = rel_end.end() if hasattr(rel_end, 'end') and callable(rel_end.end) else None
         if end_ctx:
-            end = int(end_ctx.getText(), 0)
+            end = int(cast(_AntlrText, end_ctx).getText(), 0)
             count = end - rank
         else:
             count = None
@@ -2142,17 +2161,19 @@ class ExpressionConditionVisitor(ConditionVisitor):
         
         # Get start
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
-        index = int(start_ctx.getText(), 0) if start_ctx else 0
-        
+        index = (
+            int(cast(_AntlrText, start_ctx).getText(), 0) if start_ctx else 0
+        )
+
         # Get relativeKeyEnd
         rel_end = ctx.relativeKeyEnd() if hasattr(ctx, 'relativeKeyEnd') else None
         if rel_end is None:
             return (index, None, "")
-        
+
         # Check for end (count)
         end_ctx = rel_end.end() if hasattr(rel_end, 'end') and callable(rel_end.end) else None
         if end_ctx:
-            end = int(end_ctx.getText(), 0)
+            end = int(cast(_AntlrText, end_ctx).getText(), 0)
             count = end - index
         else:
             count = None
@@ -2437,7 +2458,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
 
         raise AelParseException(f"Unsupported operand type: {ctx.getText()}")
 
-    def visitPathOrMetadata(self, ctx: ConditionParser.PathOrMetadataContext) -> Optional[FilterExpression]:
+    def visitPathOrMetadata(
+        self, ctx: ConditionParser.PathOrMetadataContext,
+    ) -> Optional[ExprOrDeferred]:
         """Visit path or metadata: $.binName or metadata function."""
         if ctx.path() is not None:
             return self.visit(ctx.path())
@@ -2445,7 +2468,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
             return self.visit(ctx.metadata())
         raise AelParseException("PathOrMetadata must contain either path or metadata")
 
-    def visitMetadata(self, ctx: ConditionParser.MetadataContext) -> Optional[FilterExpression]:
+    def visitMetadata(
+        self, ctx: ConditionParser.MetadataContext,
+    ) -> Optional[Union[FilterExpression, TypedExpr]]:
         """Visit metadata function: deviceSize(), ttl(), etc."""
         text = ctx.METADATA_FUNCTION().getText()
         

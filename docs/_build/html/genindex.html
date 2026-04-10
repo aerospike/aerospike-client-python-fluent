@@ -319,6 +319,14 @@
 </li>
           <li><a href="api/batch.html#aerospike_sdk.aio.operations.batch.BatchOperationBuilder.__init__">(aerospike_sdk.aio.operations.batch.BatchOperationBuilder method)</a>
 </li>
+          <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.__init__">(aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
+          <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.__init__">(aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.__init__">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteInvertableBuilder.__init__">(aerospike_sdk.aio.operations.cdt_write.CdtWriteInvertableBuilder method)</a>
+</li>
           <li><a href="api/index-builder.html#aerospike_sdk.aio.operations.index.IndexBuilder.__init__">(aerospike_sdk.aio.operations.index.IndexBuilder method)</a>
 </li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.__init__">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
@@ -410,6 +418,8 @@
 
         <ul>
           <li><a href="api/batch.html#aerospike_sdk.aio.operations.batch.BatchBinBuilder.add">(aerospike_sdk.aio.operations.batch.BatchBinBuilder method)</a>
+</li>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.add">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 </li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.add">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
@@ -622,7 +632,11 @@
         <li><a href="api/behavior.html#aerospike_sdk.policy.behavior_settings.OpShape.BATCH">BATCH (aerospike_sdk.policy.behavior_settings.OpShape attribute)</a>
 </li>
         <li><a href="api/session.html#aerospike_sdk.aio.session.Session.batch">batch() (aerospike_sdk.aio.session.Session method)</a>
+
+        <ul>
+          <li><a href="api/sync/session.html#aerospike_sdk.sync.session.SyncSession.batch">(aerospike_sdk.sync.session.SyncSession method)</a>
 </li>
+        </ul></li>
         <li><a href="api/batch.html#aerospike_sdk.aio.operations.batch.BatchBinBuilder">BatchBinBuilder (class in aerospike_sdk.aio.operations.batch)</a>
 </li>
         <li><a href="api/batch.html#aerospike_sdk.aio.operations.batch.BatchKeyOperationBuilder">BatchKeyOperationBuilder (class in aerospike_sdk.aio.operations.batch)</a>
@@ -641,8 +655,6 @@
 </li>
         <li><a href="api/ael-filter-gen.html#aerospike_sdk.ael.filter_gen.Index.bin">bin (aerospike_sdk.ael.filter_gen.Index attribute)</a>, <a href="api/ael-filter-gen.html#id0">[1]</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/background.html#aerospike_sdk.aio.background.BackgroundOperationBuilder.bin">bin() (aerospike_sdk.aio.background.BackgroundOperationBuilder method)</a>
 
         <ul>
@@ -681,6 +693,126 @@
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncQueryBuilder.bins">(aerospike_sdk.sync.operations.query.SyncQueryBuilder method)</a>
 </li>
         </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_add">bit_add() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_add">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_and">bit_and() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_and">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.bit_count">bit_count() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_count">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_count">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.bit_get">bit_get() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_get">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_get">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.bit_get_int">bit_get_int() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_get_int">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_get_int">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_insert">bit_insert() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_insert">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.bit_lscan">bit_lscan() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_lscan">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_lscan">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_lshift">bit_lshift() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_lshift">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_not">bit_not() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_not">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_or">bit_or() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_or">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_remove">bit_remove() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_remove">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_resize">bit_resize() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_resize">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.bit_rscan">bit_rscan() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_rscan">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_rscan">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_rshift">bit_rshift() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_rshift">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_set">bit_set() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_set">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_set_int">bit_set_int() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_set_int">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_subtract">bit_subtract() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_subtract">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_xor">bit_xor() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.bit_xor">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
         <li><a href="api/ael-filter-gen.html#aerospike_sdk.ael.filter_gen.IndexTypeEnum.BLOB">BLOB (aerospike_sdk.ael.filter_gen.IndexTypeEnum attribute)</a>
 </li>
         <li><a href="api/info.html#aerospike_sdk.aio.info.InfoCommands.build">build() (aerospike_sdk.aio.info.InfoCommands method)</a>
@@ -709,6 +841,14 @@
           <li><a href="api/sync/tls-builder.html#aerospike_sdk.sync.tls_builder.TlsBuilder.ca_file">(aerospike_sdk.sync.tls_builder.TlsBuilder method)</a>
 </li>
         </ul></li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder">CdtReadBuilder (class in aerospike_sdk.aio.operations.cdt_read)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder">CdtReadInvertableBuilder (class in aerospike_sdk.aio.operations.cdt_read)</a>
+</li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder">CdtWriteBuilder (class in aerospike_sdk.aio.operations.cdt_write)</a>
+</li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteInvertableBuilder">CdtWriteInvertableBuilder (class in aerospike_sdk.aio.operations.cdt_write)</a>
+</li>
         <li><a href="api/record-stream.html#aerospike_sdk.record_stream.RecordStream.chain">chain() (aerospike_sdk.record_stream.RecordStream class method)</a>
 </li>
         <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.children">children (aerospike_sdk.policy.behavior.Behavior property)</a>
@@ -773,14 +913,14 @@
           <li><a href="api/sync/cluster-definition.html#aerospike_sdk.sync.cluster_definition.ClusterDefinition">(class in aerospike_sdk.sync.cluster_definition)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/record-stream.html#aerospike_sdk.record_stream.RecordStream.collect">collect() (aerospike_sdk.record_stream.RecordStream method)</a>
 
         <ul>
           <li><a href="api/record-stream.html#aerospike_sdk.sync.record_stream.SyncRecordStream.collect">(aerospike_sdk.sync.record_stream.SyncRecordStream method)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/index-builder.html#aerospike_sdk.aio.operations.index.IndexBuilder.collection">collection() (aerospike_sdk.aio.operations.index.IndexBuilder method)</a>
 
         <ul>
@@ -819,6 +959,10 @@
           <li><a href="api/sync/index-builder.html#aerospike_sdk.sync.operations.index.SyncIndexBuilder.context">(aerospike_sdk.sync.operations.index.SyncIndexBuilder method)</a>
 </li>
         </ul></li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.count">count() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.count_all_others">count_all_others() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
         <li><a href="api/index-builder.html#aerospike_sdk.aio.operations.index.IndexBuilder.create">create() (aerospike_sdk.aio.operations.index.IndexBuilder method)</a>
 
         <ul>
@@ -1015,9 +1159,11 @@
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncQueryBuilder.execute_udf_background_task">(aerospike_sdk.sync.operations.query.SyncQueryBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/udf.html#aerospike_sdk.aio.operations.udf.UdfBuilder.exists">exists() (aerospike_sdk.aio.operations.udf.UdfBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.exists">exists() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/udf.html#aerospike_sdk.aio.operations.udf.UdfBuilder.exists">(aerospike_sdk.aio.operations.udf.UdfBuilder method)</a>
+</li>
           <li><a href="api/session.html#aerospike_sdk.aio.session.Session.exists">(aerospike_sdk.aio.session.Session method)</a>
 </li>
           <li><a href="api/sync/udf.html#aerospike_sdk.sync.operations.udf.SyncUdfBuilder.exists">(aerospike_sdk.sync.operations.udf.SyncUdfBuilder method)</a>
@@ -1093,7 +1239,7 @@
           <li><a href="api/record-stream.html#aerospike_sdk.sync.record_stream.SyncRecordStream.failures">(aerospike_sdk.sync.record_stream.SyncRecordStream method)</a>
 </li>
         </ul></li>
-        <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.FAST_RACK_AWARE">FAST_RACK_AWARE (aerospike_sdk.policy.behavior.Behavior attribute)</a>, <a href="api/behavior.html#id1">[1]</a>
+        <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.FAST_RACK_AWARE">FAST_RACK_AWARE (aerospike_sdk.policy.behavior.Behavior attribute)</a>, <a href="api/behavior.html#id3">[1]</a>
 </li>
         <li><a href="api/ael-filter-gen.html#aerospike_sdk.ael.filter_gen.ParseResult.filter">filter (aerospike_sdk.ael.filter_gen.ParseResult attribute)</a>, <a href="api/ael-filter-gen.html#id9">[1]</a>
 </li>
@@ -1191,8 +1337,22 @@
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteSegmentBuilder.get">(aerospike_sdk.sync.operations.query.SyncWriteSegmentBuilder method)</a>
 </li>
         </ul></li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_indexes">get_all_other_indexes() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys">get_all_other_keys() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_keys_and_values">get_all_other_keys_and_values() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_ranks">get_all_other_ranks() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_indexes">get_all_other_reverse_indexes() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_reverse_ranks">get_all_other_reverse_ranks() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder.get_all_other_values">get_all_other_values() (aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder method)</a>
+</li>
         <li><a href="api/info.html#aerospike_sdk.aio.info.InfoCommands.get_cluster_size">get_cluster_size() (aerospike_sdk.aio.info.InfoCommands method)</a>
 
         <ul>
@@ -1200,6 +1360,18 @@
 </li>
         </ul></li>
         <li><a href="api/indexes-monitor.html#aerospike_sdk.index_monitor.IndexesMonitor.get_index_context">get_index_context() (aerospike_sdk.index_monitor.IndexesMonitor method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_indexes">get_indexes() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys">get_keys() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_keys_and_values">get_keys_and_values() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_ranks">get_ranks() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_indexes">get_reverse_indexes() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_reverse_ranks">get_reverse_ranks() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 </li>
         <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.get_settings">get_settings() (aerospike_sdk.policy.behavior.Behavior method)</a>
 </li>
@@ -1209,6 +1381,8 @@
           <li><a href="api/sync/tls-builder.html#aerospike_sdk.sync.tls_builder.TlsBuilder.get_tls_name">(aerospike_sdk.sync.tls_builder.TlsBuilder method)</a>
 </li>
         </ul></li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.get_values">get_values() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+</li>
         <li><a href="api/ael-filter-gen.html#aerospike_sdk.ael.filter_gen.OperationType.GT">GT (aerospike_sdk.ael.filter_gen.OperationType attribute)</a>
 </li>
     </ul></td>
@@ -1223,8 +1397,86 @@
 </li>
         <li><a href="api/ael-filter-gen.html#aerospike_sdk.ael.filter_gen.ExpressionNode.has_secondary_index_filter">has_secondary_index_filter (aerospike_sdk.ael.filter_gen.ExpressionNode attribute)</a>
 </li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_add">hll_add() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_add">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_describe">hll_describe() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_describe">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_describe">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_fold">hll_fold() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_fold">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_get_count">hll_get_count() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_count">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_count">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_get_intersect_count">hll_get_intersect_count() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_intersect_count">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_intersect_count">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_get_similarity">hll_get_similarity() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_similarity">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_similarity">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_get_union">hll_get_union() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_union">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_union">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_get_union_count">hll_get_union_count() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_union_count">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_get_union_count">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_init">hll_init() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_init">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_refresh_count">hll_refresh_count() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_refresh_count">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_set_union">hll_set_union() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+
+        <ul>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.hll_set_union">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
         <li><a href="api/cluster-definition.html#aerospike_sdk.aio.cluster_definition.Host">Host (class in aerospike_sdk.aio.cluster_definition)</a>
 
         <ul>
@@ -1417,9 +1669,11 @@
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_add">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_add_items">list_add_items() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_add_items">list_add_items() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_add_items">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_add_items">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
@@ -1429,44 +1683,140 @@
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_append">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_append_items">list_append_items() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_append_items">list_append_items() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_append_items">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_append_items">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_clear">list_clear() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_clear">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_clear">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_create">list_create() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_create">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_create">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get">list_get() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.list_get">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_get_range">list_get_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.list_get_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_increment">list_increment() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_increment">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_increment">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_insert">list_insert() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_insert">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_insert">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_insert_items">list_insert_items() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_insert_items">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_insert_items">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_clear">list_clear() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_pop">list_pop() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
-          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_clear">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_pop">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_pop">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_create">list_create() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_pop_range">list_pop_range() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
-          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_create">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_pop_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_pop_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_set_order">list_set_order() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_remove">list_remove() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_remove">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_remove">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_remove_range">list_remove_range() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_remove_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_remove_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_set">list_set() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_set">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_set">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_set_order">list_set_order() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_set_order">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_set_order">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.list_size">list_size() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.list_size">list_size() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.list_size">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_size">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_size">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_sort">list_sort() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_sort">list_sort() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_sort">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_sort">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
+</li>
+        </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.list_trim">list_trim() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+
+        <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.list_trim">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
+          <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.list_trim">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
         <li><a href="api/ael-filter-gen.html#aerospike_sdk.ael.filter_gen.OperationType.LT">LT (aerospike_sdk.ael.filter_gen.OperationType attribute)</a>
@@ -1479,49 +1829,63 @@
   <h2>M</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_clear">map_clear() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.map_clear">map_clear() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_clear">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_clear">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_create">map_create() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.map_create">map_create() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_create">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_create">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_insert_items">map_insert_items() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.map_insert_items">map_insert_items() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_insert_items">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_insert_items">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
         <li><a href="api/exp.html#aerospike_sdk.exp.map_keys">map_keys() (in module aerospike_sdk.exp)</a>
 </li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_set_policy">map_set_policy() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.map_set_policy">map_set_policy() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_set_policy">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_set_policy">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.map_size">map_size() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.map_size">map_size() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.map_size">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_size">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_size">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_update_items">map_update_items() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.map_update_items">map_update_items() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_update_items">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_update_items">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_upsert_items">map_upsert_items() (aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.map_upsert_items">map_upsert_items() (aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
 
         <ul>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.map_upsert_items">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
+</li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.map_upsert_items">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
@@ -1529,6 +1893,8 @@
 </li>
         <li><a href="api/behavior.html#aerospike_sdk.policy.behavior_settings.Settings.max_concurrent_nodes">max_concurrent_nodes (aerospike_sdk.policy.behavior_settings.Settings attribute)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/system-settings.html#aerospike_sdk.policy.system_settings.SystemSettings.max_connections_per_node">max_connections_per_node (aerospike_sdk.policy.system_settings.SystemSettings attribute)</a>
 </li>
         <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBuilder.max_records">max_records() (aerospike_sdk.aio.operations.query.QueryBuilder method)</a>
@@ -1537,8 +1903,6 @@
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncQueryBuilder.max_records">(aerospike_sdk.sync.operations.query.SyncQueryBuilder method)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.max_retries">max_retries (aerospike_sdk.policy.behavior.Behavior property)</a>
 
         <ul>
@@ -1674,89 +2038,133 @@
           <li><a href="api/sync/index-builder.html#aerospike_sdk.sync.operations.index.SyncIndexBuilder.on_bin">(aerospike_sdk.sync.operations.index.SyncIndexBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_index">on_list_index() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index">on_list_index() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_index">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_index">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_index">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_index">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_index_range">on_list_index_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_index_range">on_list_index_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_index_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_index_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_index_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_index_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_rank">on_list_rank() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank">on_list_rank() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_rank">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_rank">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_rank">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_rank">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_rank_range">on_list_rank_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_rank_range">on_list_rank_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_rank_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_rank_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_rank_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_rank_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value">on_list_value() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value">on_list_value() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_value">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_value">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_value">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value_list">on_list_value_list() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_list">on_list_value_list() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_value_list">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value_list">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_value_list">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_value_list">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value_range">on_list_value_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_range">on_list_value_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_value_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_value_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_value_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value_relative_rank_range">on_list_value_relative_rank_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_list_value_relative_rank_range">on_list_value_relative_rank_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_list_value_relative_rank_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_list_value_relative_rank_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_list_value_relative_rank_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_list_value_relative_rank_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_index">on_map_index() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index">on_map_index() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_index">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_index">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_index">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_index">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_index_range">on_map_index_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_index_range">on_map_index_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_index_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_index_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_index_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_index_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key">on_map_key() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key">on_map_key() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_key">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_key">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_key">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
@@ -1764,73 +2172,109 @@
         </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key_list">on_map_key_list() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_list">on_map_key_list() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_key_list">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key_list">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_key_list">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_key_list">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key_range">on_map_key_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_range">on_map_key_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_key_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_key_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_key_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key_relative_index_range">on_map_key_relative_index_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_key_relative_index_range">on_map_key_relative_index_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_key_relative_index_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_key_relative_index_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_key_relative_index_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_key_relative_index_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_rank">on_map_rank() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank">on_map_rank() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_rank">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_rank">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_rank">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_rank">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_rank_range">on_map_rank_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_rank_range">on_map_rank_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_rank_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_rank_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_rank_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_rank_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value">on_map_value() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value">on_map_value() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_value">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_value">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_value">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value_list">on_map_value_list() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_list">on_map_value_list() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_value_list">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value_list">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_value_list">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_value_list">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value_range">on_map_value_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_range">on_map_value_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_value_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_value_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_value_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
-        <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value_relative_rank_range">on_map_value_relative_rank_range() (aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+        <li><a href="api/cdt-read.html#aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder.on_map_value_relative_rank_range">on_map_value_relative_rank_range() (aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder method)</a>
 
         <ul>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.on_map_value_relative_rank_range">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
+          <li><a href="api/query.html#aerospike_sdk.aio.operations.query.QueryBinBuilder.on_map_value_relative_rank_range">(aerospike_sdk.aio.operations.query.QueryBinBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.on_map_value_relative_rank_range">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.on_map_value_relative_rank_range">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
@@ -2008,7 +2452,7 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/behavior.html#aerospike_sdk.policy.behavior_settings.OpKind.READ">READ (aerospike_sdk.policy.behavior_settings.OpKind attribute)</a>
 </li>
-        <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.READ_FAST">READ_FAST (aerospike_sdk.policy.behavior.Behavior attribute)</a>, <a href="api/behavior.html#id2">[1]</a>
+        <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.READ_FAST">READ_FAST (aerospike_sdk.policy.behavior.Behavior attribute)</a>, <a href="api/behavior.html#id1">[1]</a>
 </li>
         <li><a href="api/behavior.html#aerospike_sdk.policy.behavior_settings.Settings.read_touch_ttl_percent">read_touch_ttl_percent (aerospike_sdk.policy.behavior_settings.Settings attribute)</a>
 </li>
@@ -2066,6 +2510,8 @@
           <li><a href="api/sync/query.html#aerospike_sdk.sync.operations.query.SyncWriteBinBuilder.remove">(aerospike_sdk.sync.operations.query.SyncWriteBinBuilder method)</a>
 </li>
         </ul></li>
+        <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteInvertableBuilder.remove_all_others">remove_all_others() (aerospike_sdk.aio.operations.cdt_write.CdtWriteInvertableBuilder method)</a>
+</li>
         <li><a href="api/write-segment.html#aerospike_sdk.aio.operations.query.WriteSegmentBuilder.remove_bin">remove_bin() (aerospike_sdk.aio.operations.query.WriteSegmentBuilder method)</a>
 
         <ul>
@@ -2247,6 +2693,8 @@
         <ul>
           <li><a href="api/batch.html#aerospike_sdk.aio.operations.batch.BatchBinBuilder.set_to">(aerospike_sdk.aio.operations.batch.BatchBinBuilder method)</a>
 </li>
+          <li><a href="api/cdt-write.html#aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder.set_to">(aerospike_sdk.aio.operations.cdt_write.CdtWriteBuilder method)</a>
+</li>
           <li><a href="api/query.html#aerospike_sdk.aio.operations.query.WriteBinBuilder.set_to">(aerospike_sdk.aio.operations.query.WriteBinBuilder method)</a>
 </li>
           <li><a href="api/write-segment.html#aerospike_sdk.aio.operations.query.WriteSegmentBuilder.set_to">(aerospike_sdk.aio.operations.query.WriteSegmentBuilder method)</a>
@@ -2278,7 +2726,7 @@
 </li>
         <li><a href="api/indexes-monitor.html#aerospike_sdk.index_monitor.IndexesMonitor.stop">stop() (aerospike_sdk.index_monitor.IndexesMonitor method)</a>
 </li>
-        <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.STRICTLY_CONSISTENT">STRICTLY_CONSISTENT (aerospike_sdk.policy.behavior.Behavior attribute)</a>, <a href="api/behavior.html#id3">[1]</a>
+        <li><a href="api/behavior.html#aerospike_sdk.policy.behavior.Behavior.STRICTLY_CONSISTENT">STRICTLY_CONSISTENT (aerospike_sdk.policy.behavior.Behavior attribute)</a>, <a href="api/behavior.html#id2">[1]</a>
 </li>
         <li><a href="api/ael-filter-gen.html#aerospike_sdk.ael.filter_gen.IndexTypeEnum.STRING">STRING (aerospike_sdk.ael.filter_gen.IndexTypeEnum attribute)</a>
 </li>

@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import ClassVar, Dict, List, Optional, Tuple
 
 from aerospike_async import CommitLevel, Replica
 
@@ -72,6 +72,11 @@ class Behavior:
         STRICTLY_CONSISTENT: Placeholder for SC mode when PAC exposes it.
         FAST_RACK_AWARE: Like READ_FAST with rack-preferred replica.
     """
+
+    DEFAULT: ClassVar[Behavior]
+    READ_FAST: ClassVar[Behavior]
+    STRICTLY_CONSISTENT: ClassVar[Behavior]
+    FAST_RACK_AWARE: ClassVar[Behavior]
 
     __slots__ = ("_name", "_patches", "_parent", "_children", "_resolved")
 

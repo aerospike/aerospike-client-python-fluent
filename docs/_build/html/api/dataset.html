@@ -407,15 +407,13 @@ key_bin = users.id(b”pk”)</p>
 <dd class="field-odd"><p>A new Key instance created from the digest</p>
 </dd>
 </dl>
-<div class="admonition-example admonition">
-<p class="admonition-title">Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">users</span> <span class="o">=</span> <span class="n">DataSet</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">)</span>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">users</span> <span class="o">=</span> <span class="n">DataSet</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">)</span>
 <span class="c1"># From hex string</span>
 <span class="n">key</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">id_from_digest</span><span class="p">(</span><span class="s2">&quot;a1b2c3d4...&quot;</span><span class="p">)</span>
 <span class="c1"># From bytes</span>
 <span class="n">key</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">id_from_digest</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\xa1\xb2\xc3</span><span class="s2">...&quot;</span><span class="p">)</span>
 </pre></div>
-</div>
 </div>
 </dd></dl>
 
@@ -438,15 +436,13 @@ Supports String, Integer, Long, and byte array types.</p>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#TypeError" title="(in Python v3.14)"><strong>TypeError</strong></a> – If the object type is not supported</p>
 </dd>
 </dl>
-<div class="admonition-example admonition">
-<p class="admonition-title">Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">users</span> <span class="o">=</span> <span class="n">DataSet</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">)</span>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">users</span> <span class="o">=</span> <span class="n">DataSet</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">)</span>
 <span class="n">key1</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">id_for_object</span><span class="p">(</span><span class="s2">&quot;user123&quot;</span><span class="p">)</span>     <span class="c1"># String key</span>
 <span class="n">key2</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">id_for_object</span><span class="p">(</span><span class="mi">123</span><span class="p">)</span>           <span class="c1"># Integer key</span>
 <span class="n">key3</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">id_for_object</span><span class="p">(</span><span class="mi">12345</span><span class="p">)</span>         <span class="c1"># Integer key</span>
 <span class="n">key4</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">id_for_object</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;bytes&quot;</span><span class="p">)</span>      <span class="c1"># Bytes key</span>
 </pre></div>
-</div>
 </div>
 </dd></dl>
 
@@ -508,12 +504,10 @@ keys3 = users.ids(1, 2, 3)</p>
 <dd class="field-odd"><p>A list of Key instances created from the digests</p>
 </dd>
 </dl>
-<div class="admonition-example admonition">
-<p class="admonition-title">Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">users</span> <span class="o">=</span> <span class="n">DataSet</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">)</span>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">users</span> <span class="o">=</span> <span class="n">DataSet</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">)</span>
 <span class="n">keys</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">ids_from_digests</span><span class="p">(</span><span class="s2">&quot;digest1&quot;</span><span class="p">,</span> <span class="s2">&quot;digest2&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;digest3&quot;</span><span class="p">)</span>
 </pre></div>
-</div>
 </div>
 </dd></dl>
 

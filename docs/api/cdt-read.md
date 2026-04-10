@@ -1,6 +1,11 @@
 # CDT Read Builders
 
-::: aerospike_sdk.aio.operations.cdt_read
-    options:
-      show_root_heading: false
-      members_order: source
+```{eval-rst}
+.. autoclass:: aerospike_sdk.aio.operations.cdt_read.CdtReadBuilder
+   :members:
+   :show-inheritance:
+
+.. autoclass:: aerospike_sdk.aio.operations.cdt_read.CdtReadInvertableBuilder
+   :members:
+   :show-inheritance:
+```

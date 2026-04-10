@@ -31,9 +31,10 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from aerospike_async.exceptions import AerospikeError as PacError
 from aerospike_sdk.ael.filter_gen import Index, IndexContext, IndexTypeEnum
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotations only.
     from aerospike_async import Client
 
 log = logging.getLogger("aerospike_sdk.index_monitor")
@@ -126,8 +127,9 @@ async def _fetch_indexes(client: "Client") -> Dict[str, IndexContext]:
                 f"sindex-stat:namespace={ns};indexname={entry['indexname']}",
             )
             bval = _parse_entries_per_bval(stat_resp)
-        except Exception:
-            pass
+        except PacError:
+            log.debug("Failed to fetch sindex-stat for %s.%s",
+                      ns, entry["indexname"], exc_info=True)
 
         index = Index(
             bin=entry["bin"],

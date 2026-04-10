@@ -137,6 +137,16 @@ class TestCdtWriteBuilder:
         b.remove()
         assert rm_cap == [ListReturnType.NONE]
 
+    def test_remove_map_return_type(self):
+        b, _, _, rm_cap = self._build(is_map=True)
+        b.remove(return_type=MapReturnType.VALUE)
+        assert rm_cap == [MapReturnType.VALUE]
+
+    def test_remove_list_return_type(self):
+        b, _, _, rm_cap = self._build(is_map=False)
+        b.remove(return_type=ListReturnType.COUNT)
+        assert rm_cap == [ListReturnType.COUNT]
+
     def test_exists_inherited(self):
         b, parent, get_cap, rm_cap = self._build(is_map=True)
         result = b.exists()
@@ -195,6 +205,11 @@ class TestCdtWriteInvertableBuilder:
         b, _, _, rm_cap = self._build(is_map=False)
         b.remove_all_others()
         assert rm_cap == [ListReturnType.NONE | ListReturnType.INVERTED]
+
+    def test_remove_all_others_return_type(self):
+        b, _, _, rm_cap = self._build(is_map=True)
+        b.remove_all_others(return_type=MapReturnType.COUNT)
+        assert rm_cap == [MapReturnType.COUNT | MapReturnType.INVERTED]
 
     def test_exists_inherited(self):
         b, _, get_cap, rm_cap = self._build()
@@ -345,6 +360,27 @@ class TestWriteBinBuilderCdtNavigation:
         result = wbb.on_list_value(42).exists()
         assert result is segment
         assert len(segment._qb._operations) == 1
+
+    def test_on_map_value_then_on_map_key_returns_write_builder(self):
+        wbb, _ = self._build()
+        deep = wbb.on_map_value(1).on_map_key("k")
+        assert isinstance(deep, CdtWriteBuilder)
+        assert not isinstance(deep, CdtWriteInvertableBuilder)
+
+    def test_nested_on_map_value_then_set_to(self):
+        wbb, segment = self._build()
+        wbb.on_map_key("outer").on_map_value(99).on_map_key("inner").set_to("x")
+        assert len(segment._qb._operations) == 1
+
+    def test_on_map_key_create_type_accepted(self):
+        wbb, _ = self._build()
+        b = wbb.on_map_key("k", create_type=MapOrder.UNORDERED)
+        assert isinstance(b, CdtWriteBuilder)
+
+    def test_on_list_index_pad_accepted(self):
+        wbb, _ = self._build("lst")
+        b = wbb.on_list_index(3, pad=True)
+        assert isinstance(b, CdtWriteBuilder)
 
 
 # ===================================================================

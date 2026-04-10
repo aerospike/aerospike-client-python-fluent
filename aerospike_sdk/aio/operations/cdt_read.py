@@ -19,8 +19,10 @@ Two builder classes provide terminal read methods on a CDT path:
 
 - ``CdtReadBuilder``  -- non-invertable terminals (get_values, count, …)
   plus singular CDT navigation for deeper nesting.
-- ``CdtReadInvertableBuilder`` -- adds inverted "all others" terminals
-  (no further navigation).
+- ``CdtReadInvertableBuilder`` -- adds inverted "all others" terminals.
+  Singular value selectors may support further navigation when ``to_ctx``
+  is set; range and list multi-selectors are terminal for nesting when the
+  runtime does not expose a matching context step.
 
 Both are generic on the parent builder type ``T`` so terminal methods
 return the parent for continued chaining.  The actual CDT operation is
@@ -35,13 +37,15 @@ for the next selector with ``.set_context()`` applied.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Callable, Generic, Sequence, TypeVar, Union
+from typing import Any, Callable, Generic, Optional, Sequence, TypeVar, Union
 
 from aerospike_async import (
     CTX,
     ListOperation,
+    ListOrderType,
     ListReturnType,
     MapOperation,
+    MapOrder,
     MapReturnType,
 )
 
@@ -150,13 +154,32 @@ class CdtReadBuilder(Generic[T]):
             bin_name=self._bin_name, ctx=ctx, to_ctx=to_ctx,
         )
 
+    def _build_invertable(
+        self,
+        op_factory: Callable[[Any], Any],
+        rt_cls: _ReturnTypeCls,
+        *,
+        is_map: bool,
+        ctx: Sequence[Any],
+        to_ctx: Callable[[], Any] | None = None,
+        remove_factory: Callable[[Any], Any] | None = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        return CdtReadInvertableBuilder(
+            self._parent, op_factory, rt_cls, is_map=is_map,
+            bin_name=self._bin_name, ctx=ctx, to_ctx=to_ctx,
+        )
+
     # -- Singular CDT navigation (deeper nesting) ----------------------------
 
-    def on_map_key(self, key: Any) -> CdtReadBuilder[T]:
+    def on_map_key(
+        self, key: Any, *, create_type: Optional[MapOrder] = None,
+    ) -> CdtReadBuilder[T]:
         """Navigate into a map element by key.
 
         Args:
             key: Map key to target.
+            create_type: If set, use a create-on-missing context for this key
+                with the given map key order.
 
         Returns:
             :class:`CdtReadBuilder` for reading the targeted element.
@@ -165,11 +188,15 @@ class CdtReadBuilder(Generic[T]):
             .bin("m").on_map_key("x").get_values()
         """
         b, new_ctx, ctx_l = self._push_ctx()
+        if create_type is not None:
+            to_ctx = lambda: CTX.map_key_create(key, create_type)
+        else:
+            to_ctx = lambda: CTX.map_key(key)
         return self._build_navigated(
             op_factory=lambda rt: MapOperation.get_by_key(b, key, rt).set_context(ctx_l),
             remove_factory=lambda rt: MapOperation.remove_by_key(b, key, rt).set_context(ctx_l),
             rt_cls=MapReturnType, is_map=True,
-            ctx=new_ctx, to_ctx=lambda: CTX.map_key(key),
+            ctx=new_ctx, to_ctx=to_ctx,
         )
 
     def on_map_index(self, index: int) -> CdtReadBuilder[T]:
@@ -206,11 +233,20 @@ class CdtReadBuilder(Generic[T]):
             ctx=new_ctx, to_ctx=lambda: CTX.map_rank(rank),
         )
 
-    def on_list_index(self, index: int) -> CdtReadBuilder[T]:
+    def on_list_index(
+        self, index: int,
+        *,
+        order: Optional[ListOrderType] = None,
+        pad: bool = False,
+    ) -> CdtReadBuilder[T]:
         """Navigate into a list element by index.
 
         Args:
             index: List index (0-based, negative counts from end).
+            order: If set (or if *pad* is ``True``), use create-on-missing
+                list context with this order; when only *pad* is ``True``,
+                defaults to :data:`~aerospike_async.ListOrderType.UNORDERED`.
+            pad: When using create-on-missing context, allow sparse indexes.
 
         Returns:
             :class:`CdtReadBuilder` for reading the targeted element.
@@ -219,11 +255,17 @@ class CdtReadBuilder(Generic[T]):
             .bin("items").on_list_index(0).get_values()
         """
         b, new_ctx, ctx_l = self._push_ctx()
+        use_create = order is not None or pad
+        if use_create:
+            eff_order = order if order is not None else ListOrderType.UNORDERED
+            to_ctx = lambda: CTX.list_index_create(index, eff_order, pad)
+        else:
+            to_ctx = lambda: CTX.list_index(index)
         return self._build_navigated(
             op_factory=lambda rt: ListOperation.get_by_index(b, index, rt).set_context(ctx_l),
             remove_factory=lambda rt: ListOperation.remove_by_index(b, index, rt).set_context(ctx_l),
             rt_cls=ListReturnType, is_map=False,
-            ctx=new_ctx, to_ctx=lambda: CTX.list_index(index),
+            ctx=new_ctx, to_ctx=to_ctx,
         )
 
     def on_list_rank(self, rank: int) -> CdtReadBuilder[T]:
@@ -241,6 +283,197 @@ class CdtReadBuilder(Generic[T]):
             remove_factory=lambda rt: ListOperation.remove_by_rank(b, rank, rt).set_context(ctx_l),
             rt_cls=ListReturnType, is_map=False,
             ctx=new_ctx, to_ctx=lambda: CTX.list_rank(rank),
+        )
+
+    # -- Invertable CDT navigation (range / value / list selectors) -----------
+
+    def on_map_value(self, value: Any) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map elements matching a value (may match multiple).
+
+        Args:
+            value: Value to match.
+
+        Returns:
+            :class:`CdtReadInvertableBuilder` for reading the selection;
+            further singular navigation is supported when this builder was
+            produced from a nested path.
+        """
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: MapOperation.get_by_value(b, value, rt).set_context(ctx_l),
+            MapReturnType, is_map=True, ctx=new_ctx,
+            to_ctx=lambda: CTX.map_value(value),
+        )
+
+    def on_map_index_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map elements by index range."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        if count is None:
+            op_f = lambda rt: MapOperation.get_by_index_range_from(
+                b, index, rt,
+            ).set_context(ctx_l)
+        else:
+            op_f = lambda rt: MapOperation.get_by_index_range(
+                b, index, count, rt,
+            ).set_context(ctx_l)
+        return self._build_invertable(
+            op_f, MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_map_key_range(
+        self, start: Any, end: Any,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map elements by key range ``[start, end)``."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: MapOperation.get_by_key_range(
+                b, start, end, rt,
+            ).set_context(ctx_l),
+            MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_map_rank_range(
+        self, rank: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map elements by rank range."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        if count is None:
+            op_f = lambda rt: MapOperation.get_by_rank_range_from(
+                b, rank, rt,
+            ).set_context(ctx_l)
+        else:
+            op_f = lambda rt: MapOperation.get_by_rank_range(
+                b, rank, count, rt,
+            ).set_context(ctx_l)
+        return self._build_invertable(
+            op_f, MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_map_value_range(
+        self, start: Any, end: Any,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map elements by value range ``[start, end)``."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: MapOperation.get_by_value_range(
+                b, start, end, rt,
+            ).set_context(ctx_l),
+            MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_map_key_relative_index_range(
+        self, key: Any, index: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map entries by index range relative to an anchor key."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: MapOperation.get_by_key_relative_index_range(
+                b, key, index, count, rt,
+            ).set_context(ctx_l),
+            MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_map_value_relative_rank_range(
+        self, value: Any, rank: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map entries by value rank range relative to an anchor."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: MapOperation.get_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ).set_context(ctx_l),
+            MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_map_key_list(self, keys: Sequence[Any]) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map elements matching a list of keys."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: MapOperation.get_by_key_list(b, keys, rt).set_context(ctx_l),
+            MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_map_value_list(
+        self, values: Sequence[Any],
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into map elements matching a list of values."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: MapOperation.get_by_value_list(
+                b, values, rt,
+            ).set_context(ctx_l),
+            MapReturnType, is_map=True, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_list_value(self, value: Any) -> CdtReadInvertableBuilder[T]:
+        """Navigate into list elements matching a value."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: ListOperation.get_by_value(b, value, rt).set_context(ctx_l),
+            ListReturnType, is_map=False, ctx=new_ctx,
+            to_ctx=lambda: CTX.list_value(value),
+        )
+
+    def on_list_index_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into list elements by index range."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: ListOperation.get_by_index_range(
+                b, index, count, rt,
+            ).set_context(ctx_l),
+            ListReturnType, is_map=False, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_list_rank_range(
+        self, rank: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into list elements by rank range."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: ListOperation.get_by_rank_range(
+                b, rank, count, rt,
+            ).set_context(ctx_l),
+            ListReturnType, is_map=False, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_list_value_range(
+        self, start: Any, end: Any,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into list elements by value range ``[start, end)``."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: ListOperation.get_by_value_range(
+                b, start, end, rt,
+            ).set_context(ctx_l),
+            ListReturnType, is_map=False, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_list_value_relative_rank_range(
+        self, value: Any, rank: int, count: Optional[int] = None,
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into list elements by value rank range relative to anchor."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: ListOperation.get_by_value_relative_rank_range(
+                b, value, rank, count, rt,
+            ).set_context(ctx_l),
+            ListReturnType, is_map=False, ctx=new_ctx, to_ctx=None,
+        )
+
+    def on_list_value_list(
+        self, values: Sequence[Any],
+    ) -> CdtReadInvertableBuilder[T]:
+        """Navigate into list elements matching a list of values."""
+        b, new_ctx, ctx_l = self._push_ctx()
+        return self._build_invertable(
+            lambda rt: ListOperation.get_by_value_list(
+                b, values, rt,
+            ).set_context(ctx_l),
+            ListReturnType, is_map=False, ctx=new_ctx, to_ctx=None,
         )
 
     # -- Terminal read methods ------------------------------------------------
@@ -346,19 +579,57 @@ class CdtReadBuilder(Generic[T]):
         self._parent.add_operation(op)  # type: ignore[union-attr]
         return self._parent
 
+    def list_get(self, index: int) -> T:
+        """Read the list element at *index* at the current CDT path."""
+        ctx = self._context_list_for_nested_ops()
+        op = ListOperation.get(self._bin_name, index).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    def list_get_range(self, index: int, count: Optional[int] = None) -> T:
+        """Read a slice of the list starting at *index* (through end if *count* is ``None``)."""
+        ctx = self._context_list_for_nested_ops()
+        if count is None:
+            op = ListOperation.get_range_from(self._bin_name, index).set_context(
+                ctx,
+            )
+        else:
+            op = ListOperation.get_range(
+                self._bin_name, index, count,
+            ).set_context(ctx)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
 
 class CdtReadInvertableBuilder(CdtReadBuilder[T]):
     """Terminal read actions with inverted (all-others) variants.
 
     Used for range and list selectors where INVERTED makes semantic sense
-    (e.g. "all keys *except* those in this range").  Does not support
-    further navigation.
+    (e.g. "all keys *except* those in this range").  When constructed with
+    ``to_ctx`` set (e.g. after a singular value selector on a nested path),
+    singular navigation methods continue the CDT path.
 
     Example:
         Get all map values *except* those in a key range::
 
             .bin("m").on_map_key_range("a", "d").get_all_other_values()
     """
+
+    def __init__(
+        self,
+        parent: T,
+        op_factory: Callable[[Any], Any],
+        return_type_cls: _ReturnTypeCls,
+        *,
+        is_map: bool,
+        bin_name: str = "",
+        ctx: Sequence[Any] = (),
+        to_ctx: Callable[[], Any] | None = None,
+    ) -> None:
+        super().__init__(
+            parent, op_factory, return_type_cls, is_map=is_map,
+            bin_name=bin_name, ctx=ctx, to_ctx=to_ctx,
+        )
 
     # -- Inverted terminal methods --------------------------------------------
 

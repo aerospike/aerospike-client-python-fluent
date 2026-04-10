@@ -290,6 +290,8 @@ class Session:
     def query(
         self,
         dataset: DataSet,
+        *,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder from a DataSet."""
         ...
@@ -298,6 +300,8 @@ class Session:
     def query(
         self,
         key: Key,
+        *,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder for a single Key (point read)."""
         ...
@@ -306,6 +310,8 @@ class Session:
     def query(
         self,
         keys: List[Key],
+        *,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder for multiple Keys (batch read)."""
         ...
@@ -314,6 +320,7 @@ class Session:
     def query(
         self,
         *keys: Key,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder for multiple Keys (varargs)."""
         ...
@@ -323,6 +330,8 @@ class Session:
         self,
         namespace: str,
         set_name: str,
+        *,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder with explicit namespace/set."""
         ...
@@ -330,13 +339,14 @@ class Session:
     def query(
         self,
         arg1: Optional[Union[DataSet, Key, List[Key], str]] = None,
-        arg2: Optional[str] = None,
+        arg2: Optional[Union[str, Key]] = None,
         *keys: Key,
         namespace: Optional[str] = None,
         set_name: Optional[str] = None,
         dataset: Optional[DataSet] = None,
         key: Optional[Key] = None,
         keys_list: Optional[List[Key]] = None,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Start a read or secondary-index query for keys or a whole set.
 
@@ -359,6 +369,8 @@ class Session:
             key: Keyword single key.
             keys_list: Keyword list of keys when not using ``arg1`` or varargs;
                 forwarded to the client as ``keys``.
+            behavior: Optional override for this query; defaults to the session's
+                :attr:`behavior`.
 
         Returns:
             A :class:`~aerospike_sdk.aio.operations.query.QueryBuilder` to
@@ -382,7 +394,7 @@ class Session:
             :meth:`Client.query`: Same shapes without session behavior.
             :meth:`upsert`: Writes for the same keys.
         """
-        b = self._behavior
+        b = self._behavior if behavior is None else behavior
         # Handle positional arguments (SDK API)
         if arg1 is not None:
             if isinstance(arg1, DataSet):
@@ -414,7 +426,7 @@ class Session:
                 keys_list.insert(1 if arg1 is not None and isinstance(arg1, Key) else 0, arg2)
             return self._client.query(keys=keys_list, behavior=b)
 
-        return self._client.query(
+        return self._client.query(  # type: ignore[call-overload]
             namespace=namespace,
             set_name=set_name,
             dataset=dataset,
@@ -428,6 +440,7 @@ class Session:
         self,
         *,
         dataset: DataSet,
+        behavior: Optional[Behavior] = None,
     ) -> IndexBuilder:
         """Create an index builder from a DataSet."""
         ...
@@ -437,6 +450,8 @@ class Session:
         self,
         namespace: str,
         set_name: str,
+        *,
+        behavior: Optional[Behavior] = None,
     ) -> IndexBuilder:
         """Create an index builder with explicit namespace/set."""
         ...
@@ -447,6 +462,7 @@ class Session:
         set_name: Optional[str] = None,
         *,
         dataset: Optional[DataSet] = None,
+        behavior: Optional[Behavior] = None,
     ) -> IndexBuilder:
         """
         Create a secondary index builder for a namespace and set.
@@ -456,6 +472,8 @@ class Session:
             set_name: Set name when not using ``dataset``.
             dataset: Optional :class:`~aerospike_sdk.dataset.DataSet` that
                 supplies namespace and set.
+            behavior: Reserved for symmetry with :meth:`query`; forwarded to
+                :meth:`Client.index` but not used by index operations yet.
 
         Returns:
             :class:`~aerospike_sdk.aio.operations.index.IndexBuilder` for
@@ -474,9 +492,11 @@ class Session:
             :meth:`Client.index`
         """
         if dataset is not None:
-            return self._client.index(dataset=dataset)
+            return self._client.index(dataset=dataset, behavior=behavior)
         elif namespace is not None and set_name is not None:
-            return self._client.index(namespace, set_name)
+            return self._client.index(
+                namespace, set_name, behavior=behavior,
+            )
         else:
             raise ValueError(
                 "Invalid arguments. Use either:\n"
@@ -523,9 +543,7 @@ class Session:
             If command is None: InfoCommands instance.
             If command is given: awaitable dict (node -> response).
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 # Raw command (no double .info)
                 response = await session.info("sindex-list")
@@ -555,9 +573,7 @@ class Session:
         Raises:
             ValueError: If the namespace is unknown or the info command fails.
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 if await session.is_namespace_sc("test"):
                     print("Namespace 'test' is in strong consistency mode")
@@ -603,9 +619,7 @@ class Session:
         Returns:
             The result of the operation function.
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 async def transfer_funds(tx_session):
                     await tx_session.upsert(accounts.id("acc1")).put({"balance": 100}).execute()

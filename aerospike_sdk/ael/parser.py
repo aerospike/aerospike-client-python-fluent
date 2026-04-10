@@ -55,7 +55,7 @@ from aerospike_sdk.ael.exp_visitor import (
     MapRankPart,
     MapValuePart,
 )
-from aerospike_sdk.ael.filter_gen import FilterGenerator, Index, IndexContext, IndexTypeEnum, ParseResult
+from aerospike_sdk.ael.filter_gen import FilterGenerator, IndexContext, ParseResult
 
 
 class _AELParseErrorListener(ErrorListener):
@@ -305,15 +305,13 @@ def parse_ael_with_index(
 
     Example::
 
-        indexes = [
-            Index(bin="intBin1", index_type=IndexTypeEnum.NUMERIC, bin_values_ratio=0),
-            Index(bin="intBin2", index_type=IndexTypeEnum.NUMERIC, bin_values_ratio=1),
-        ]
-        ctx = IndexContext.of("test", indexes)
+        Build an :class:`~aerospike_sdk.ael.filter_gen.IndexContext` with
+        :class:`~aerospike_sdk.ael.filter_gen.Index` entries (see ``filter_gen``),
+        then pass it as *index_context*::
 
-        result = parse_ael_with_index("$.intBin1 > 100 and $.intBin2 < 1000", ctx)
-
-        result = parse_ael_with_index("$.intBin1 > ?0", ctx, (100,))
+            ctx = IndexContext.of("test", [...])
+            result = parse_ael_with_index("$.intBin1 > 100 and $.intBin2 < 1000", ctx)
+            result = parse_ael_with_index("$.intBin1 > ?0", ctx, (100,))
     """
     generator = FilterGenerator(index_context)
     pv = PlaceholderValues(*placeholder_values) if placeholder_values else None

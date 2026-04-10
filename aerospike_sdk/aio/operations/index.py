@@ -39,8 +39,7 @@ class IndexBuilder:
     For removal, only :meth:`named` (and namespace/set from construction) is
     required before ``await`` :meth:`drop`.
 
-    Example:
-        .. code-block:: python
+    Example::
 
             await (
                 client.index(namespace="test", set_name="users")

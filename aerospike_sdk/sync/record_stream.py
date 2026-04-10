@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from aerospike_sdk.record_result import RecordResult
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotations only.
     from aerospike_sdk.record_stream import RecordStream
     from aerospike_sdk.sync.client import _EventLoopManager
 

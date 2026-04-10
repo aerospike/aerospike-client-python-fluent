@@ -17,10 +17,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Union, overload
-
-if TYPE_CHECKING:
-    from aerospike_sdk.exceptions import AerospikeError
+from typing import Any, List, Union, overload
 
 from aerospike_async import FilterExpression, Key
 

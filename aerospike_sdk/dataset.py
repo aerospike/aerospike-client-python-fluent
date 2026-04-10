@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 
-import typing
 from typing import List, Union, overload
 
 from aerospike_async import Key
@@ -121,9 +120,7 @@ class DataSet:
         Returns:
             A new Key instance created from the digest
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 users = DataSet.of("test", "users")
                 # From hex string
@@ -147,9 +144,7 @@ class DataSet:
         Raises:
             TypeError: If the object type is not supported
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 users = DataSet.of("test", "users")
                 key1 = users.id_for_object("user123")     # String key
@@ -246,9 +241,7 @@ class DataSet:
         Returns:
             A list of Key instances created from the digests
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 users = DataSet.of("test", "users")
                 keys = users.ids_from_digests("digest1", "digest2", b"digest3")

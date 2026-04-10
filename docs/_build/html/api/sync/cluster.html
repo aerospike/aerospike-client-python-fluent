@@ -293,12 +293,10 @@
 <p>Mirrors <a class="reference internal" href="../cluster.html#aerospike_sdk.aio.cluster.Cluster" title="aerospike_sdk.aio.cluster.Cluster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cluster</span></code></a> but uses
 <a class="reference internal" href="client.html#aerospike_sdk.sync.client.SyncClient" title="aerospike_sdk.sync.client.SyncClient"><code class="xref py py-class docutils literal notranslate"><span class="pre">SyncClient</span></code></a> and
 <a class="reference internal" href="session.html#aerospike_sdk.sync.session.SyncSession" title="aerospike_sdk.sync.session.SyncSession"><code class="xref py py-class docutils literal notranslate"><span class="pre">SyncSession</span></code></a>.</p>
-<div class="admonition-example admonition">
-<p class="admonition-title">Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ClusterDefinition</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3100</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">cluster</span><span class="p">:</span>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ClusterDefinition</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3100</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">cluster</span><span class="p">:</span>
     <span class="n">session</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">create_session</span><span class="p">(</span><span class="n">Behavior</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">)</span>
 </pre></div>
-</div>
 </div>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -387,13 +385,11 @@ for API consistency with the async version.</p>
 <p>This method closes the underlying client connection. It should be called
 when the cluster is no longer needed to ensure proper resource cleanup.</p>
 <p>This method is automatically called when using context manager:</p>
-<blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ClusterDefinition</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3100</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">cluster</span><span class="p">:</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ClusterDefinition</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">3100</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">cluster</span><span class="p">:</span>
     <span class="c1"># Use the cluster...</span>
 <span class="c1"># cluster.close() is automatically called here</span>
 </pre></div>
 </div>
-</div></blockquote>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span></p>

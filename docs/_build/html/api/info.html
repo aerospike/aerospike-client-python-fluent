@@ -292,9 +292,8 @@
 <p>Provides high-level methods to execute common Aerospike info commands.</p>
 <p>This class encapsulates the most commonly used Aerospike info commands and provides
 a convenient API for retrieving cluster information.</p>
-<div class="admonition-example admonition">
-<p class="admonition-title">Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">info</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">info</span><span class="p">()</span>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">info</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">info</span><span class="p">()</span>
 
 <span class="c1"># Get all namespaces</span>
 <span class="n">namespaces</span> <span class="o">=</span> <span class="k">await</span> <span class="n">info</span><span class="o">.</span><span class="n">namespaces</span><span class="p">()</span>
@@ -305,7 +304,6 @@ a convenient API for retrieving cluster information.</p>
 <span class="c1"># Get all secondary indexes</span>
 <span class="n">indexes</span> <span class="o">=</span> <span class="k">await</span> <span class="n">info</span><span class="o">.</span><span class="n">secondary_indexes</span><span class="p">()</span>
 </pre></div>
-</div>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="aerospike_sdk.aio.info.InfoCommands.__init__">

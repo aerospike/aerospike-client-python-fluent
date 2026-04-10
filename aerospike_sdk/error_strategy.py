@@ -28,11 +28,11 @@ Controls how per-record errors are surfaced during execution:
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, Union
+from typing import Callable, Union
 
-if TYPE_CHECKING:
-    from aerospike_async import Key
-    from aerospike_sdk.exceptions import AerospikeError
+from aerospike_async import Key
+
+from aerospike_sdk.exceptions import AerospikeError
 
 
 class ErrorStrategy(Enum):
@@ -52,7 +52,7 @@ class ErrorStrategy(Enum):
     """Embed errors in the ``RecordStream`` as ``RecordResult`` entries."""
 
 
-ErrorHandler = Callable[["Key", int, "AerospikeError"], None]
+ErrorHandler = Callable[[Key, int, AerospikeError], None]
 """Callback ``(key, index, exception) -> None`` for per-record error handling.
 
 The callback receives the failed record's key, its position in the batch

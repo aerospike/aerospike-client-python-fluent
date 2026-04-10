@@ -19,6 +19,7 @@ from aerospike_sdk.sync.client import SyncClient
 from aerospike_sdk.sync.cluster import Cluster
 from aerospike_sdk.sync.cluster_definition import ClusterDefinition, Host
 from aerospike_sdk.sync.info import SyncInfoCommands
+from aerospike_sdk.sync.operations.batch import SyncBatchOperationBuilder
 from aerospike_sdk.sync.operations.index import SyncIndexBuilder
 from aerospike_sdk.sync.operations.query import SyncQueryBuilder
 from aerospike_sdk.sync.session import SyncSession
@@ -28,6 +29,7 @@ __all__ = [
     "Cluster",
     "ClusterDefinition",
     "Host",
+    "SyncBatchOperationBuilder",
     "SyncClient",
     "SyncInfoCommands",
     "SyncIndexBuilder",

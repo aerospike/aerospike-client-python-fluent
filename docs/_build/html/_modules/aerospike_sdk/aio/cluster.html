@@ -292,10 +292,11 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">types</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">typing</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_async</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClientPolicy</span><span class="p">,</span> <span class="n">new_client</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_async</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClientPolicy</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.aio.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="ne">ConnectionError</span>
@@ -316,8 +317,7 @@
 <span class="sd">    ``async with await ClusterDefinition(...).connect() as cluster`` so</span>
 <span class="sd">    :meth:`close` runs on exit.</span>
 
-<span class="sd">    Example:</span>
-<span class="sd">        .. code-block:: python</span>
+<span class="sd">    Example::</span>
 
 <span class="sd">            async with await ClusterDefinition(&quot;localhost&quot;, 3100).connect() as cluster:</span>
 <span class="sd">                session = cluster.create_session(Behavior.DEFAULT)</span>
@@ -375,7 +375,7 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">exc_type</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="ne">BaseException</span><span class="p">]],</span>
         <span class="n">exc_val</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="ne">BaseException</span><span class="p">],</span>
-        <span class="n">exc_tb</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">typing</span><span class="o">.</span><span class="n">TracebackType</span><span class="p">],</span>
+        <span class="n">exc_tb</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">types</span><span class="o">.</span><span class="n">TracebackType</span><span class="p">],</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Async context manager exit.&quot;&quot;&quot;</span>
         <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>

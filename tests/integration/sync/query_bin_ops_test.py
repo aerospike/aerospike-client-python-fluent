@@ -20,15 +20,18 @@ Coverage:
   - Expression reads (select_from)
   - CDT map reads (key, index range, rank)
   - CDT list reads (index, rank)
-  - Batch key queries with bin ops
+  - Batch key queries with bin ops (map and list CDT reads)
+  - CDT read edge cases (long range, missing record)
   - Inverted reads
   - Nested CDT read navigation
 """
 
 import pytest
-
 from aerospike_async import Key
+from aerospike_async.exceptions import ResultCode
+
 from aerospike_sdk import DataSet, SyncClient
+from aerospike_sdk.exceptions import AerospikeError
 
 
 KEY_PREFIX = "qbops_"
@@ -97,6 +100,27 @@ class TestSimpleBinReads:
         session = client.create_session()
         result = session.query(_key(1)).bin("scores").list_size().execute().first_or_raise()
         assert result.record.bins["scores"] == 3
+
+    def test_list_get(self, client):
+        session = client.create_session()
+        result = (
+            session.query(_key(1)).bin("scores").list_get(0).execute().first_or_raise()
+        )
+        assert result.record.bins["scores"] == 10
+
+    def test_list_get_range(self, client):
+        session = client.create_session()
+        result = (
+            session.query(_key(1)).bin("scores").list_get_range(0, 2).execute().first_or_raise()
+        )
+        assert result.record.bins["scores"] == [10, 20]
+
+    def test_list_get_range_from_index(self, client):
+        session = client.create_session()
+        result = (
+            session.query(_key(1)).bin("scores").list_get_range(1, None).execute().first_or_raise()
+        )
+        assert result.record.bins["scores"] == [20, 30]
 
 
 # ===================================================================
@@ -171,6 +195,60 @@ class TestCdtListReads:
         )
         assert result.record.bins["scores"] == 20
 
+    def test_nested_list_get(self, client):
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        kid = f"{KEY_PREFIX}nested_lg"
+        key = ds.id(kid)
+        try:
+            session.delete(key).execute()
+        except Exception:
+            pass
+        session.upsert(key).bin("ll").set_to([[10, 20], [30, 40]]).execute()
+        result = (
+            session.query(key).bin("ll").on_list_index(0).list_get(1).execute().first_or_raise()
+        )
+        assert result.record.bins["ll"] == 20
+        session.delete(key).execute()
+
+
+# ===================================================================
+# Index-based list writes (mutating)
+# ===================================================================
+
+class TestIndexBasedListWrites:
+
+    def test_list_insert_then_read(self, client):
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        kid = f"{KEY_PREFIX}idx_mut"
+        key = ds.id(kid)
+        try:
+            session.delete(key).execute()
+        except Exception:
+            pass
+        session.upsert(key).bin("nums").set_to([1, 2, 3]).execute()
+        session.upsert(key).bin("nums").list_insert(1, 9).execute()
+        result = session.query(key).bin("nums").get().execute().first_or_raise()
+        assert result.record.bins["nums"] == [1, 9, 2, 3]
+        session.delete(key).execute()
+
+    def test_list_increment_and_nested_insert(self, client):
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        kid = f"{KEY_PREFIX}idx_mut2"
+        key = ds.id(kid)
+        try:
+            session.delete(key).execute()
+        except Exception:
+            pass
+        session.upsert(key).put({"outer": {"items": [10, 20]}}).execute()
+        session.upsert(key).bin("outer").on_map_key("items").list_increment(0, 5).execute()
+        session.upsert(key).bin("outer").on_map_key("items").list_insert(1, 0).execute()
+        result = session.query(key).bin("outer").get().execute().first_or_raise()
+        assert result.record.bins["outer"]["items"] == [15, 0, 20]
+        session.delete(key).execute()
+
 
 # ===================================================================
 # Batch key queries
@@ -199,6 +277,55 @@ class TestBatchKeyQueries:
         for r in results:
             assert r.is_ok
             assert r.record.bins["settings"] == "dark"
+
+    def test_batch_cdt_list_size(self, client):
+        session = client.create_session()
+        results = (
+            session.query([_key(1), _key(2), _key(3)])
+                .bin("scores").list_size()
+                .execute().collect()
+        )
+        assert len(results) == 3
+        for r in results:
+            assert r.is_ok
+            assert r.record.bins["scores"] == 3
+
+    def test_batch_cdt_list_get(self, client):
+        session = client.create_session()
+        results = (
+            session.query([_key(1), _key(2), _key(3)])
+                .bin("scores").list_get(0)
+                .execute().collect()
+        )
+        assert len(results) == 3
+        by_first = {r.record.bins["scores"] for r in results if r.is_ok}
+        assert by_first == {10, 20, 30}
+
+
+class TestCdtReadEdgeCases:
+    """OOB-tolerant reads and missing-record error paths."""
+
+    def test_list_get_range_past_end_returns_partial(self, client):
+        """list_get_range with count past the end returns the full tail."""
+        session = client.create_session()
+        result = (
+            session.query(_key(1)).bin("scores").list_get_range(0, 100)
+                .execute().first_or_raise()
+        )
+        assert result.record.bins["scores"] == [10, 20, 30]
+
+    def test_remove_from_nonexistent_key_raises(self, client):
+        """Map remove_by_key_list on a missing record raises KEY_NOT_FOUND_ERROR."""
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        key = ds.id(f"{KEY_PREFIX}missing_rm")
+        try:
+            session.delete(key).execute()
+        except Exception:
+            pass
+        with pytest.raises(AerospikeError) as exc_info:
+            session.update(key).bin("m").on_map_key_list(["a"]).remove().execute()
+        assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
 
 # ===================================================================

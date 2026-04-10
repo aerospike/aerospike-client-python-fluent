@@ -17,17 +17,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union, overload
-
-if TYPE_CHECKING:
-    from aerospike_sdk.exceptions import AerospikeError
+from typing import Any, List, Optional, Sequence, Union, overload
 
 from aerospike_async import (
     BasePolicy,
+    BitOperation,
     CTX,
     ExecuteTask,
     Filter,
     FilterExpression,
+    HllOperation,
     Key,
     ListOperation,
     ListOrderType,
@@ -50,12 +49,20 @@ from aerospike_sdk.aio.operations.cdt_read import _map_item_pairs
 from aerospike_sdk.aio.operations.cdt_write import (
     CdtWriteBuilder,
     CdtWriteInvertableBuilder,
+    _UNORDERED_LIST_POLICY,
+    _resolve_list_policy,
+    _resolve_map_policy,
 )
 from aerospike_sdk.aio.operations.query import (
     QueryBinBuilder,
     QueryBuilder,
     QueryHint,
     WriteSegmentBuilder,
+    _bit_policy_or_default,
+    _bitwise_and,
+    _bitwise_not,
+    _bitwise_or,
+    _resize_flags_or_default,
 )
 from aerospike_sdk.ael.filter_gen import IndexContext
 from aerospike_sdk.error_strategy import OnError
@@ -662,6 +669,8 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
 
     Per-bin write builder that captures a bin name and delegates
     all operations to the parent ``SyncWriteSegmentBuilder``.
+    HyperLogLog and blob bit operations use ``hll_*`` and ``bit_*`` methods,
+    matching :class:`~aerospike_sdk.aio.operations.query.WriteBinBuilder`.
     """
 
     __slots__ = ("_sync_segment", "_bin")
@@ -747,31 +756,56 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
 
     # -- CDT list structural operations ---------------------------------------
 
-    def list_add(self, value: Any) -> SyncWriteSegmentBuilder:
+    def list_add(
+        self, value: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+    ) -> SyncWriteSegmentBuilder:
         """Add *value* to an ordered list (sorted insert).
 
         Args:
             value: Value to insert.
+            unique: Reject if the value already exists in the list.
+            bounded: Reject if index is beyond the current list bounds.
+            no_fail: Do not raise on write failures.
 
         Returns:
             The parent :class:`SyncWriteSegmentBuilder`.
         """
+        policy = _resolve_list_policy(
+            ListOrderType.ORDERED, unique=unique, bounded=bounded,
+            no_fail=no_fail,
+        )
         self._sync_segment.add_operation(
-            ListOperation.append(self._bin, value, ListPolicy(ListOrderType.ORDERED, None)),
+            ListOperation.append(self._bin, value, policy),
         )
         return self._sync_segment
 
-    def list_append(self, value: Any) -> SyncWriteSegmentBuilder:
+    def list_append(
+        self, value: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+    ) -> SyncWriteSegmentBuilder:
         """Append *value* to the end of an unordered list.
 
         Args:
             value: Value to append.
+            unique: Reject if the value already exists in the list.
+            bounded: Reject if index is beyond the current list bounds.
+            no_fail: Do not raise on write failures.
 
         Returns:
             The parent :class:`SyncWriteSegmentBuilder`.
         """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded, no_fail=no_fail,
+        )
         self._sync_segment.add_operation(
-            ListOperation.append(self._bin, value, ListPolicy(None, None)),
+            ListOperation.append(self._bin, value, policy),
         )
         return self._sync_segment
 
@@ -795,48 +829,94 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         self._sync_segment.add_operation(MapOperation.size(self._bin))
         return self._sync_segment
 
-    def map_upsert_items(self, items: Any) -> SyncWriteSegmentBuilder:
+    def map_upsert_items(
+        self, items: Any,
+        *,
+        order: MapOrder | None = None,
+        persist_index: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> SyncWriteSegmentBuilder:
         """Put multiple map entries (create or update each key).
 
         Args:
             items: Mapping or sequence of ``(key, value)`` pairs.
+            order: Map key order for the policy.
+            persist_index: Maintain a persistent index on the map.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
 
         Returns:
             The parent :class:`SyncWriteSegmentBuilder`.
         """
         pairs = _map_item_pairs(items)
-        self._sync_segment.add_operation(
-            MapOperation.put_items(self._bin, pairs, MapPolicy(None, None)),
+        policy = _resolve_map_policy(
+            int(MapWriteFlags.DEFAULT),
+            order=order, persist_index=persist_index,
+            no_fail=no_fail, partial=partial,
         )
-        return self._sync_segment
-
-    def map_insert_items(self, items: Any) -> SyncWriteSegmentBuilder:
-        """Put map entries only for keys that do not yet exist.
-
-        Args:
-            items: Mapping or sequence of ``(key, value)`` pairs.
-
-        Returns:
-            The parent :class:`SyncWriteSegmentBuilder`.
-        """
-        pairs = _map_item_pairs(items)
-        policy = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
         self._sync_segment.add_operation(
             MapOperation.put_items(self._bin, pairs, policy),
         )
         return self._sync_segment
 
-    def map_update_items(self, items: Any) -> SyncWriteSegmentBuilder:
-        """Update existing map entries only (no new keys).
+    def map_insert_items(
+        self, items: Any,
+        *,
+        order: MapOrder | None = None,
+        persist_index: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Put map entries only for keys that do not yet exist.
 
         Args:
             items: Mapping or sequence of ``(key, value)`` pairs.
+            order: Map key order for the policy.
+            persist_index: Maintain a persistent index on the map.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
 
         Returns:
             The parent :class:`SyncWriteSegmentBuilder`.
         """
         pairs = _map_item_pairs(items)
-        policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
+        policy = _resolve_map_policy(
+            int(MapWriteFlags.CREATE_ONLY),
+            order=order, persist_index=persist_index,
+            no_fail=no_fail, partial=partial,
+        )
+        self._sync_segment.add_operation(
+            MapOperation.put_items(self._bin, pairs, policy),
+        )
+        return self._sync_segment
+
+    def map_update_items(
+        self, items: Any,
+        *,
+        order: MapOrder | None = None,
+        persist_index: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Update existing map entries only (no new keys).
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+            order: Map key order for the policy.
+            persist_index: Maintain a persistent index on the map.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        pairs = _map_item_pairs(items)
+        policy = _resolve_map_policy(
+            int(MapWriteFlags.UPDATE_ONLY),
+            order=order, persist_index=persist_index,
+            no_fail=no_fail, partial=partial,
+        )
         self._sync_segment.add_operation(
             MapOperation.put_items(self._bin, pairs, policy),
         )
@@ -902,35 +982,61 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         self._sync_segment.add_operation(ListOperation.size(self._bin))
         return self._sync_segment
 
-    def list_append_items(self, items: Any) -> SyncWriteSegmentBuilder:
+    def list_append_items(
+        self, items: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> SyncWriteSegmentBuilder:
         """Append values to an unordered list.
 
         Args:
             items: Values to append.
+            unique: Reject items that already exist in the list.
+            bounded: Reject inserts beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
 
         Returns:
             The parent :class:`SyncWriteSegmentBuilder`.
         """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded,
+            no_fail=no_fail, partial=partial,
+        )
         self._sync_segment.add_operation(
-            ListOperation.append_items(
-                self._bin, items, ListPolicy(None, None),
-            ),
+            ListOperation.append_items(self._bin, items, policy),
         )
         return self._sync_segment
 
-    def list_add_items(self, items: Any) -> SyncWriteSegmentBuilder:
+    def list_add_items(
+        self, items: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> SyncWriteSegmentBuilder:
         """Insert values into an ordered list (sorted positions).
 
         Args:
             items: Values to insert.
+            unique: Reject items that already exist in the list.
+            bounded: Reject inserts beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
 
         Returns:
             The parent :class:`SyncWriteSegmentBuilder`.
         """
+        policy = _resolve_list_policy(
+            ListOrderType.ORDERED, unique=unique, bounded=bounded,
+            no_fail=no_fail, partial=partial,
+        )
         self._sync_segment.add_operation(
-            ListOperation.append_items(
-                self._bin, items, ListPolicy(ListOrderType.ORDERED, None),
-            ),
+            ListOperation.append_items(self._bin, items, policy),
         )
         return self._sync_segment
 
@@ -964,6 +1070,995 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         self._sync_segment.add_operation(ListOperation.set_order(self._bin, order))
         return self._sync_segment
 
+    # -- Index-based list (whole-bin) ----------------------------------------
+
+    def list_insert(
+        self, index: int, value: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Insert *value* at *index* in an unordered list.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+            value: Element to insert.
+            unique: Reject if the value already exists in the list.
+            bounded: Reject if index is beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded, no_fail=no_fail,
+        )
+        self._sync_segment.add_operation(
+            ListOperation.insert(self._bin, index, value, policy),
+        )
+        return self._sync_segment
+
+    def list_insert_items(
+        self, index: int, items: Sequence[Any],
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> SyncWriteSegmentBuilder:
+        """Insert a sequence of values starting at *index*.
+
+        Args:
+            index: List index at which to insert the first element.
+            items: Values to insert in order.
+            unique: Reject items that already exist in the list.
+            bounded: Reject inserts beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded,
+            no_fail=no_fail, partial=partial,
+        )
+        self._sync_segment.add_operation(
+            ListOperation.insert_items(self._bin, index, items, policy),
+        )
+        return self._sync_segment
+
+    def list_set(self, index: int, value: Any) -> SyncWriteSegmentBuilder:
+        """Replace the element at *index* with *value*.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_set`.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+            value: New element value.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        self._sync_segment.add_operation(
+            ListOperation.set(self._bin, index, value),
+        )
+        return self._sync_segment
+
+    def list_increment(self, index: int, value: int = 1) -> SyncWriteSegmentBuilder:
+        """Add *value* to the numeric element at *index* (default increment is ``1``).
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_increment`.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+            value: Amount to add; ``1`` uses a dedicated server path.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        if value == 1:
+            self._sync_segment.add_operation(
+                ListOperation.increment_by_one(self._bin, index),
+            )
+        else:
+            self._sync_segment.add_operation(
+                ListOperation.increment(
+                    self._bin, index, value, _UNORDERED_LIST_POLICY,
+                ),
+            )
+        return self._sync_segment
+
+    def list_remove(self, index: int) -> SyncWriteSegmentBuilder:
+        """Remove the element at *index*.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_remove`.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        self._sync_segment.add_operation(ListOperation.remove(self._bin, index))
+        return self._sync_segment
+
+    def list_remove_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Remove *count* elements starting at *index*, or all from *index* onward.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_remove_range`.
+
+        Args:
+            index: Starting list index.
+            count: Number of elements to remove; ``None`` removes through the end.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        if count is None:
+            op = ListOperation.remove_range_from(self._bin, index)
+        else:
+            op = ListOperation.remove_range(self._bin, index, count)
+        self._sync_segment.add_operation(op)
+        return self._sync_segment
+
+    def list_pop(self, index: int) -> SyncWriteSegmentBuilder:
+        """Remove and return the element at *index* (read in the operate result).
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_pop`.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        self._sync_segment.add_operation(ListOperation.pop(self._bin, index))
+        return self._sync_segment
+
+    def list_pop_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Pop *count* elements from *index*, or from *index* through the end.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_pop_range`.
+
+        Args:
+            index: Starting list index.
+            count: Number of elements; ``None`` pops through the end.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        if count is None:
+            op = ListOperation.pop_range_from(self._bin, index)
+        else:
+            op = ListOperation.pop_range(self._bin, index, count)
+        self._sync_segment.add_operation(op)
+        return self._sync_segment
+
+    def list_trim(self, index: int, count: int) -> SyncWriteSegmentBuilder:
+        """Keep only *count* elements starting at *index*; remove the rest.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.list_trim`.
+
+        Args:
+            index: Starting list index of the range to keep.
+            count: Number of elements to keep.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder`.
+        """
+        self._sync_segment.add_operation(
+            ListOperation.trim(self._bin, index, count),
+        )
+        return self._sync_segment
+
+    # -- HyperLogLog ----------------------------------------------------------
+
+    def hll_init(
+        self,
+        index_bit_count: int,
+        min_hash_bit_count: int = -1,
+        flags: int = 0,
+    ) -> SyncWriteSegmentBuilder:
+        """Initialize an empty HyperLogLog sketch in this bin.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_init`.
+        The synchronous API returns :class:`SyncWriteSegmentBuilder` and uses
+        :meth:`SyncWriteSegmentBuilder.execute` instead of ``await``.
+
+        Example::
+            session.upsert(key).bin("visitors").hll_init(12)
+
+        Args:
+            index_bit_count: Same as the async method.
+            min_hash_bit_count: Same as the async method.
+            flags: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_init`
+        """
+        self._sync_segment.add_operation(
+            HllOperation.init(
+                self._bin,
+                index_bit_count,
+                min_hash_bit_count,
+                flags,
+            ),
+        )
+        return self._sync_segment
+
+    def hll_add(
+        self,
+        values: Sequence[Any],
+        index_bit_count: int = -1,
+        min_hash_bit_count: int = -1,
+        flags: int = 0,
+    ) -> SyncWriteSegmentBuilder:
+        """Add distinct values to the HyperLogLog sketch in this bin.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_add`.
+
+        Example::
+            session.upsert(key).bin("visitors").hll_add(["user-1", "user-2"])
+
+        Args:
+            values: Same as the async method.
+            index_bit_count: Same as the async method.
+            min_hash_bit_count: Same as the async method.
+            flags: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_add`
+        """
+        self._sync_segment.add_operation(
+            HllOperation.add(
+                self._bin,
+                list(values),
+                index_bit_count,
+                min_hash_bit_count,
+                flags,
+            ),
+        )
+        return self._sync_segment
+
+    def hll_set_union(self, hll_list: Sequence[Any], flags: int = 0) -> SyncWriteSegmentBuilder:
+        """Merge other HyperLogLog sketches into this bin.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_set_union`.
+
+        Example::
+            session.update(key).bin("merged").hll_set_union([other_hll_blob])
+
+        Args:
+            hll_list: Same as the async method.
+            flags: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_set_union`
+        """
+        self._sync_segment.add_operation(
+            HllOperation.set_union(self._bin, list(hll_list), flags),
+        )
+        return self._sync_segment
+
+    def hll_fold(self, index_bit_count: int) -> SyncWriteSegmentBuilder:
+        """Reduce sketch precision to a lower index bit count.
+
+        Example::
+            session.update(key).bin("hll").hll_fold(10)
+
+        Args:
+            index_bit_count: Same as :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_fold`.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_fold`
+        """
+        self._sync_segment.add_operation(HllOperation.fold(self._bin, index_bit_count))
+        return self._sync_segment
+
+    def hll_refresh_count(self) -> SyncWriteSegmentBuilder:
+        """Refresh the cached cardinality estimate stored with the sketch.
+
+        Example::
+            session.update(key).bin("hll").hll_refresh_count()
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_refresh_count`
+        """
+        self._sync_segment.add_operation(HllOperation.refresh_count(self._bin))
+        return self._sync_segment
+
+    def hll_get_count(self) -> SyncWriteSegmentBuilder:
+        """Read the estimated cardinality in a multi-operation write.
+
+        Example::
+            session.update(key).bin("hll").hll_get_count()
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_count`
+            :meth:`aerospike_sdk.aio.operations.query.QueryBinBuilder.hll_get_count`
+        """
+        self._sync_segment.add_operation(HllOperation.get_count(self._bin))
+        return self._sync_segment
+
+    def hll_describe(self) -> SyncWriteSegmentBuilder:
+        """Read index and min-hash bit parameters of the stored sketch.
+
+        Example::
+            session.update(key).bin("hll").hll_describe()
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_describe`
+        """
+        self._sync_segment.add_operation(HllOperation.describe(self._bin))
+        return self._sync_segment
+
+    def hll_get_union(self, hll_list: Sequence[Any]) -> SyncWriteSegmentBuilder:
+        """Read the union sketch without modifying the stored bin.
+
+        Example::
+            session.update(key).bin("hll").hll_get_union([peer_blob])
+
+        Args:
+            hll_list: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_union`
+        """
+        self._sync_segment.add_operation(
+            HllOperation.get_union(self._bin, list(hll_list)),
+        )
+        return self._sync_segment
+
+    def hll_get_union_count(self, hll_list: Sequence[Any]) -> SyncWriteSegmentBuilder:
+        """Read the estimated cardinality of the union with other sketches.
+
+        Args:
+            hll_list: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_union_count`
+        """
+        self._sync_segment.add_operation(
+            HllOperation.get_union_count(self._bin, list(hll_list)),
+        )
+        return self._sync_segment
+
+    def hll_get_intersect_count(self, hll_list: Sequence[Any]) -> SyncWriteSegmentBuilder:
+        """Read the estimated intersection cardinality with other sketches.
+
+        Args:
+            hll_list: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_intersect_count`
+        """
+        self._sync_segment.add_operation(
+            HllOperation.get_intersect_count(self._bin, list(hll_list)),
+        )
+        return self._sync_segment
+
+    def hll_get_similarity(self, hll_list: Sequence[Any]) -> SyncWriteSegmentBuilder:
+        """Read Jaccard similarity between this sketch and other sketches.
+
+        Args:
+            hll_list: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.hll_get_similarity`
+        """
+        self._sync_segment.add_operation(
+            HllOperation.get_similarity(self._bin, list(hll_list)),
+        )
+        return self._sync_segment
+
+    # -- Bit (blob) -----------------------------------------------------------
+
+    def bit_resize(
+        self,
+        byte_size: int,
+        resize_flags: Optional[Any] = None,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Grow or shrink the raw bytes backing this bin.
+
+        Semantics match :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_resize`.
+
+        Example::
+            session.upsert(key).bin("flags").bit_resize(4)
+
+        Args:
+            byte_size: Same as the async method.
+            resize_flags: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_resize`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.resize(
+                self._bin,
+                byte_size,
+                _resize_flags_or_default(resize_flags),
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_insert(
+        self,
+        byte_offset: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Insert bytes at a byte offset in the blob bin.
+
+        Example::
+            session.update(key).bin("blob").bit_insert(0, b"\\x01\\x02")
+
+        Args:
+            byte_offset: Same as the async method.
+            value: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_insert`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.insert(
+                self._bin,
+                byte_offset,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_remove(
+        self,
+        byte_offset: int,
+        byte_size: int,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Remove a byte range from the blob bin.
+
+        Example::
+            session.update(key).bin("blob").bit_remove(0, 2)
+
+        Args:
+            byte_offset: Same as :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_remove`.
+            byte_size: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_remove`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.remove(
+                self._bin,
+                byte_offset,
+                byte_size,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_set(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Overwrite a bit range with a new value.
+
+        Example::
+            session.update(key).bin("blob").bit_set(0, 8, b"\\xff")
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_set`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.set(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_or(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Bitwise OR a value into a bit range.
+
+        Example::
+            session.update(key).bin("blob").bit_or(0, 8, b"\\x0f")
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_or`
+        """
+        self._sync_segment.add_operation(
+            _bitwise_or(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_xor(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Bitwise XOR a value into a bit range.
+
+        Example::
+            session.update(key).bin("blob").bit_xor(0, 8, b"\\xff")
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_xor`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.xor(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_and(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Bitwise AND a value into a bit range.
+
+        Example::
+            session.update(key).bin("blob").bit_and(0, 8, b"\\xf0")
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_and`
+        """
+        self._sync_segment.add_operation(
+            _bitwise_and(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_not(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Invert every bit in a range.
+
+        Example::
+            session.update(key).bin("blob").bit_not(0, 8)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_not`
+        """
+        self._sync_segment.add_operation(
+            _bitwise_not(
+                self._bin,
+                bit_offset,
+                bit_size,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_lshift(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        shift: int,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Left-shift the bits in a field.
+
+        Example::
+            session.update(key).bin("blob").bit_lshift(0, 16, 2)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            shift: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_lshift`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.lshift(
+                self._bin,
+                bit_offset,
+                bit_size,
+                shift,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_rshift(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        shift: int,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Right-shift the bits in a field.
+
+        Example::
+            session.update(key).bin("blob").bit_rshift(0, 16, 2)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            shift: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_rshift`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.rshift(
+                self._bin,
+                bit_offset,
+                bit_size,
+                shift,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_add(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: int,
+        signed: bool,
+        action: Any,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Add to an integer bit field (see :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_add`).
+
+        Example::
+            session.update(key).bin("blob").bit_add(0, 16, 1, False, BitwiseOverflowActions.WRAP)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+            signed: Same as the async method.
+            action: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_add`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.add(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                signed,
+                action,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_subtract(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: int,
+        signed: bool,
+        action: Any,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Subtract from an integer bit field (see :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_subtract`).
+
+        Example::
+            session.update(key).bin("blob").bit_subtract(0, 16, 1, False, BitwiseOverflowActions.SATURATE)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+            signed: Same as the async method.
+            action: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_subtract`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.subtract(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                signed,
+                action,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_set_int(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: int,
+        policy: Optional[Any] = None,
+    ) -> SyncWriteSegmentBuilder:
+        """Write an integer value into a bit field.
+
+        Example::
+            session.update(key).bin("blob").bit_set_int(0, 16, 42)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+            policy: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_set_int`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.set_int(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+        return self._sync_segment
+
+    def bit_get(self, bit_offset: int, bit_size: int) -> SyncWriteSegmentBuilder:
+        """Read a bit range as bytes in a write operate.
+
+        Example::
+            session.update(key).bin("blob").bit_get(0, 8)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_get`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.get(self._bin, bit_offset, bit_size),
+        )
+        return self._sync_segment
+
+    def bit_count(self, bit_offset: int, bit_size: int) -> SyncWriteSegmentBuilder:
+        """Count bits set to 1 in a range.
+
+        Example::
+            session.update(key).bin("blob").bit_count(0, 8)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_count`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.count(self._bin, bit_offset, bit_size),
+        )
+        return self._sync_segment
+
+    def bit_lscan(self, bit_offset: int, bit_size: int, value: bool) -> SyncWriteSegmentBuilder:
+        """Return the leftmost bit index matching a value in a range.
+
+        Example::
+            session.update(key).bin("blob").bit_lscan(0, 8, True)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_lscan`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.lscan(self._bin, bit_offset, bit_size, value),
+        )
+        return self._sync_segment
+
+    def bit_rscan(self, bit_offset: int, bit_size: int, value: bool) -> SyncWriteSegmentBuilder:
+        """Return the rightmost bit index matching a value in a range.
+
+        Example::
+            session.update(key).bin("blob").bit_rscan(0, 8, False)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            value: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_rscan`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.rscan(self._bin, bit_offset, bit_size, value),
+        )
+        return self._sync_segment
+
+    def bit_get_int(
+        self, bit_offset: int, bit_size: int, signed: bool,
+    ) -> SyncWriteSegmentBuilder:
+        """Decode an integer from a bit field.
+
+        Example::
+            session.update(key).bin("blob").bit_get_int(0, 16, False)
+
+        Args:
+            bit_offset: Same as the async method.
+            bit_size: Same as the async method.
+            signed: Same as the async method.
+
+        Returns:
+            The parent :class:`SyncWriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`aerospike_sdk.aio.operations.query.WriteBinBuilder.bit_get_int`
+        """
+        self._sync_segment.add_operation(
+            BitOperation.get_int(self._bin, bit_offset, bit_size, signed),
+        )
+        return self._sync_segment
+
     # -- Map navigation (singular -> CdtWriteBuilder) -------------------------
 
     def on_map_index(self, index: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
@@ -984,23 +2079,31 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             bin_name=b, to_ctx=lambda: CTX.map_index(index),
         )
 
-    def on_map_key(self, key: Any) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
+    def on_map_key(
+        self, key: Any, *, create_type: Optional[MapOrder] = None,
+    ) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
         """Navigate to a map element by key.
 
         Args:
             key: Map key to target.
+            create_type: If set, use a create-on-missing context for this key
+                with the given map key order.
 
         Returns:
             :class:`CdtWriteBuilder` for writing the targeted element.
         """
         b = self._bin
         _mp = MapPolicy(None, None)
+        if create_type is not None:
+            to_ctx = lambda: CTX.map_key_create(key, create_type)
+        else:
+            to_ctx = lambda: CTX.map_key(key)
         return CdtWriteBuilder(
             self._sync_segment,
             lambda rt: MapOperation.get_by_key(b, key, rt),
             lambda rt: MapOperation.remove_by_key(b, key, rt),
             MapReturnType, is_map=True,
-            bin_name=b, to_ctx=lambda: CTX.map_key(key),
+            bin_name=b, to_ctx=to_ctx,
             set_to_factory=lambda v: MapOperation.put(b, key, v, _mp),
             add_factory=lambda v: MapOperation.increment_value(b, key, v, _mp),
         )
@@ -1040,6 +2143,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: MapOperation.get_by_value(b, value, rt),
             lambda rt: MapOperation.remove_by_value(b, value, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_value(value),
         )
 
     def on_map_index_range(
@@ -1063,6 +2167,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             rm_f = lambda rt: MapOperation.remove_by_index_range(b, index, count, rt)
         return CdtWriteInvertableBuilder(
             self._sync_segment, get_f, rm_f, MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_range(
@@ -1083,6 +2188,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: MapOperation.get_by_key_range(b, start, end, rt),
             lambda rt: MapOperation.remove_by_key_range(b, start, end, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_rank_range(
@@ -1106,6 +2212,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             rm_f = lambda rt: MapOperation.remove_by_rank_range(b, rank, count, rt)
         return CdtWriteInvertableBuilder(
             self._sync_segment, get_f, rm_f, MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_range(
@@ -1126,6 +2233,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: MapOperation.get_by_value_range(b, start, end, rt),
             lambda rt: MapOperation.remove_by_value_range(b, start, end, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_relative_index_range(
@@ -1151,6 +2259,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
                 b, key, index, count, rt,
             ),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_relative_rank_range(
@@ -1176,6 +2285,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
                 b, value, rank, count, rt,
             ),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_list(self, keys: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
@@ -1193,6 +2303,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: MapOperation.get_by_key_list(b, keys, rt),
             lambda rt: MapOperation.remove_by_key_list(b, keys, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
@@ -1210,26 +2321,42 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: MapOperation.get_by_value_list(b, values, rt),
             lambda rt: MapOperation.remove_by_value_list(b, values, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     # -- List navigation (singular -> CdtWriteBuilder) ------------------------
 
-    def on_list_index(self, index: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
+    def on_list_index(
+        self, index: int,
+        *,
+        order: Optional[ListOrderType] = None,
+        pad: bool = False,
+    ) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
         """Navigate to a list element by index.
 
         Args:
             index: List index (0-based, negative counts from end).
+            order: If set (or if *pad* is ``True``), use create-on-missing
+                list context with this order; when only *pad* is ``True``,
+                defaults to :data:`~aerospike_async.ListOrderType.UNORDERED`.
+            pad: When using create-on-missing context, allow sparse indexes.
 
         Returns:
             :class:`CdtWriteBuilder` for writing the targeted element.
         """
         b = self._bin
+        use_create = order is not None or pad
+        if use_create:
+            eff_order = order if order is not None else ListOrderType.UNORDERED
+            to_ctx = lambda: CTX.list_index_create(index, eff_order, pad)
+        else:
+            to_ctx = lambda: CTX.list_index(index)
         return CdtWriteBuilder(
             self._sync_segment,
             lambda rt: ListOperation.get_by_index(b, index, rt),
             lambda rt: ListOperation.remove_by_index(b, index, rt),
             ListReturnType, is_map=False,
-            bin_name=b, to_ctx=lambda: CTX.list_index(index),
+            bin_name=b, to_ctx=to_ctx,
         )
 
     def on_list_rank(self, rank: int) -> CdtWriteBuilder[SyncWriteSegmentBuilder]:
@@ -1267,6 +2394,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: ListOperation.get_by_value(b, value, rt),
             lambda rt: ListOperation.remove_by_value(b, value, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_value(value),
         )
 
     def on_list_index_range(
@@ -1287,6 +2415,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: ListOperation.get_by_index_range(b, index, count, rt),
             lambda rt: ListOperation.remove_by_index_range(b, index, count, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_rank_range(
@@ -1307,6 +2436,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: ListOperation.get_by_rank_range(b, rank, count, rt),
             lambda rt: ListOperation.remove_by_rank_range(b, rank, count, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_range(
@@ -1327,6 +2457,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: ListOperation.get_by_value_range(b, start, end, rt),
             lambda rt: ListOperation.remove_by_value_range(b, start, end, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_relative_rank_range(
@@ -1352,6 +2483,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
                 b, value, rank, count, rt,
             ),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[SyncWriteSegmentBuilder]:
@@ -1369,6 +2501,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
             lambda rt: ListOperation.get_by_value_list(b, values, rt),
             lambda rt: ListOperation.remove_by_value_list(b, values, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     # -- Expression operations ------------------------------------------------

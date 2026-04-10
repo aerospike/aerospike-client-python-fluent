@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import types
 import typing
 from typing import List, Optional, Union, overload
 
@@ -141,7 +142,7 @@ class Client:
         self,
         exc_type: Optional[type[BaseException]],
         exc_val: Optional[BaseException],
-        exc_tb: Optional[typing.TracebackType],
+        exc_tb: Optional[types.TracebackType],
     ) -> None:
         """Async context manager exit."""
         await self.close()
@@ -176,16 +177,14 @@ class Client:
         e.g. info(), nodes(), get_node(). The returned client is the same
         instance used internally by the SDK API.
 
-        Example:
+        Example::
 
-            .. code-block:: python
-
-                async with Client("localhost:3000") as client:
-                    pac = client.underlying_client
-                    response = await pac.info("sindex-list")
-                    nodes = await pac.nodes()
-                    node = await pac.get_node(nodes[0].name)
-                    response = await node.info("build")
+            async with Client("localhost:3000") as client:
+                pac = client.underlying_client
+                response = await pac.info("sindex-list")
+                nodes = await pac.nodes()
+                node = await pac.get_node(nodes[0].name)
+                response = await node.info("build")
 
         Returns:
             The aerospike_async Client instance.
@@ -200,6 +199,7 @@ class Client:
         self,
         *,
         dataset: DataSet,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder from a DataSet."""
         ...
@@ -209,6 +209,7 @@ class Client:
         self,
         *,
         key: Key,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder for a single Key (point read)."""
         ...
@@ -218,6 +219,7 @@ class Client:
         self,
         *,
         keys: List[Key],
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder for multiple Keys (batch read)."""
         ...
@@ -225,8 +227,19 @@ class Client:
     @overload
     def query(
         self,
+        *keys: Key,
+        behavior: Optional[Behavior] = None,
+    ) -> QueryBuilder:
+        """Create a query builder for multiple Keys (varargs)."""
+        ...
+
+    @overload
+    def query(
+        self,
         namespace: str,
         set_name: str,
+        *,
+        behavior: Optional[Behavior] = None,
     ) -> QueryBuilder:
         """Create a query builder with explicit namespace/set."""
         ...
@@ -247,9 +260,7 @@ class Client:
 
         Supports multiple calling styles:
 
-        1. Using a DataSet (positional or keyword):
-
-           .. code-block:: python
+        1. Using a DataSet (positional or keyword)::
 
               users = DataSet.of("test", "users")
               async for record in client.query(users).execute():
@@ -257,9 +268,7 @@ class Client:
               async for record in client.query(dataset=users).execute():
                   print(record.bins)
 
-        2. Using a single Key (positional or keyword):
-
-           .. code-block:: python
+        2. Using a single Key (positional or keyword)::
 
               users = DataSet.of("test", "users")
               key = users.id("user123")
@@ -267,9 +276,7 @@ class Client:
               # or
               recordset = await client.query(key=key).execute()
 
-        3. Using multiple Keys (positional or keyword):
-
-           .. code-block:: python
+        3. Using multiple Keys (positional or keyword)::
 
               users = DataSet.of("test", "users")
               keys = users.ids("user1", "user2", "user3")
@@ -277,9 +284,7 @@ class Client:
               # or
               recordset = await client.query(keys=keys).execute()
 
-        4. Explicit namespace/set (original style):
-
-           .. code-block:: python
+        4. Explicit namespace/set (original style)::
 
               async for record in client.query(
                   namespace="test",
@@ -395,6 +400,7 @@ class Client:
         self,
         *,
         dataset: DataSet,
+        behavior: Optional[Behavior] = None,
     ) -> IndexBuilder:
         """Create an index builder from a DataSet."""
         ...
@@ -404,6 +410,8 @@ class Client:
         self,
         namespace: str,
         set_name: str,
+        *,
+        behavior: Optional[Behavior] = None,
     ) -> IndexBuilder:
         """Create an index builder with explicit namespace/set."""
         ...
@@ -414,22 +422,19 @@ class Client:
         set_name: Optional[str] = None,
         *,
         dataset: Optional[DataSet] = None,
+        behavior: Optional[Behavior] = None,
     ) -> IndexBuilder:
         """
         Create an index builder.
 
         Supports multiple calling styles:
 
-        1. Using a DataSet:
-
-           .. code-block:: python
+        1. Using a DataSet::
 
               users = DataSet.of("test", "users")
               await client.index(dataset=users).on_bin("age").named("age_idx").numeric().create()
 
-        2. Explicit namespace/set (original style):
-
-           .. code-block:: python
+        2. Explicit namespace/set (original style)::
 
               await client.index(
                   namespace="test",
@@ -440,10 +445,13 @@ class Client:
             namespace: The namespace name (if not using DataSet).
             set_name: The set name (if not using DataSet).
             dataset: Optional DataSet to use for namespace/set.
+            behavior: Reserved for symmetry with :meth:`query`; not applied to
+                index operations yet.
 
         Returns:
             An IndexBuilder for chaining index operations.
         """
+        _ = behavior
         # Handle DataSet
         if dataset is not None:
             namespace = dataset.namespace
@@ -478,15 +486,12 @@ class Client:
         Returns:
             A TransactionalSession for transactional operations.
 
-        Example:
+        Example::
 
-            .. code-block:: python
-
-                async with client.transaction_session() as session:
-                    kv = session.key_value("test", "users")
-                    await kv.put("user1", {"name": "John"})
-                    await kv.put("user2", {"name": "Jane"})
-                    # Transaction auto-committed on exit
+            async with client.transaction_session() as session:
+                kv = session.key_value("test", "users")
+                await kv.put("user1", {"name": "John"})
+                await kv.put("user2", {"name": "Jane"})
         """
         return TransactionalSession(client=self._async_client)
 

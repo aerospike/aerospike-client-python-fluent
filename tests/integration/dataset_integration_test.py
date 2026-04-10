@@ -15,8 +15,6 @@
 
 """Tests for DataSet integration with Client."""
 
-import pytest
-
 from aerospike_sdk import DataSet, Client
 
 

@@ -25,7 +25,7 @@ from aerospike_async.exceptions import ResultCode
 
 from aerospike_sdk.record_result import RecordResult, batch_records_to_results
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — needed for forward-reference type annotations and Sphinx autodoc.
     from aerospike_sdk.exceptions import AerospikeError
 
 log = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ class RecordStream:
         ] | None = None
         self._chunk_limit: int = 0
         self._chunk_count: int = 0
+        self._counter_ref: list[int] = [0]
 
     # -- factory constructors ------------------------------------------------
 
@@ -269,15 +270,17 @@ class RecordStream:
             self._chunk_first = False
             return True
 
-        if self._chunk_limit > 0 and self._chunk_count >= self._chunk_limit:
+        if 0 < self._chunk_limit <= self._chunk_count:
             return False
 
         pf = await self._chunk_recordset.partition_filter()
         if pf is None or pf.done():
             return False
 
-        counted_so_far = getattr(self, "_counter_ref", [0])[0]
+        counted_so_far = self._counter_ref[0]
         log.debug("fetching next chunk (counted=%d)", counted_so_far)
+        if self._chunk_reexecute is None:
+            return False
         recordset = await self._chunk_reexecute(pf)
         self._chunk_recordset = recordset
         self._chunk_count = counted_so_far

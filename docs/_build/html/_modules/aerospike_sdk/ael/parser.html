@@ -330,7 +330,7 @@
     <span class="n">MapRankPart</span><span class="p">,</span>
     <span class="n">MapValuePart</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.ael.filter_gen</span><span class="w"> </span><span class="kn">import</span> <span class="n">FilterGenerator</span><span class="p">,</span> <span class="n">Index</span><span class="p">,</span> <span class="n">IndexContext</span><span class="p">,</span> <span class="n">IndexTypeEnum</span><span class="p">,</span> <span class="n">ParseResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.ael.filter_gen</span><span class="w"> </span><span class="kn">import</span> <span class="n">FilterGenerator</span><span class="p">,</span> <span class="n">IndexContext</span><span class="p">,</span> <span class="n">ParseResult</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">_AELParseErrorListener</span><span class="p">(</span><span class="n">ErrorListener</span><span class="p">):</span>
@@ -603,15 +603,13 @@
 
 <span class="sd">    Example::</span>
 
-<span class="sd">        indexes = [</span>
-<span class="sd">            Index(bin=&quot;intBin1&quot;, index_type=IndexTypeEnum.NUMERIC, bin_values_ratio=0),</span>
-<span class="sd">            Index(bin=&quot;intBin2&quot;, index_type=IndexTypeEnum.NUMERIC, bin_values_ratio=1),</span>
-<span class="sd">        ]</span>
-<span class="sd">        ctx = IndexContext.of(&quot;test&quot;, indexes)</span>
+<span class="sd">        Build an :class:`~aerospike_sdk.ael.filter_gen.IndexContext` with</span>
+<span class="sd">        :class:`~aerospike_sdk.ael.filter_gen.Index` entries (see ``filter_gen``),</span>
+<span class="sd">        then pass it as *index_context*::</span>
 
-<span class="sd">        result = parse_ael_with_index(&quot;$.intBin1 &gt; 100 and $.intBin2 &lt; 1000&quot;, ctx)</span>
-
-<span class="sd">        result = parse_ael_with_index(&quot;$.intBin1 &gt; ?0&quot;, ctx, (100,))</span>
+<span class="sd">            ctx = IndexContext.of(&quot;test&quot;, [...])</span>
+<span class="sd">            result = parse_ael_with_index(&quot;$.intBin1 &gt; 100 and $.intBin2 &lt; 1000&quot;, ctx)</span>
+<span class="sd">            result = parse_ael_with_index(&quot;$.intBin1 &gt; ?0&quot;, ctx, (100,))</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">generator</span> <span class="o">=</span> <span class="n">FilterGenerator</span><span class="p">(</span><span class="n">index_context</span><span class="p">)</span>
     <span class="n">pv</span> <span class="o">=</span> <span class="n">PlaceholderValues</span><span class="p">(</span><span class="o">*</span><span class="n">placeholder_values</span><span class="p">)</span> <span class="k">if</span> <span class="n">placeholder_values</span> <span class="k">else</span> <span class="kc">None</span>

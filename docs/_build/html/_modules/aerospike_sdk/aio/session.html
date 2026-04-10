@@ -579,6 +579,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">dataset</span><span class="p">:</span> <span class="n">DataSet</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QueryBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a query builder from a DataSet.&quot;&quot;&quot;</span>
         <span class="o">...</span>
@@ -587,6 +589,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">key</span><span class="p">:</span> <span class="n">Key</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QueryBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a query builder for a single Key (point read).&quot;&quot;&quot;</span>
         <span class="o">...</span>
@@ -595,6 +599,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">keys</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Key</span><span class="p">],</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QueryBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a query builder for multiple Keys (batch read).&quot;&quot;&quot;</span>
         <span class="o">...</span>
@@ -603,6 +609,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="n">keys</span><span class="p">:</span> <span class="n">Key</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QueryBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a query builder for multiple Keys (varargs).&quot;&quot;&quot;</span>
         <span class="o">...</span>
@@ -612,6 +619,8 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">set_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QueryBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a query builder with explicit namespace/set.&quot;&quot;&quot;</span>
         <span class="o">...</span>
@@ -621,13 +630,14 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">arg1</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">DataSet</span><span class="p">,</span> <span class="n">Key</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">Key</span><span class="p">],</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">arg2</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">arg2</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Key</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="o">*</span><span class="n">keys</span><span class="p">:</span> <span class="n">Key</span><span class="p">,</span>
         <span class="n">namespace</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">set_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">dataset</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DataSet</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">key</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Key</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">keys_list</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Key</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QueryBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Start a read or secondary-index query for keys or a whole set.</span>
 
@@ -650,6 +660,8 @@
 <span class="sd">            key: Keyword single key.</span>
 <span class="sd">            keys_list: Keyword list of keys when not using ``arg1`` or varargs;</span>
 <span class="sd">                forwarded to the client as ``keys``.</span>
+<span class="sd">            behavior: Optional override for this query; defaults to the session&#39;s</span>
+<span class="sd">                :attr:`behavior`.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            A :class:`~aerospike_sdk.aio.operations.query.QueryBuilder` to</span>
@@ -673,7 +685,7 @@
 <span class="sd">            :meth:`Client.query`: Same shapes without session behavior.</span>
 <span class="sd">            :meth:`upsert`: Writes for the same keys.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_behavior</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_behavior</span> <span class="k">if</span> <span class="n">behavior</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">behavior</span>
         <span class="c1"># Handle positional arguments (SDK API)</span>
         <span class="k">if</span> <span class="n">arg1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">DataSet</span><span class="p">):</span>
@@ -705,7 +717,7 @@
                 <span class="n">keys_list</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">arg1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">Key</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span> <span class="n">arg2</span><span class="p">)</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">keys</span><span class="o">=</span><span class="n">keys_list</span><span class="p">,</span> <span class="n">behavior</span><span class="o">=</span><span class="n">b</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">query</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">query</span><span class="p">(</span>  <span class="c1"># type: ignore[call-overload]</span>
             <span class="n">namespace</span><span class="o">=</span><span class="n">namespace</span><span class="p">,</span>
             <span class="n">set_name</span><span class="o">=</span><span class="n">set_name</span><span class="p">,</span>
             <span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span>
@@ -720,6 +732,7 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">dataset</span><span class="p">:</span> <span class="n">DataSet</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">IndexBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create an index builder from a DataSet.&quot;&quot;&quot;</span>
         <span class="o">...</span>
@@ -729,6 +742,8 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">set_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">IndexBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create an index builder with explicit namespace/set.&quot;&quot;&quot;</span>
         <span class="o">...</span>
@@ -741,6 +756,7 @@
         <span class="n">set_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">dataset</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DataSet</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">behavior</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Behavior</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">IndexBuilder</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Create a secondary index builder for a namespace and set.</span>
@@ -750,6 +766,8 @@
 <span class="sd">            set_name: Set name when not using ``dataset``.</span>
 <span class="sd">            dataset: Optional :class:`~aerospike_sdk.dataset.DataSet` that</span>
 <span class="sd">                supplies namespace and set.</span>
+<span class="sd">            behavior: Reserved for symmetry with :meth:`query`; forwarded to</span>
+<span class="sd">                :meth:`Client.index` but not used by index operations yet.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            :class:`~aerospike_sdk.aio.operations.index.IndexBuilder` for</span>
@@ -768,9 +786,11 @@
 <span class="sd">            :meth:`Client.index`</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">dataset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span> <span class="n">behavior</span><span class="o">=</span><span class="n">behavior</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">namespace</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">set_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="n">set_name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">index</span><span class="p">(</span>
+                <span class="n">namespace</span><span class="p">,</span> <span class="n">set_name</span><span class="p">,</span> <span class="n">behavior</span><span class="o">=</span><span class="n">behavior</span><span class="p">,</span>
+            <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                 <span class="s2">&quot;Invalid arguments. Use either:</span><span class="se">\n</span><span class="s2">&quot;</span>
@@ -823,9 +843,7 @@
 <span class="sd">            If command is None: InfoCommands instance.</span>
 <span class="sd">            If command is given: awaitable dict (node -&gt; response).</span>
 
-<span class="sd">        Example:</span>
-
-<span class="sd">            .. code-block:: python</span>
+<span class="sd">        Example::</span>
 
 <span class="sd">                # Raw command (no double .info)</span>
 <span class="sd">                response = await session.info(&quot;sindex-list&quot;)</span>
@@ -858,9 +876,7 @@
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: If the namespace is unknown or the info command fails.</span>
 
-<span class="sd">        Example:</span>
-
-<span class="sd">            .. code-block:: python</span>
+<span class="sd">        Example::</span>
 
 <span class="sd">                if await session.is_namespace_sc(&quot;test&quot;):</span>
 <span class="sd">                    print(&quot;Namespace &#39;test&#39; is in strong consistency mode&quot;)</span>
@@ -909,9 +925,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            The result of the operation function.</span>
 
-<span class="sd">        Example:</span>
-
-<span class="sd">            .. code-block:: python</span>
+<span class="sd">        Example::</span>
 
 <span class="sd">                async def transfer_funds(tx_session):</span>
 <span class="sd">                    await tx_session.upsert(accounts.id(&quot;acc1&quot;)).put({&quot;balance&quot;: 100}).execute()</span>

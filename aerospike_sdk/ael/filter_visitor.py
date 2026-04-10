@@ -20,7 +20,6 @@ Used by FilterGenerator so filter selection uses a single parse (no hand-written
 
 from __future__ import annotations
 
-import base64
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
 

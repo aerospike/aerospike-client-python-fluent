@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import os
-import typing
 from typing import List, Optional, Union
 
 from aerospike_async import AuthMode, ClientPolicy
@@ -81,9 +80,7 @@ class ClusterDefinition:
     with blocking :meth:`connect` and context-manager support on
     :class:`~aerospike_sdk.sync.cluster.Cluster`.
 
-    Example:
-
-        .. code-block:: python
+    Example::
 
             with (
                 ClusterDefinition("localhost", 3100)
@@ -415,9 +412,7 @@ class ClusterDefinition:
         parameters. The returned Cluster should be closed when no longer needed
         to properly release resources.
 
-        Example with context manager:
-
-            .. code-block:: python
+        Example with context manager::
 
                 with ClusterDefinition("localhost", 3100).connect() as cluster:
                     session = cluster.create_session(Behavior.DEFAULT)

@@ -19,7 +19,7 @@ Re-exports FilterExpression as Exp and provides a convenience val() function
 for creating value expressions from Python values.
 """
 
-from typing import Any, Dict, List, Optional, Union, overload
+from typing import Any, Dict, List, Optional, overload
 
 from aerospike_async import (
     CTX,

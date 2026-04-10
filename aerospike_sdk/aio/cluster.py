@@ -17,10 +17,11 @@
 
 from __future__ import annotations
 
+import types
 import typing
 from typing import Optional
 
-from aerospike_async import ClientPolicy, new_client
+from aerospike_async import ClientPolicy
 
 from aerospike_sdk.aio.client import Client
 from aerospike_sdk.exceptions import ConnectionError
@@ -39,8 +40,7 @@ class Cluster:
     ``async with await ClusterDefinition(...).connect() as cluster`` so
     :meth:`close` runs on exit.
 
-    Example:
-        .. code-block:: python
+    Example::
 
             async with await ClusterDefinition("localhost", 3100).connect() as cluster:
                 session = cluster.create_session(Behavior.DEFAULT)
@@ -95,7 +95,7 @@ class Cluster:
         self,
         exc_type: Optional[type[BaseException]],
         exc_val: Optional[BaseException],
-        exc_tb: Optional[typing.TracebackType],
+        exc_tb: Optional[types.TracebackType],
     ) -> None:
         """Async context manager exit."""
         await self.close()

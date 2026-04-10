@@ -40,6 +40,10 @@ from aerospike_async import (
     BatchUDFPolicy,
     BatchWriteOp,
     BatchWritePolicy,
+    BitOperation,
+    BitPolicy,
+    BitwiseResizeFlags,
+    BitwiseWriteFlags,
     CTX,
     Client,
     ExecuteTask,
@@ -50,6 +54,7 @@ from aerospike_async import (
     Filter,
     FilterExpression,
     GenerationPolicy,
+    HllOperation,
     Key,
     ListOperation,
     ListOrderType,
@@ -71,10 +76,7 @@ from aerospike_async import (
     Statement,
     WritePolicy,
 )
-from aerospike_async.exceptions import (
-    ResultCode,
-    ServerError as PacServerError,
-)
+from aerospike_async.exceptions import ResultCode
 
 from aerospike_sdk.aio.operations.cdt_read import (
     CdtReadBuilder,
@@ -84,9 +86,29 @@ from aerospike_sdk.aio.operations.cdt_read import (
 from aerospike_sdk.aio.operations.cdt_write import (
     CdtWriteBuilder,
     CdtWriteInvertableBuilder,
+    _UNORDERED_LIST_POLICY,
+    _resolve_list_policy,
+    _resolve_map_policy,
 )
 
 log = logging.getLogger("aerospike_sdk.query")
+
+_bitwise_and = getattr(BitOperation, "and")
+_bitwise_not = getattr(BitOperation, "not")
+_bitwise_or = getattr(BitOperation, "or")
+
+
+def _bit_policy_or_default(policy: Optional[Any]) -> Any:
+    if policy is None:
+        return BitPolicy(BitwiseWriteFlags.DEFAULT)
+    return policy
+
+
+def _resize_flags_or_default(resize_flags: Optional[Any]) -> Any:
+    if resize_flags is None:
+        return BitwiseResizeFlags.DEFAULT
+    return resize_flags
+
 
 _EXP_WRITE_DEFAULT = int(ExpWriteFlags.DEFAULT)
 _EXP_WRITE_CREATE_ONLY = int(ExpWriteFlags.CREATE_ONLY)
@@ -109,6 +131,8 @@ def _to_expiration(ttl: int) -> Expiration:
     if ttl == _TTL_SERVER_DEFAULT:
         return Expiration.NAMESPACE_DEFAULT
     return Expiration.seconds(ttl)
+
+
 from aerospike_sdk.policy.policy_mapper import (
     to_batch_policy,
     to_batch_read_policy,
@@ -124,7 +148,6 @@ from aerospike_sdk.background_shared import (
 from aerospike_sdk.ael.parser import parse_ael, parse_ael_with_index
 from aerospike_sdk.error_strategy import (
     ErrorHandler,
-    ErrorStrategy,
     OnError,
     _ErrorDisposition,
     _resolve_disposition,
@@ -151,15 +174,18 @@ class QueryHint:
     are mutually exclusive.  ``query_duration`` overrides the policy's
     ``expected_duration`` for this query only.
 
-    Example:
-        >>> hint = QueryHint(index_name="age_idx",
-        ...                  query_duration=QueryDuration.SHORT)
-        >>> stream = await (
-        ...     session.query(dataset)
-        ...         .filter(Filter.equal("age", 30))
-        ...         .with_hint(hint)
-        ...         .execute()
-        ... )
+    Example::
+
+        hint = QueryHint(
+            index_name="age_idx",
+            query_duration=QueryDuration.SHORT,
+        )
+        stream = await (
+            session.query(dataset)
+                .filter(Filter.equal("age", 30))
+                .with_hint(hint)
+                .execute()
+        )
 
     Args:
         index_name: Force the query to use the named secondary index.
@@ -742,9 +768,7 @@ class QueryBuilder(_WriteVerbs):
         Returns:
             self for method chaining.
             
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 query = session.query(dataset).on_partitions(1, 2, 3)
         """
@@ -775,9 +799,7 @@ class QueryBuilder(_WriteVerbs):
         Raises:
             ValueError: If part_id is out of range
             
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 query = session.query(dataset).on_partition(5)
         """
@@ -804,9 +826,7 @@ class QueryBuilder(_WriteVerbs):
         Raises:
             ValueError: If partition range is invalid
             
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 # Query partitions 0-2047 (first half)
                 query = session.query(dataset).on_partition_range(0, 2048)
@@ -844,9 +864,7 @@ class QueryBuilder(_WriteVerbs):
         Raises:
             ValueError: If ``chunk_size <= 0``.
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 query = session.query(dataset).chunk_size(100)
 
@@ -868,9 +886,7 @@ class QueryBuilder(_WriteVerbs):
         Returns:
             self for method chaining.
             
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 query = session.query(dataset).records_per_second(1000)
         """
@@ -887,9 +903,7 @@ class QueryBuilder(_WriteVerbs):
         Returns:
             self for method chaining.
             
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 query = session.query(dataset).max_records(10000)
         """
@@ -913,9 +927,7 @@ class QueryBuilder(_WriteVerbs):
         Raises:
             ValueError: If limit is <= 0.
             
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 query = session.query(dataset).limit(100)
         """
@@ -933,9 +945,7 @@ class QueryBuilder(_WriteVerbs):
         Returns:
             self for method chaining.
             
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 from aerospike_async import QueryDuration
                 query = session.query(dataset).expected_duration(QueryDuration.SHORT)
@@ -951,13 +961,14 @@ class QueryBuilder(_WriteVerbs):
         expected query duration (``query_duration``).  Only one call to
         ``with_hint`` is allowed per builder.
 
-        Example:
-            >>> stream = await (
-            ...     session.query(dataset)
-            ...         .filter(Filter.equal("age", 30))
-            ...         .with_hint(QueryHint(index_name="age_idx"))
-            ...         .execute()
-            ... )
+        Example::
+
+            stream = await (
+                session.query(dataset)
+                    .filter(Filter.equal("age", 30))
+                    .with_hint(QueryHint(index_name="age_idx"))
+                    .execute()
+            )
 
         Args:
             hint: A :class:`QueryHint` instance.
@@ -986,9 +997,7 @@ class QueryBuilder(_WriteVerbs):
         Returns:
             self for method chaining.
         
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 from aerospike_async import Replica
                 query = session.query(dataset).replica(Replica.SEQUENCE)
@@ -1006,9 +1015,7 @@ class QueryBuilder(_WriteVerbs):
         Returns:
             self for method chaining.
         
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 from aerospike_async import BasePolicy
                 base = BasePolicy()
@@ -2595,7 +2602,8 @@ class WriteBinBuilder(_WriteVerbs):
     """Per-bin write builder inside a :class:`WriteSegmentBuilder`.
 
     Start with :meth:`WriteSegmentBuilder.bin`. Scalar methods delegate to the
-    segment; ``map_*`` and ``list_*`` append collection operations; nested CDT
+    segment; ``map_*`` and ``list_*`` append collection operations; ``hll_*``
+    and ``bit_*`` append HyperLogLog and blob bit operations; nested CDT
     builders capture context for maps and lists. Write verbs on this class
     finalize the segment and start a new one on new keys.
 
@@ -2651,27 +2659,55 @@ class WriteBinBuilder(_WriteVerbs):
 
     # -- CDT list structural operations ---------------------------------------
 
-    def list_add(self, value: Any) -> WriteSegmentBuilder:
+    def list_add(
+        self, value: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+    ) -> WriteSegmentBuilder:
         """Add *value* to an ordered list (sorted insert).
 
         Args:
             value: Element to insert in sorted order.
+            unique: Reject if the value already exists in the list.
+            bounded: Reject if index is beyond the current list bounds.
+            no_fail: Do not raise on write failures.
 
         Returns:
             The parent :class:`WriteSegmentBuilder`.
         """
+        policy = _resolve_list_policy(
+            ListOrderType.ORDERED, unique=unique, bounded=bounded,
+            no_fail=no_fail,
+        )
         return self._segment._add_op(
-            ListOperation.append(self._bin, value, ListPolicy(ListOrderType.ORDERED, None)),
+            ListOperation.append(self._bin, value, policy),
         )
 
-    def list_append(self, value: Any) -> WriteSegmentBuilder:
+    def list_append(
+        self, value: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+    ) -> WriteSegmentBuilder:
         """Append *value* to the end of an unordered list.
+
+        Args:
+            value: Value to append.
+            unique: Reject if the value already exists in the list.
+            bounded: Reject if index is beyond the current list bounds.
+            no_fail: Do not raise on write failures.
 
         Example::
             .bin("tags").list_append(value="python")
         """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded, no_fail=no_fail,
+        )
         return self._segment._add_op(
-            ListOperation.append(self._bin, value, ListPolicy(None, None)),
+            ListOperation.append(self._bin, value, policy),
         )
 
     # -- Collection-level map -------------------------------------------------
@@ -2692,36 +2728,89 @@ class WriteBinBuilder(_WriteVerbs):
         """
         return self._segment._add_op(MapOperation.size(self._bin))
 
-    def map_upsert_items(self, items: Any) -> WriteSegmentBuilder:
+    def map_upsert_items(
+        self, items: Any,
+        *,
+        order: MapOrder | None = None,
+        persist_index: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> WriteSegmentBuilder:
         """Put multiple map entries (create or update each key).
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+            order: Map key order for the policy.
+            persist_index: Maintain a persistent index on the map.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
 
         Example::
             .bin("settings").map_upsert_items({"theme": "dark", "lang": "en"})
         """
         pairs = _map_item_pairs(items)
-        return self._segment._add_op(
-            MapOperation.put_items(self._bin, pairs, MapPolicy(None, None)),
+        policy = _resolve_map_policy(
+            int(MapWriteFlags.DEFAULT),
+            order=order, persist_index=persist_index,
+            no_fail=no_fail, partial=partial,
         )
-
-    def map_insert_items(self, items: Any) -> WriteSegmentBuilder:
-        """Put map entries only for keys that do not yet exist."""
-        pairs = _map_item_pairs(items)
-        policy = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
         return self._segment._add_op(
             MapOperation.put_items(self._bin, pairs, policy),
         )
 
-    def map_update_items(self, items: Any) -> WriteSegmentBuilder:
+    def map_insert_items(
+        self, items: Any,
+        *,
+        order: MapOrder | None = None,
+        persist_index: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Put map entries only for keys that do not yet exist.
+
+        Args:
+            items: Mapping or sequence of ``(key, value)`` pairs.
+            order: Map key order for the policy.
+            persist_index: Maintain a persistent index on the map.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
+        """
+        pairs = _map_item_pairs(items)
+        policy = _resolve_map_policy(
+            int(MapWriteFlags.CREATE_ONLY),
+            order=order, persist_index=persist_index,
+            no_fail=no_fail, partial=partial,
+        )
+        return self._segment._add_op(
+            MapOperation.put_items(self._bin, pairs, policy),
+        )
+
+    def map_update_items(
+        self, items: Any,
+        *,
+        order: MapOrder | None = None,
+        persist_index: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> WriteSegmentBuilder:
         """Update existing map entries only (no new keys).
 
         Args:
             items: Key-value pairs to update for existing keys only.
+            order: Map key order for the policy.
+            persist_index: Maintain a persistent index on the map.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
 
         Returns:
             The parent :class:`WriteSegmentBuilder`.
         """
         pairs = _map_item_pairs(items)
-        policy = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
+        policy = _resolve_map_policy(
+            int(MapWriteFlags.UPDATE_ONLY),
+            order=order, persist_index=persist_index,
+            no_fail=no_fail, partial=partial,
+        )
         return self._segment._add_op(
             MapOperation.put_items(self._bin, pairs, policy),
         )
@@ -2781,27 +2870,57 @@ class WriteBinBuilder(_WriteVerbs):
         """
         return self._segment._add_op(ListOperation.size(self._bin))
 
-    def list_append_items(self, items: Any) -> WriteSegmentBuilder:
-        """Append values to an unordered list."""
+    def list_append_items(
+        self, items: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Append values to an unordered list.
+
+        Args:
+            items: Values to append.
+            unique: Reject items that already exist in the list.
+            bounded: Reject inserts beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
+        """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded,
+            no_fail=no_fail, partial=partial,
+        )
         return self._segment._add_op(
-            ListOperation.append_items(
-                self._bin, items, ListPolicy(None, None),
-            ),
+            ListOperation.append_items(self._bin, items, policy),
         )
 
-    def list_add_items(self, items: Any) -> WriteSegmentBuilder:
+    def list_add_items(
+        self, items: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> WriteSegmentBuilder:
         """Insert values into an ordered list (sorted positions).
 
         Args:
             items: Sequence of values to insert in sorted order.
+            unique: Reject items that already exist in the list.
+            bounded: Reject inserts beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
 
         Returns:
             The parent :class:`WriteSegmentBuilder`.
         """
+        policy = _resolve_list_policy(
+            ListOrderType.ORDERED, unique=unique, bounded=bounded,
+            no_fail=no_fail, partial=partial,
+        )
         return self._segment._add_op(
-            ListOperation.append_items(
-                self._bin, items, ListPolicy(ListOrderType.ORDERED, None),
-            ),
+            ListOperation.append_items(self._bin, items, policy),
         )
 
     def list_create(
@@ -2831,6 +2950,1015 @@ class WriteBinBuilder(_WriteVerbs):
             The parent :class:`WriteSegmentBuilder`.
         """
         return self._segment._add_op(ListOperation.set_order(self._bin, order))
+
+    # -- Index-based list (whole-bin) ----------------------------------------
+
+    def list_insert(
+        self, index: int, value: Any,
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Insert *value* at *index* in an unordered list.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+            value: Element to insert.
+            unique: Reject if the value already exists in the list.
+            bounded: Reject if index is beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_append`, :meth:`QueryBinBuilder.list_get`
+        """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded, no_fail=no_fail,
+        )
+        return self._segment._add_op(
+            ListOperation.insert(self._bin, index, value, policy),
+        )
+
+    def list_insert_items(
+        self, index: int, items: Sequence[Any],
+        *,
+        unique: bool = False,
+        bounded: bool = False,
+        no_fail: bool = False,
+        partial: bool = False,
+    ) -> WriteSegmentBuilder:
+        """Insert a sequence of values starting at *index*.
+
+        Args:
+            index: List index at which to insert the first element.
+            items: Values to insert in order.
+            unique: Reject items that already exist in the list.
+            bounded: Reject inserts beyond the current list bounds.
+            no_fail: Do not raise on write failures.
+            partial: Allow partial success for bulk operations.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_insert`, :meth:`list_append_items`
+        """
+        policy = _resolve_list_policy(
+            None, unique=unique, bounded=bounded,
+            no_fail=no_fail, partial=partial,
+        )
+        return self._segment._add_op(
+            ListOperation.insert_items(self._bin, index, items, policy),
+        )
+
+    def list_set(self, index: int, value: Any) -> WriteSegmentBuilder:
+        """Replace the element at *index* with *value*.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+            value: New element value.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_get`
+        """
+        return self._segment._add_op(ListOperation.set(self._bin, index, value))
+
+    def list_increment(self, index: int, value: int = 1) -> WriteSegmentBuilder:
+        """Add *value* to the numeric element at *index* (default increment is ``1``).
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+            value: Amount to add; ``1`` uses a dedicated server path.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_set`
+        """
+        if value == 1:
+            return self._segment._add_op(
+                ListOperation.increment_by_one(self._bin, index),
+            )
+        return self._segment._add_op(
+            ListOperation.increment(
+                self._bin, index, value, _UNORDERED_LIST_POLICY,
+            ),
+        )
+
+    def list_remove(self, index: int) -> WriteSegmentBuilder:
+        """Remove the element at *index*.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_remove_range`
+        """
+        return self._segment._add_op(ListOperation.remove(self._bin, index))
+
+    def list_remove_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> WriteSegmentBuilder:
+        """Remove *count* elements starting at *index*, or all from *index* onward.
+
+        Args:
+            index: Starting list index.
+            count: Number of elements to remove; ``None`` removes through the end.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_remove`
+        """
+        if count is None:
+            op = ListOperation.remove_range_from(self._bin, index)
+        else:
+            op = ListOperation.remove_range(self._bin, index, count)
+        return self._segment._add_op(op)
+
+    def list_pop(self, index: int) -> WriteSegmentBuilder:
+        """Remove and return the element at *index* (read in the operate result).
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_pop_range`
+        """
+        return self._segment._add_op(ListOperation.pop(self._bin, index))
+
+    def list_pop_range(
+        self, index: int, count: Optional[int] = None,
+    ) -> WriteSegmentBuilder:
+        """Pop *count* elements from *index*, or from *index* through the end.
+
+        Args:
+            index: Starting list index.
+            count: Number of elements; ``None`` pops through the end.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_pop`
+        """
+        if count is None:
+            op = ListOperation.pop_range_from(self._bin, index)
+        else:
+            op = ListOperation.pop_range(self._bin, index, count)
+        return self._segment._add_op(op)
+
+    def list_trim(self, index: int, count: int) -> WriteSegmentBuilder:
+        """Keep only *count* elements starting at *index*; remove the rest.
+
+        Args:
+            index: Starting list index of the range to keep.
+            count: Number of elements to keep.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder`.
+
+        See Also:
+            :meth:`list_remove_range`
+        """
+        return self._segment._add_op(
+            ListOperation.trim(self._bin, index, count),
+        )
+
+    # -- HyperLogLog ----------------------------------------------------------
+
+    def hll_init(
+        self,
+        index_bit_count: int,
+        min_hash_bit_count: int = -1,
+        flags: int = 0,
+    ) -> WriteSegmentBuilder:
+        """Initialize an empty HyperLogLog sketch in this bin.
+
+        Use before :meth:`hll_add` on a new bin. Pass ``-1`` for
+        ``min_hash_bit_count`` to use the server default. Combine ``flags``
+        with values from :class:`~aerospike_sdk.HLLWriteFlags`.
+
+        Example::
+            await ( session.upsert(key) .bin("visitors") .hll_init(12) .execute() )
+
+        Args:
+            index_bit_count: Register width index bits (precision); typical values are in the 4–16 range per server documentation.
+            min_hash_bit_count: Minimum hash bits, or ``-1`` for default.
+            flags: Optional HLL write flags (often ``0`` or :attr:`~aerospike_sdk.HLLWriteFlags.DEFAULT`).
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`hll_add`: Add distinct values to the sketch.
+            :meth:`QueryBinBuilder.hll_get_count`: Read cardinality in a query.
+            :class:`~aerospike_sdk.HLLWriteFlags`
+        """
+        return self._segment._add_op(
+            HllOperation.init(
+                self._bin,
+                index_bit_count,
+                min_hash_bit_count,
+                flags,
+            ),
+        )
+
+    def hll_add(
+        self,
+        values: Sequence[Any],
+        index_bit_count: int = -1,
+        min_hash_bit_count: int = -1,
+        flags: int = 0,
+    ) -> WriteSegmentBuilder:
+        """Add distinct values to the HyperLogLog sketch in this bin.
+
+        The server hashes each element into the sketch. Use ``-1`` for index
+        or min-hash bit counts to inherit defaults.
+
+        Example::
+            await ( session.upsert(key) .bin("visitors") .hll_add(["user-1", "user-2"]) .execute() )
+
+        Args:
+            values: Sequence of values (for example strings or blobs) to add.
+            index_bit_count: Index bits, or ``-1`` for default.
+            min_hash_bit_count: Min-hash bits, or ``-1`` for default.
+            flags: Optional HLL write flags (often ``0``).
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`hll_init`: Create an empty sketch.
+            :meth:`hll_get_count`: Read cardinality in the same operate batch.
+            :class:`~aerospike_sdk.HLLWriteFlags`
+        """
+        return self._segment._add_op(
+            HllOperation.add(
+                self._bin,
+                list(values),
+                index_bit_count,
+                min_hash_bit_count,
+                flags,
+            ),
+        )
+
+    def hll_set_union(self, hll_list: Sequence[Any], flags: int = 0) -> WriteSegmentBuilder:
+        """Merge other HyperLogLog sketches into this bin (destructive union).
+
+        Each entry in ``hll_list`` is typically another HLL blob (``bytes``)
+        returned from a prior read.
+
+        Example::
+            await ( session.upsert(key) .bin("merged") .hll_set_union([other_hll_blob]) .execute() )
+
+        Args:
+            hll_list: Sketches to union into the target bin.
+            flags: Optional HLL write flags (often ``0``).
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`hll_get_union`: Non-destructive union read.
+            :meth:`hll_add`: Add raw values instead of whole sketches.
+        """
+        return self._segment._add_op(
+            HllOperation.set_union(self._bin, list(hll_list), flags),
+        )
+
+    def hll_fold(self, index_bit_count: int) -> WriteSegmentBuilder:
+        """Reduce sketch precision to a lower ``index_bit_count`` (merge registers).
+
+        Example::
+            await session.update(key).bin("hll").hll_fold(10).execute()
+
+        Args:
+            index_bit_count: New (smaller) index bit width after folding.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`hll_init`: Initial precision when creating a sketch.
+        """
+        return self._segment._add_op(HllOperation.fold(self._bin, index_bit_count))
+
+    def hll_refresh_count(self) -> WriteSegmentBuilder:
+        """Refresh the cached cardinality estimate stored with the sketch.
+
+        Example::
+            await session.update(key).bin("hll").hll_refresh_count().execute()
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`hll_get_count`: Read the estimate in the same batch.
+        """
+        return self._segment._add_op(HllOperation.refresh_count(self._bin))
+
+    def hll_get_count(self) -> WriteSegmentBuilder:
+        """Read the estimated cardinality in a multi-operation write (``operate``).
+
+        The result is returned for this bin when the write completes. For a
+        read-only path, use :meth:`QueryBinBuilder.hll_get_count`.
+
+        Example::
+            stream = await ( session.update(key) .bin("hll") .hll_get_count() .execute() )
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.hll_get_count`: Same read on a query builder.
+            :meth:`hll_add`: Populate the sketch before counting.
+        """
+        return self._segment._add_op(HllOperation.get_count(self._bin))
+
+    def hll_describe(self) -> WriteSegmentBuilder:
+        """Read index and min-hash bit counts describing the stored sketch.
+
+        Example::
+            await session.update(key).bin("hll").hll_describe().execute()
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.hll_describe`: Same read on a query builder.
+        """
+        return self._segment._add_op(HllOperation.describe(self._bin))
+
+    def hll_get_union(self, hll_list: Sequence[Any]) -> WriteSegmentBuilder:
+        """Read the union sketch without modifying the stored bin.
+
+        Example::
+            await ( session.update(key) .bin("hll") .hll_get_union([peer_blob]) .execute() )
+
+        Args:
+            hll_list: Other sketches (blobs) to include in the union result.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.hll_get_union`: Same read on a query builder.
+            :meth:`hll_set_union`: Persist a union into the bin.
+        """
+        return self._segment._add_op(
+            HllOperation.get_union(self._bin, list(hll_list)),
+        )
+
+    def hll_get_union_count(self, hll_list: Sequence[Any]) -> WriteSegmentBuilder:
+        """Read the estimated cardinality of the union with other sketches.
+
+        Example::
+            await ( session.update(key) .bin("hll") .hll_get_union_count([peer_blob]) .execute() )
+
+        Args:
+            hll_list: Other sketches to union for the estimate.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.hll_get_union_count`: Same read on a query.
+        """
+        return self._segment._add_op(
+            HllOperation.get_union_count(self._bin, list(hll_list)),
+        )
+
+    def hll_get_intersect_count(self, hll_list: Sequence[Any]) -> WriteSegmentBuilder:
+        """Read the estimated intersection cardinality with other sketches.
+
+        Example::
+            await ( session.update(key) .bin("hll") .hll_get_intersect_count([peer_blob]) .execute() )
+
+        Args:
+            hll_list: Other sketches included in the intersection estimate.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.hll_get_intersect_count`: Same read on a query.
+        """
+        return self._segment._add_op(
+            HllOperation.get_intersect_count(self._bin, list(hll_list)),
+        )
+
+    def hll_get_similarity(self, hll_list: Sequence[Any]) -> WriteSegmentBuilder:
+        """Read Jaccard similarity between this sketch and other sketches.
+
+        Example::
+            await ( session.update(key) .bin("hll") .hll_get_similarity([peer_blob]) .execute() )
+
+        Args:
+            hll_list: Other sketches to compare.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.hll_get_similarity`: Same read on a query.
+        """
+        return self._segment._add_op(
+            HllOperation.get_similarity(self._bin, list(hll_list)),
+        )
+
+    # -- Bit (blob) -----------------------------------------------------------
+
+    def bit_resize(
+        self,
+        byte_size: int,
+        resize_flags: Optional[Any] = None,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Grow or shrink the raw bytes backing this bin.
+
+        When ``resize_flags`` is ``None``, :attr:`~aerospike_sdk.BitwiseResizeFlags.DEFAULT`
+        is used. When ``policy`` is ``None``, a default :class:`~aerospike_sdk.BitPolicy`
+        is built from :attr:`~aerospike_sdk.BitwiseWriteFlags.DEFAULT`.
+
+        Example::
+            await session.upsert(key).bin("flags").bit_resize(4).execute()
+
+        Args:
+            byte_size: Target size of the blob in bytes.
+            resize_flags: Optional :class:`~aerospike_sdk.BitwiseResizeFlags` value; ``None`` selects ``DEFAULT``.
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_insert`: Insert raw bytes at an offset.
+            :meth:`QueryBinBuilder.bit_get`: Read bits in a query.
+        """
+        return self._segment._add_op(
+            BitOperation.resize(
+                self._bin,
+                byte_size,
+                _resize_flags_or_default(resize_flags),
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_insert(
+        self,
+        byte_offset: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Insert ``value`` (bytes) at a byte offset in the blob bin.
+
+        Example::
+            await session.update(key).bin("blob").bit_insert(0, b"\\x01\\x02").execute()
+
+        Args:
+            byte_offset: Byte position at which to insert.
+            value: Bytes to insert.
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_remove`: Remove a byte range.
+        """
+        return self._segment._add_op(
+            BitOperation.insert(
+                self._bin,
+                byte_offset,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_remove(
+        self,
+        byte_offset: int,
+        byte_size: int,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Remove ``byte_size`` bytes starting at ``byte_offset``.
+
+        Example::
+            await session.update(key).bin("blob").bit_remove(0, 2).execute()
+
+        Args:
+            byte_offset: Start of the range to remove.
+            byte_size: Number of bytes to remove.
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_insert`: Insert bytes at an offset.
+        """
+        return self._segment._add_op(
+            BitOperation.remove(
+                self._bin,
+                byte_offset,
+                byte_size,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_set(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Overwrite ``bit_size`` bits at ``bit_offset`` with ``value``.
+
+        ``value`` is typically a small ``bytes`` object whose bits replace the
+        range (see server documentation for encoding).
+
+        Example::
+            await session.update(key).bin("blob").bit_set(0, 8, b"\\xff").execute()
+
+        Args:
+            bit_offset: Starting bit index within the blob.
+            bit_size: Width of the field in bits.
+            value: Bits to write (commonly ``bytes``).
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_get`: Read the same range in an operate or query.
+            :meth:`bit_or`, :meth:`bit_xor`, :meth:`bit_and`, :meth:`bit_not`
+        """
+        return self._segment._add_op(
+            BitOperation.set(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_or(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Bitwise OR ``value`` into the ``bit_size`` bits at ``bit_offset``.
+
+        Example::
+            await session.update(key).bin("blob").bit_or(0, 8, b"\\x0f").execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Field width in bits.
+            value: Right-hand side of the OR (typically ``bytes``).
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_and`
+            :meth:`bit_xor`
+            :meth:`bit_not`
+        """
+        return self._segment._add_op(
+            _bitwise_or(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_xor(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Bitwise XOR ``value`` into the ``bit_size`` bits at ``bit_offset``.
+
+        Example::
+            await session.update(key).bin("blob").bit_xor(0, 8, b"\\xff").execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Field width in bits.
+            value: Right-hand side of the XOR (typically ``bytes``).
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_or`
+            :meth:`bit_and`
+            :meth:`bit_not`
+        """
+        return self._segment._add_op(
+            BitOperation.xor(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_and(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: Any,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Bitwise AND ``value`` into the ``bit_size`` bits at ``bit_offset``.
+
+        Example::
+            await session.update(key).bin("blob").bit_and(0, 8, b"\\xf0").execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Field width in bits.
+            value: Right-hand side of the AND (typically ``bytes``).
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_or`
+            :meth:`bit_xor`
+            :meth:`bit_not`
+        """
+        return self._segment._add_op(
+            _bitwise_and(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_not(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Invert every bit in the range ``[bit_offset, bit_offset + bit_size)``.
+
+        Example::
+            await session.update(key).bin("blob").bit_not(0, 8).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Field width in bits.
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_or`
+            :meth:`bit_xor`
+            :meth:`bit_and`
+        """
+        return self._segment._add_op(
+            _bitwise_not(
+                self._bin,
+                bit_offset,
+                bit_size,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_lshift(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        shift: int,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Left-shift the ``bit_size`` bits at ``bit_offset`` by ``shift`` bits.
+
+        Example::
+            await session.update(key).bin("blob").bit_lshift(0, 16, 2).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Field width in bits.
+            shift: Number of bits to shift left.
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_rshift`
+        """
+        return self._segment._add_op(
+            BitOperation.lshift(
+                self._bin,
+                bit_offset,
+                bit_size,
+                shift,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_rshift(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        shift: int,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Right-shift the ``bit_size`` bits at ``bit_offset`` by ``shift`` bits.
+
+        Example::
+            await session.update(key).bin("blob").bit_rshift(0, 16, 2).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Field width in bits.
+            shift: Number of bits to shift right.
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_lshift`
+        """
+        return self._segment._add_op(
+            BitOperation.rshift(
+                self._bin,
+                bit_offset,
+                bit_size,
+                shift,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_add(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: int,
+        signed: bool,
+        action: Any,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Add ``value`` to the integer encoded in ``bit_size`` bits at ``bit_offset``.
+
+        ``action`` selects overflow behavior (for example :attr:`~aerospike_sdk.BitwiseOverflowActions.WRAP`).
+
+        Example::
+            from aerospike_sdk import BitwiseOverflowActions
+            await ( session.update(key) .bin("blob") .bit_add(0, 16, 1, False, BitwiseOverflowActions.WRAP) .execute() )
+
+        Args:
+            bit_offset: Starting bit index of the integer field.
+            bit_size: Width of the integer in bits.
+            value: Amount to add.
+            signed: ``True`` if the stored integer is signed.
+            action: Overflow policy (:class:`~aerospike_sdk.BitwiseOverflowActions`).
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_subtract`
+            :meth:`bit_set_int`
+            :meth:`bit_get_int`
+        """
+        return self._segment._add_op(
+            BitOperation.add(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                signed,
+                action,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_subtract(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: int,
+        signed: bool,
+        action: Any,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Subtract ``value`` from the integer in ``bit_size`` bits at ``bit_offset``.
+
+        Example::
+            from aerospike_sdk import BitwiseOverflowActions
+            await ( session.update(key) .bin("blob") .bit_subtract(0, 16, 1, False, BitwiseOverflowActions.SATURATE) .execute() )
+
+        Args:
+            bit_offset: Starting bit index of the integer field.
+            bit_size: Width of the integer in bits.
+            value: Amount to subtract.
+            signed: ``True`` if the stored integer is signed.
+            action: Overflow policy (:class:`~aerospike_sdk.BitwiseOverflowActions`).
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_add`
+            :meth:`bit_set_int`
+        """
+        return self._segment._add_op(
+            BitOperation.subtract(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                signed,
+                action,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_set_int(
+        self,
+        bit_offset: int,
+        bit_size: int,
+        value: int,
+        policy: Optional[Any] = None,
+    ) -> WriteSegmentBuilder:
+        """Write integer ``value`` into ``bit_size`` bits at ``bit_offset``.
+
+        Example::
+            await session.update(key).bin("blob").bit_set_int(0, 16, 42).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Width of the integer in bits.
+            value: Integer to store.
+            policy: Optional :class:`~aerospike_sdk.BitPolicy`; ``None`` selects a default policy.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_get_int`
+            :meth:`bit_add`
+        """
+        return self._segment._add_op(
+            BitOperation.set_int(
+                self._bin,
+                bit_offset,
+                bit_size,
+                value,
+                _bit_policy_or_default(policy),
+            ),
+        )
+
+    def bit_get(self, bit_offset: int, bit_size: int) -> WriteSegmentBuilder:
+        """Read ``bit_size`` bits at ``bit_offset`` as raw bytes in a write operate.
+
+        For read-only access, use :meth:`QueryBinBuilder.bit_get`.
+
+        Example::
+            await session.update(key).bin("blob").bit_get(0, 8).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to read.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.bit_get`
+            :meth:`bit_set`
+        """
+        return self._segment._add_op(BitOperation.get(self._bin, bit_offset, bit_size))
+
+    def bit_count(self, bit_offset: int, bit_size: int) -> WriteSegmentBuilder:
+        """Count bits set to ``1`` in ``bit_size`` bits starting at ``bit_offset``.
+
+        Example::
+            await session.update(key).bin("blob").bit_count(0, 8).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to scan.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.bit_count`
+        """
+        return self._segment._add_op(BitOperation.count(self._bin, bit_offset, bit_size))
+
+    def bit_lscan(self, bit_offset: int, bit_size: int, value: bool) -> WriteSegmentBuilder:
+        """Return the leftmost bit index in the range matching ``value``.
+
+        ``value`` is ``True`` to search for a set bit (``1``) or ``False`` for
+        an unset bit (``0``).
+
+        Example::
+            await session.update(key).bin("blob").bit_lscan(0, 8, True).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to scan.
+            value: ``True`` for set bits, ``False`` for unset bits.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_rscan`
+            :meth:`QueryBinBuilder.bit_lscan`
+        """
+        return self._segment._add_op(
+            BitOperation.lscan(self._bin, bit_offset, bit_size, value),
+        )
+
+    def bit_rscan(self, bit_offset: int, bit_size: int, value: bool) -> WriteSegmentBuilder:
+        """Return the rightmost bit index in the range matching ``value``.
+
+        Example::
+            await session.update(key).bin("blob").bit_rscan(0, 8, False).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to scan.
+            value: ``True`` for set bits, ``False`` for unset bits.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`bit_lscan`
+            :meth:`QueryBinBuilder.bit_rscan`
+        """
+        return self._segment._add_op(
+            BitOperation.rscan(self._bin, bit_offset, bit_size, value),
+        )
+
+    def bit_get_int(
+        self, bit_offset: int, bit_size: int, signed: bool,
+    ) -> WriteSegmentBuilder:
+        """Decode an integer from ``bit_size`` bits at ``bit_offset``.
+
+        Example::
+            await session.update(key).bin("blob").bit_get_int(0, 16, False).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Width of the integer in bits.
+            signed: ``True`` to interpret as two's-complement signed.
+
+        Returns:
+            The parent :class:`WriteSegmentBuilder` for chaining.
+
+        See Also:
+            :meth:`QueryBinBuilder.bit_get_int`
+            :meth:`bit_set_int`
+        """
+        return self._segment._add_op(
+            BitOperation.get_int(self._bin, bit_offset, bit_size, signed),
+        )
 
     # -- Expression operations ------------------------------------------------
 
@@ -2913,23 +4041,31 @@ class WriteBinBuilder(_WriteVerbs):
             bin_name=b, to_ctx=lambda: CTX.map_index(index),
         )
 
-    def on_map_key(self, key: Any) -> CdtWriteBuilder[WriteSegmentBuilder]:
+    def on_map_key(
+        self, key: Any, *, create_type: Optional[MapOrder] = None,
+    ) -> CdtWriteBuilder[WriteSegmentBuilder]:
         """Navigate to a map element by key.
 
         Args:
             key: Map key to target.
+            create_type: If set, use a create-on-missing context for this key
+                with the given map key order.
 
         Returns:
             :class:`CdtWriteBuilder` for writing the targeted element(s).
         """
         b = self._bin
         _mp = MapPolicy(None, None)
+        if create_type is not None:
+            to_ctx = lambda: CTX.map_key_create(key, create_type)
+        else:
+            to_ctx = lambda: CTX.map_key(key)
         return CdtWriteBuilder(
             self._segment,
             lambda rt: MapOperation.get_by_key(b, key, rt),
             lambda rt: MapOperation.remove_by_key(b, key, rt),
             MapReturnType, is_map=True,
-            bin_name=b, to_ctx=lambda: CTX.map_key(key),
+            bin_name=b, to_ctx=to_ctx,
             set_to_factory=lambda v: MapOperation.put(b, key, v, _mp),
             add_factory=lambda v: MapOperation.increment_value(b, key, v, _mp),
         )
@@ -2962,6 +4098,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: MapOperation.get_by_value(b, value, rt),
             lambda rt: MapOperation.remove_by_value(b, value, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_value(value),
         )
 
     def on_map_index_range(
@@ -2985,6 +4122,7 @@ class WriteBinBuilder(_WriteVerbs):
             rm_f = lambda rt: MapOperation.remove_by_index_range(b, index, count, rt)
         return CdtWriteInvertableBuilder(
             self._segment, get_f, rm_f, MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_range(
@@ -3005,6 +4143,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: MapOperation.get_by_key_range(b, start, end, rt),
             lambda rt: MapOperation.remove_by_key_range(b, start, end, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_rank_range(
@@ -3028,6 +4167,7 @@ class WriteBinBuilder(_WriteVerbs):
             rm_f = lambda rt: MapOperation.remove_by_rank_range(b, rank, count, rt)
         return CdtWriteInvertableBuilder(
             self._segment, get_f, rm_f, MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_range(
@@ -3048,6 +4188,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: MapOperation.get_by_value_range(b, start, end, rt),
             lambda rt: MapOperation.remove_by_value_range(b, start, end, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_relative_index_range(
@@ -3073,6 +4214,7 @@ class WriteBinBuilder(_WriteVerbs):
                 b, key, index, count, rt,
             ),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_relative_rank_range(
@@ -3098,6 +4240,7 @@ class WriteBinBuilder(_WriteVerbs):
                 b, value, rank, count, rt,
             ),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_list(self, keys: List[Any]) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
@@ -3115,6 +4258,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: MapOperation.get_by_key_list(b, keys, rt),
             lambda rt: MapOperation.remove_by_key_list(b, keys, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
@@ -3132,15 +4276,25 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: MapOperation.get_by_value_list(b, values, rt),
             lambda rt: MapOperation.remove_by_value_list(b, values, rt),
             MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     # -- List navigation (singular -> CdtWriteBuilder) ------------------------
 
-    def on_list_index(self, index: int) -> CdtWriteBuilder[WriteSegmentBuilder]:
+    def on_list_index(
+        self, index: int,
+        *,
+        order: Optional[ListOrderType] = None,
+        pad: bool = False,
+    ) -> CdtWriteBuilder[WriteSegmentBuilder]:
         """Navigate to a list element by index.
 
         Args:
             index: List index (0-based, negative counts from end).
+            order: If set (or if *pad* is ``True``), use create-on-missing
+                list context with this order; when only *pad* is ``True``,
+                defaults to :data:`~aerospike_async.ListOrderType.UNORDERED`.
+            pad: When using create-on-missing context, allow sparse indexes.
 
         Returns:
             :class:`CdtWriteBuilder` for writing the targeted element(s).
@@ -3149,12 +4303,18 @@ class WriteBinBuilder(_WriteVerbs):
             .bin("items").on_list_index(0).set_to("first")
         """
         b = self._bin
+        use_create = order is not None or pad
+        if use_create:
+            eff_order = order if order is not None else ListOrderType.UNORDERED
+            to_ctx = lambda: CTX.list_index_create(index, eff_order, pad)
+        else:
+            to_ctx = lambda: CTX.list_index(index)
         return CdtWriteBuilder(
             self._segment,
             lambda rt: ListOperation.get_by_index(b, index, rt),
             lambda rt: ListOperation.remove_by_index(b, index, rt),
             ListReturnType, is_map=False,
-            bin_name=b, to_ctx=lambda: CTX.list_index(index),
+            bin_name=b, to_ctx=to_ctx,
         )
 
     def on_list_rank(self, rank: int) -> CdtWriteBuilder[WriteSegmentBuilder]:
@@ -3192,6 +4352,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: ListOperation.get_by_value(b, value, rt),
             lambda rt: ListOperation.remove_by_value(b, value, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_value(value),
         )
 
     def on_list_index_range(
@@ -3212,6 +4373,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: ListOperation.get_by_index_range(b, index, count, rt),
             lambda rt: ListOperation.remove_by_index_range(b, index, count, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_rank_range(
@@ -3232,6 +4394,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: ListOperation.get_by_rank_range(b, rank, count, rt),
             lambda rt: ListOperation.remove_by_rank_range(b, rank, count, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_range(
@@ -3252,6 +4415,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: ListOperation.get_by_value_range(b, start, end, rt),
             lambda rt: ListOperation.remove_by_value_range(b, start, end, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_relative_rank_range(
@@ -3277,6 +4441,7 @@ class WriteBinBuilder(_WriteVerbs):
                 b, value, rank, count, rt,
             ),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_list(self, values: List[Any]) -> CdtWriteInvertableBuilder[WriteSegmentBuilder]:
@@ -3294,6 +4459,7 @@ class WriteBinBuilder(_WriteVerbs):
             lambda rt: ListOperation.get_by_value_list(b, values, rt),
             lambda rt: ListOperation.remove_by_value_list(b, values, rt),
             ListReturnType, is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     # -- Convenience transitions (delegate to segment) ------------------------
@@ -3325,7 +4491,8 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
 
     The type parameter is the parent builder type; the parent must implement
     ``add_operation``. Use :meth:`get` for whole-bin reads, :meth:`select_from`
-    for expression reads, ``on_map_*`` / ``on_list_*`` for paths, then
+    for expression reads, ``on_map_*`` / ``on_list_*`` for paths, ``hll_*`` /
+    ``bit_*`` for HyperLogLog and blob bit reads, then
     :meth:`QueryBuilder.execute`. Write verbs delegate to the parent to chain
     writes after reads.
 
@@ -3372,6 +4539,275 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
     def list_size(self) -> _T:
         """Read list length into the operate/read result."""
         self._parent.add_operation(ListOperation.size(self._bin))  # type: ignore[union-attr]
+        return self._parent
+
+    def list_get(self, index: int) -> _T:
+        """Read the list element at *index* into the query result.
+
+        Args:
+            index: List index (0-based; negative counts from the end).
+
+        Returns:
+            The parent builder for chaining.
+
+        See Also:
+            :meth:`list_get_range`, :meth:`WriteBinBuilder.list_set`
+        """
+        self._parent.add_operation(ListOperation.get(self._bin, index))  # type: ignore[union-attr]
+        return self._parent
+
+    def list_get_range(self, index: int, count: Optional[int] = None) -> _T:
+        """Read a contiguous slice of the list starting at *index*.
+
+        Args:
+            index: Starting list index.
+            count: Number of elements; ``None`` reads through the end.
+
+        Returns:
+            The parent builder for chaining.
+
+        See Also:
+            :meth:`list_get`
+        """
+        if count is None:
+            op = ListOperation.get_range_from(self._bin, index)
+        else:
+            op = ListOperation.get_range(self._bin, index, count)
+        self._parent.add_operation(op)  # type: ignore[union-attr]
+        return self._parent
+
+    # -- HyperLogLog reads ----------------------------------------------------
+
+    def hll_get_count(self) -> _T:
+        """Read the estimated HyperLogLog cardinality for this bin.
+
+        The estimate appears under this bin's name in the record returned from
+        :meth:`QueryBuilder.execute`. To read during a multi-op write, use
+        :meth:`WriteBinBuilder.hll_get_count`.
+
+        Example::
+            stream = await session.query(key).bin("visitors").hll_get_count().execute()
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.hll_get_count`
+            :meth:`WriteBinBuilder.hll_add`
+        """
+        self._parent.add_operation(HllOperation.get_count(self._bin))  # type: ignore[union-attr]
+        return self._parent
+
+    def hll_describe(self) -> _T:
+        """Read index and min-hash bit parameters describing the stored sketch.
+
+        Example::
+            stream = await session.query(key).bin("visitors").hll_describe().execute()
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.hll_describe`
+        """
+        self._parent.add_operation(HllOperation.describe(self._bin))  # type: ignore[union-attr]
+        return self._parent
+
+    def hll_get_union(self, hll_list: Sequence[Any]) -> _T:
+        """Read the union sketch of this bin and ``hll_list`` without updating storage.
+
+        Example::
+            stream = await ( session.query(key).bin("hll").hll_get_union([peer_blob]).execute() )
+
+        Args:
+            hll_list: Other HLL blobs to include in the union result.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.hll_get_union`
+            :meth:`hll_get_union_count`
+        """
+        self._parent.add_operation(
+            HllOperation.get_union(self._bin, list(hll_list)),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    def hll_get_union_count(self, hll_list: Sequence[Any]) -> _T:
+        """Read the estimated cardinality of the union with other sketches.
+
+        Example::
+            stream = await ( session.query(key).bin("hll").hll_get_union_count([peer_blob]).execute() )
+
+        Args:
+            hll_list: Other sketches included in the union estimate.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.hll_get_union_count`
+            :meth:`hll_get_intersect_count`
+        """
+        self._parent.add_operation(
+            HllOperation.get_union_count(self._bin, list(hll_list)),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    def hll_get_intersect_count(self, hll_list: Sequence[Any]) -> _T:
+        """Read the estimated intersection cardinality with other sketches.
+
+        Example::
+            stream = await ( session.query(key) .bin("hll") .hll_get_intersect_count([peer_blob]) .execute() )
+
+        Args:
+            hll_list: Other sketches included in the intersection estimate.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.hll_get_intersect_count`
+            :meth:`hll_get_union_count`
+        """
+        self._parent.add_operation(
+            HllOperation.get_intersect_count(self._bin, list(hll_list)),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    def hll_get_similarity(self, hll_list: Sequence[Any]) -> _T:
+        """Read Jaccard similarity between this sketch and other sketches.
+
+        Example::
+            stream = await ( session.query(key).bin("hll").hll_get_similarity([peer_blob]).execute() )
+
+        Args:
+            hll_list: Other sketches to compare.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.hll_get_similarity`
+        """
+        self._parent.add_operation(
+            HllOperation.get_similarity(self._bin, list(hll_list)),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    # -- Bit (blob) reads -----------------------------------------------------
+
+    def bit_get(self, bit_offset: int, bit_size: int) -> _T:
+        """Read ``bit_size`` bits at ``bit_offset`` as raw bytes.
+
+        Example::
+            stream = await session.query(key).bin("blob").bit_get(0, 8).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to read.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.bit_get`
+            :meth:`bit_get_int`
+        """
+        self._parent.add_operation(
+            BitOperation.get(self._bin, bit_offset, bit_size),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    def bit_count(self, bit_offset: int, bit_size: int) -> _T:
+        """Count bits set to ``1`` in the given range.
+
+        Example::
+            stream = await session.query(key).bin("blob").bit_count(0, 8).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to scan.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.bit_count`
+        """
+        self._parent.add_operation(
+            BitOperation.count(self._bin, bit_offset, bit_size),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    def bit_lscan(self, bit_offset: int, bit_size: int, value: bool) -> _T:
+        """Scan from the left for the first set (``True``) or unset (``False``) bit.
+
+        Example::
+            stream = await session.query(key).bin("blob").bit_lscan(0, 8, True).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to scan.
+            value: ``True`` to find a ``1`` bit, ``False`` to find a ``0`` bit.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`bit_rscan`
+            :meth:`WriteBinBuilder.bit_lscan`
+        """
+        self._parent.add_operation(
+            BitOperation.lscan(self._bin, bit_offset, bit_size, value),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    def bit_rscan(self, bit_offset: int, bit_size: int, value: bool) -> _T:
+        """Scan from the right for the first set (``True``) or unset (``False``) bit.
+
+        Example::
+            stream = await session.query(key).bin("blob").bit_rscan(0, 8, False).execute()
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Number of bits to scan.
+            value: ``True`` to find a ``1`` bit, ``False`` to find a ``0`` bit.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`bit_lscan`
+            :meth:`WriteBinBuilder.bit_rscan`
+        """
+        self._parent.add_operation(
+            BitOperation.rscan(self._bin, bit_offset, bit_size, value),
+        )  # type: ignore[union-attr]
+        return self._parent
+
+    def bit_get_int(self, bit_offset: int, bit_size: int, signed: bool) -> _T:
+        """Decode an integer from ``bit_size`` bits at ``bit_offset``.
+
+        Example::
+            stream = await ( session.query(key).bin("blob").bit_get_int(0, 16, False).execute() )
+
+        Args:
+            bit_offset: Starting bit index.
+            bit_size: Width of the integer in bits.
+            signed: ``True`` for two's-complement signed decoding.
+
+        Returns:
+            The parent query builder for chaining.
+
+        See Also:
+            :meth:`WriteBinBuilder.bit_get_int`
+            :meth:`WriteBinBuilder.bit_set_int`
+        """
+        self._parent.add_operation(
+            BitOperation.get_int(self._bin, bit_offset, bit_size, signed),
+        )  # type: ignore[union-attr]
         return self._parent
 
     # -- Expression read ------------------------------------------------------
@@ -3425,21 +4861,29 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             bin_name=b, to_ctx=lambda: CTX.map_index(index),
         )
 
-    def on_map_key(self, key: Any) -> CdtReadBuilder[_T]:
+    def on_map_key(
+        self, key: Any, *, create_type: Optional[MapOrder] = None,
+    ) -> CdtReadBuilder[_T]:
         """Navigate to a map element by key.
 
         Args:
             key: Map key to target.
+            create_type: If set, use a create-on-missing context for this key
+                with the given map key order.
 
         Returns:
             :class:`CdtReadBuilder` for reading the targeted element(s).
         """
         b = self._bin
+        if create_type is not None:
+            to_ctx = lambda: CTX.map_key_create(key, create_type)
+        else:
+            to_ctx = lambda: CTX.map_key(key)
         return CdtReadBuilder(
             self._parent,
             lambda rt: MapOperation.get_by_key(b, key, rt),
             MapReturnType, is_map=True,
-            bin_name=b, to_ctx=lambda: CTX.map_key(key),
+            bin_name=b, to_ctx=to_ctx,
         )
 
     def on_map_rank(self, rank: int) -> CdtReadBuilder[_T]:
@@ -3462,6 +4906,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: MapOperation.get_by_value(b, value, rt),
             MapReturnType,
             is_map=True,
+            bin_name=b, to_ctx=lambda: CTX.map_value(value),
         )
 
     # -- Map navigation (range -> CdtReadInvertableBuilder) -------------------
@@ -3477,6 +4922,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             factory = lambda rt: MapOperation.get_by_index_range(b, index, count, rt)
         return CdtReadInvertableBuilder(
             self._parent, factory, MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_range(
@@ -3489,6 +4935,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: MapOperation.get_by_key_range(b, start, end, rt),
             MapReturnType,
             is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_rank_range(
@@ -3502,6 +4949,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             factory = lambda rt: MapOperation.get_by_rank_range(b, rank, count, rt)
         return CdtReadInvertableBuilder(
             self._parent, factory, MapReturnType, is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_range(
@@ -3514,6 +4962,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: MapOperation.get_by_value_range(b, start, end, rt),
             MapReturnType,
             is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_key_relative_index_range(
@@ -3537,6 +4986,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             ),
             MapReturnType,
             is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_relative_rank_range(
@@ -3551,6 +5001,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             ),
             MapReturnType,
             is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     # -- Map navigation (list selectors -> CdtReadInvertableBuilder) ----------
@@ -3563,6 +5014,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: MapOperation.get_by_key_list(b, keys, rt),
             MapReturnType,
             is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     def on_map_value_list(self, values: List[Any]) -> CdtReadInvertableBuilder[_T]:
@@ -3573,22 +5025,40 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: MapOperation.get_by_value_list(b, values, rt),
             MapReturnType,
             is_map=True,
+            bin_name=b, to_ctx=None,
         )
 
     # -- List navigation (singular -> CdtReadBuilder) -------------------------
 
-    def on_list_index(self, index: int) -> CdtReadBuilder[_T]:
+    def on_list_index(
+        self, index: int,
+        *,
+        order: Optional[ListOrderType] = None,
+        pad: bool = False,
+    ) -> CdtReadBuilder[_T]:
         """Navigate to a list element by index.
+
+        Args:
+            order: If set (or if *pad* is ``True``), use create-on-missing
+                list context with this order; when only *pad* is ``True``,
+                defaults to :data:`~aerospike_async.ListOrderType.UNORDERED`.
+            pad: When using create-on-missing context, allow sparse indexes.
 
         Example::
             .bin("items").on_list_index(-1).get_values()
         """
         b = self._bin
+        use_create = order is not None or pad
+        if use_create:
+            eff_order = order if order is not None else ListOrderType.UNORDERED
+            to_ctx = lambda: CTX.list_index_create(index, eff_order, pad)
+        else:
+            to_ctx = lambda: CTX.list_index(index)
         return CdtReadBuilder(
             self._parent,
             lambda rt: ListOperation.get_by_index(b, index, rt),
             ListReturnType, is_map=False,
-            bin_name=b, to_ctx=lambda: CTX.list_index(index),
+            bin_name=b, to_ctx=to_ctx,
         )
 
     def on_list_rank(self, rank: int) -> CdtReadBuilder[_T]:
@@ -3611,6 +5081,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: ListOperation.get_by_value(b, value, rt),
             ListReturnType,
             is_map=False,
+            bin_name=b, to_ctx=lambda: CTX.list_value(value),
         )
 
     # -- List navigation (range -> CdtReadInvertableBuilder) ------------------
@@ -3625,6 +5096,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: ListOperation.get_by_index_range(b, index, count, rt),
             ListReturnType,
             is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_rank_range(
@@ -3637,6 +5109,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: ListOperation.get_by_rank_range(b, rank, count, rt),
             ListReturnType,
             is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_range(
@@ -3649,6 +5122,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: ListOperation.get_by_value_range(b, start, end, rt),
             ListReturnType,
             is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     def on_list_value_relative_rank_range(
@@ -3663,6 +5137,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             ),
             ListReturnType,
             is_map=False,
+            bin_name=b, to_ctx=None,
         )
 
     # -- List navigation (list selector -> CdtReadInvertableBuilder) ----------
@@ -3675,4 +5150,5 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
             lambda rt: ListOperation.get_by_value_list(b, values, rt),
             ListReturnType,
             is_map=False,
+            bin_name=b, to_ctx=None,
         )

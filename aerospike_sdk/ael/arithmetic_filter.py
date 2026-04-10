@@ -22,7 +22,7 @@ Tree-driven via filter_from_arithmetic_node; no string parsing.
 
 import math
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional
 
 from aerospike_async import Filter
 
@@ -177,12 +177,12 @@ def _solve_div_divisor(expr: _ArithExpr, rel: str, k: int) -> Optional[_Arithmet
             res = _ArithmeticFilterResult(expr.bin_name, 1, _closest_long_to_the_left((float(left)) / right))
         elif rel == '<=':
             res = _ArithmeticFilterResult(expr.bin_name, 1, left // right)
-    elif left > 0 and right < 0:
+    elif left > 0 > right:
         if rel == '<':
             res = _ArithmeticFilterResult(expr.bin_name, _closest_long_to_the_right((float(left)) / right), -1)
         elif rel == '<=':
             res = _ArithmeticFilterResult(expr.bin_name, left // right, -1)
-    elif left < 0 and right > 0:
+    elif left < 0 < right:
         if rel == '>':
             res = _ArithmeticFilterResult(expr.bin_name, _closest_long_to_the_right((float(left)) / right), -1)
         elif rel == '>=':
@@ -258,7 +258,5 @@ def filter_from_arithmetic_node(
         result = _solve_div(expr, rel, comparison_value)
     if result is None or result.range_min > result.range_max:
         return None
-    try:
-        return Filter.range(bin_name, result.range_min, result.range_max, *ctx) if ctx else Filter.range(bin_name, result.range_min, result.range_max)
-    except TypeError:
-        return Filter.range(bin_name, result.range_min, result.range_max)
+    f = Filter.range(bin_name, result.range_min, result.range_max)
+    return f.context(ctx) if ctx else f

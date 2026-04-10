@@ -293,10 +293,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">typing</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Set</span>
 
-<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>  <span class="c1"># Not unused — avoids circular import; used in type annotations only.</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">aerospike_sdk.aio.session</span><span class="w"> </span><span class="kn">import</span> <span class="n">Session</span>
 
 <span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;aerospike_sdk.info&quot;</span><span class="p">)</span>
@@ -311,8 +310,7 @@
 <span class="sd">    This class encapsulates the most commonly used Aerospike info commands and provides</span>
 <span class="sd">    a convenient API for retrieving cluster information.</span>
 
-<span class="sd">    Example:</span>
-<span class="sd">        .. code-block:: python</span>
+<span class="sd">    Example::</span>
 
 <span class="sd">            info = session.info()</span>
 

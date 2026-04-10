@@ -23,14 +23,13 @@ async code for lower overhead and clearer concurrency.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import os
-import sys
 import threading
-from typing import TYPE_CHECKING, List, Optional, Union, overload
+import types
+from typing import TYPE_CHECKING, Any, List, Optional, Union, overload
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotations only.
     from aerospike_sdk.sync.operations.index import SyncIndexBuilder
     from aerospike_sdk.sync.operations.query import SyncQueryBuilder
     from aerospike_sdk.sync.session import SyncSession
@@ -55,11 +54,6 @@ log = logging.getLogger(__name__)
 DEBUG_SYNC_CLIENT = os.environ.get("DEBUG_SYNC_CLIENT", "false").lower() == "true"
 if DEBUG_SYNC_CLIENT:
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-if sys.version_info >= (3, 10):
-    from typing import TypeGuard
-else:
-    from typing_extensions import TypeGuard
 
 # Thread-local storage for event loop managers
 _thread_local = threading.local()
@@ -115,8 +109,9 @@ class _EventLoopManager:
                         try:
                             # Close the selector first (this releases file descriptors immediately)
                             try:
-                                if hasattr(loop_to_close, '_selector') and loop_to_close._selector is not None:
-                                    loop_to_close._selector.close()
+                                sel = getattr(loop_to_close, "_selector", None)
+                                if sel is not None:
+                                    sel.close()  # type: ignore[attr-defined]
                             except Exception:
                                 pass
                             # Then close the loop
@@ -159,8 +154,9 @@ class _EventLoopManager:
                         try:
                             # Close the selector first (this releases file descriptors immediately)
                             try:
-                                if hasattr(loop_to_close, '_selector') and loop_to_close._selector is not None:
-                                    loop_to_close._selector.close()
+                                sel = getattr(loop_to_close, "_selector", None)
+                                if sel is not None:
+                                    sel.close()  # type: ignore[attr-defined]
                             except Exception:
                                 pass
                             # Then close the loop
@@ -210,7 +206,7 @@ class _EventLoopManager:
                             # Try to verify the loop is actually usable
                             # by checking if we can get its default executor
                             try:
-                                _ = self._loop._default_executor
+                                _ = self._loop._default_executor  # type: ignore[attr-defined]
                                 if DEBUG_SYNC_CLIENT:
                                     log.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Reusing existing loop")
                                 return self._loop
@@ -262,7 +258,7 @@ class _EventLoopManager:
                 log.debug(f"[_create_new_loop] Thread {threading.get_ident()}: Created new loop: {loop}")
             return loop
 
-    def run_async(self, coro) -> any:
+    def run_async(self, coro) -> Any:
         """Run an async coroutine synchronously."""
         if DEBUG_SYNC_CLIENT:
             log.debug(f"[run_async] Thread {threading.get_ident()}: Starting")
@@ -434,8 +430,9 @@ class _EventLoopManager:
                         try:
                             # Close the selector first (this releases file descriptors immediately)
                             try:
-                                if hasattr(loop_to_close, '_selector') and loop_to_close._selector is not None:
-                                    loop_to_close._selector.close()
+                                sel = getattr(loop_to_close, "_selector", None)
+                                if sel is not None:
+                                    sel.close()  # type: ignore[attr-defined]
                             except Exception:
                                 pass
                             # Then close the loop
@@ -467,9 +464,7 @@ class SyncClient:
     :class:`~aerospike_sdk.sync.operations.query.SyncQueryBuilder`,
     :class:`~aerospike_sdk.sync.session.SyncSession`).
 
-    Example:
-
-        .. code-block:: python
+    Example::
 
             with SyncClient("localhost:3000") as client:
                 for row in client.query(
@@ -573,7 +568,7 @@ class SyncClient:
         self,
         exc_type: Optional[type[BaseException]],
         exc_val: Optional[BaseException],
-        exc_tb: Optional[any],
+        exc_tb: Optional[types.TracebackType],
     ) -> None:
         """Context manager exit."""
         try:
@@ -600,6 +595,8 @@ class SyncClient:
     def query(
         self,
         dataset: DataSet,
+        *,
+        behavior: Optional[Behavior] = None,
     ):
         """Create a query builder from a DataSet."""
         ...
@@ -608,6 +605,8 @@ class SyncClient:
     def query(
         self,
         key: Key,
+        *,
+        behavior: Optional[Behavior] = None,
     ):
         """Create a query builder for a single Key (point read)."""
         ...
@@ -616,6 +615,8 @@ class SyncClient:
     def query(
         self,
         keys: List[Key],
+        *,
+        behavior: Optional[Behavior] = None,
     ):
         """Create a query builder for multiple Keys (batch read)."""
         ...
@@ -624,6 +625,7 @@ class SyncClient:
     def query(
         self,
         *keys: Key,
+        behavior: Optional[Behavior] = None,
     ):
         """Create a query builder for multiple Keys (varargs)."""
         ...
@@ -633,6 +635,8 @@ class SyncClient:
         self,
         namespace: str,
         set_name: str,
+        *,
+        behavior: Optional[Behavior] = None,
     ):
         """Create a query builder with explicit namespace/set."""
         ...
@@ -725,7 +729,7 @@ class SyncClient:
             return _wrap(async_client.query(keys=keys_coll, behavior=b))
 
         return _wrap(
-            async_client.query(
+            async_client.query(  # type: ignore[call-overload]
                 namespace=namespace,
                 set_name=set_name,
                 dataset=dataset,
@@ -740,6 +744,7 @@ class SyncClient:
         self,
         *,
         dataset: DataSet,
+        behavior: Optional[Behavior] = None,
     ):
         """Create an index builder from a DataSet."""
         ...
@@ -749,6 +754,8 @@ class SyncClient:
         self,
         namespace: str,
         set_name: str,
+        *,
+        behavior: Optional[Behavior] = None,
     ):
         """Create an index builder with explicit namespace/set."""
         ...
@@ -759,6 +766,7 @@ class SyncClient:
         set_name: Optional[str] = None,
         *,
         dataset: Optional[DataSet] = None,
+        behavior: Optional[Behavior] = None,
     ) -> SyncIndexBuilder:
         """
         Create a secondary-index builder (synchronous).
@@ -777,10 +785,11 @@ class SyncClient:
 
         # Delegate to async client to handle argument parsing
         async_client = self._ensure_connected()
-        builder = async_client.index(
+        builder = async_client.index(  # type: ignore[call-overload]
             namespace=namespace,
             set_name=set_name,
             dataset=dataset,
+            behavior=behavior,
         )
 
         return SyncIndexBuilder(
@@ -803,9 +812,7 @@ class SyncClient:
                          last update time (LUT) less than this value will be
                          truncated. If None, all records in the set are truncated.
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 users = DataSet.of("test", "users")
                 client.truncate(users)
@@ -894,9 +901,7 @@ class SyncClient:
             A :class:`~aerospike_sdk.sync.session.SyncSession` sharing this
             client's event-loop manager and applying ``behavior`` to operations.
 
-        Example:
-
-            .. code-block:: python
+        Example::
 
                 session = client.create_session()
                 from datetime import timedelta

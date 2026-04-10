@@ -19,7 +19,8 @@ Coverage:
   - Simple bin reads (get, multiple bins)
   - CDT map reads (key, index range, rank)
   - CDT list reads (index, rank)
-  - Batch key queries with bin ops
+  - Batch key queries with bin ops (map and list CDT reads)
+  - CDT read edge cases (long range, missing record)
   - Dataset query with bin ops -> OP_NOT_APPLICABLE
   - Query stacking
 """
@@ -104,6 +105,25 @@ class TestSimpleBinReads:
         result = await rs.first_or_raise()
         assert result.record.bins["scores"] == 3
 
+    async def test_list_get(self, client):
+        rs = await client.query(key=_key(1)).bin("scores").list_get(0).execute()
+        result = await rs.first_or_raise()
+        assert result.record.bins["scores"] == 10
+
+    async def test_list_get_range(self, client):
+        rs = await (
+            client.query(key=_key(1)).bin("scores").list_get_range(0, 2).execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["scores"] == [10, 20]
+
+    async def test_list_get_range_from_index(self, client):
+        rs = await (
+            client.query(key=_key(1)).bin("scores").list_get_range(1, None).execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["scores"] == [20, 30]
+
 
 # ===================================================================
 # CDT map reads
@@ -177,6 +197,67 @@ class TestCdtListReads:
         result = await rs.first_or_raise()
         assert result.record.bins["scores"] == 20
 
+    async def test_nested_list_get(self, client):
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        kid = f"{KEY_PREFIX}nested_lg"
+        key = ds.id(kid)
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+        await session.upsert(key).bin("ll").set_to([[10, 20], [30, 40]]).execute()
+        rs = await (
+            client.query(key=key).bin("ll").on_list_index(0).list_get(1).execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["ll"] == 20
+        await session.delete(key).execute()
+
+
+# ===================================================================
+# Index-based list writes (mutating)
+# ===================================================================
+
+class TestIndexBasedListWrites:
+
+    async def test_list_insert_then_read(self, client):
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        kid = f"{KEY_PREFIX}idx_mut"
+        key = ds.id(kid)
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+        await session.upsert(key).bin("nums").set_to([1, 2, 3]).execute()
+        await session.upsert(key).bin("nums").list_insert(1, 9).execute()
+        rs = await client.query(key=key).bin("nums").get().execute()
+        result = await rs.first_or_raise()
+        assert result.record.bins["nums"] == [1, 9, 2, 3]
+        await session.delete(key).execute()
+
+    async def test_list_increment_and_nested_insert(self, client):
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        kid = f"{KEY_PREFIX}idx_mut2"
+        key = ds.id(kid)
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+        await session.upsert(key).put({"outer": {"items": [10, 20]}}).execute()
+        await (
+            session.upsert(key).bin("outer").on_map_key("items").list_increment(0, 5).execute()
+        )
+        await (
+            session.upsert(key).bin("outer").on_map_key("items").list_insert(1, 0).execute()
+        )
+        rs = await client.query(key=key).bin("outer").get().execute()
+        result = await rs.first_or_raise()
+        assert result.record.bins["outer"]["items"] == [15, 0, 20]
+        await session.delete(key).execute()
+
 
 # ===================================================================
 # Batch key queries
@@ -205,6 +286,56 @@ class TestBatchKeyQueries:
         for r in results:
             assert r.is_ok
             assert r.record.bins["settings"] == "dark"
+
+    async def test_batch_cdt_list_size(self, client):
+        rs = await (
+            client.query(keys=[_key(1), _key(2), _key(3)])
+                .bin("scores").list_size()
+                .execute()
+        )
+        results = await rs.collect()
+        assert len(results) == 3
+        for r in results:
+            assert r.is_ok
+            assert r.record.bins["scores"] == 3
+
+    async def test_batch_cdt_list_get(self, client):
+        rs = await (
+            client.query(keys=[_key(1), _key(2), _key(3)])
+                .bin("scores").list_get(0)
+                .execute()
+        )
+        results = await rs.collect()
+        assert len(results) == 3
+        by_first = {r.record.bins["scores"] for r in results if r.is_ok}
+        assert by_first == {10, 20, 30}
+
+
+class TestCdtReadEdgeCases:
+    """OOB-tolerant reads and missing-record error paths."""
+
+    async def test_list_get_range_past_end_returns_partial(self, client):
+        """list_get_range with count past the end returns the full tail."""
+        rs = await (
+            client.query(key=_key(1)).bin("scores").list_get_range(0, 100).execute()
+        )
+        result = await rs.first_or_raise()
+        assert result.record.bins["scores"] == [10, 20, 30]
+
+    async def test_remove_from_nonexistent_key_raises(self, client):
+        """Map remove_by_key_list on a missing record raises KEY_NOT_FOUND_ERROR."""
+        session = client.create_session()
+        ds = DataSet.of(NS, SET)
+        key = ds.id(f"{KEY_PREFIX}missing_rm")
+        try:
+            await session.delete(key).execute()
+        except Exception:
+            pass
+        with pytest.raises(AerospikeError) as exc_info:
+            await (
+                session.update(key).bin("m").on_map_key_list(["a"]).remove().execute()
+            )
+        assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
 
 # ===================================================================

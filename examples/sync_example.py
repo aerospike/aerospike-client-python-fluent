@@ -5,7 +5,7 @@ Covers: SyncClient connection, put, get, exists, delete — no async/await.
 """
 
 import _env
-from aerospike_sdk import Behavior, DataSet, SyncClient
+from aerospike_sdk import Behavior, DataSet
 
 
 def main() -> None:

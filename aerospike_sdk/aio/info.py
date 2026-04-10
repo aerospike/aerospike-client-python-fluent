@@ -18,10 +18,9 @@
 from __future__ import annotations
 
 import logging
-import typing
 from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotations only.
     from aerospike_sdk.aio.session import Session
 
 log = logging.getLogger("aerospike_sdk.info")
@@ -34,8 +33,7 @@ class InfoCommands:
     This class encapsulates the most commonly used Aerospike info commands and provides
     a convenient API for retrieving cluster information.
 
-    Example:
-        .. code-block:: python
+    Example::
 
             info = session.info()
 
