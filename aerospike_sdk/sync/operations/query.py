@@ -500,6 +500,58 @@ class SyncWriteSegmentBuilder(_SyncWriteVerbs):
         self._wsb.remove_bin(bin_name)
         return self
 
+    # -- Record-level operations ----------------------------------------------
+
+    def delete_record(self) -> SyncWriteSegmentBuilder:
+        """Add a record-level delete to the current operate call.
+
+        Unlike :meth:`~SyncWriteVerbs.delete` which targets a different key,
+        this deletes the record being operated on as part of the same
+        atomic operation.
+
+        Example::
+
+            stream = (
+                session.upsert(key)
+                    .bin("name").get()
+                    .delete_record()
+                    .execute()
+            )
+
+        Returns:
+            This segment for chaining.
+
+        See Also:
+            :meth:`~SyncWriteVerbs.delete`: Start a new delete segment for a key.
+        """
+        self._wsb.delete_record()
+        return self
+
+    def touch_record(self) -> SyncWriteSegmentBuilder:
+        """Add a record-level touch to the current operate call.
+
+        Resets the record's TTL as part of an atomic multi-operation call.
+        Combine with :meth:`expire_record_after_seconds` to set a new TTL.
+
+        Example::
+
+            stream = (
+                session.upsert(key)
+                    .bin("score").get()
+                    .touch_record()
+                    .expire_record_after_seconds(120)
+                    .execute()
+            )
+
+        Returns:
+            This segment for chaining.
+
+        See Also:
+            :meth:`~SyncWriteVerbs.touch`: Start a new touch segment for a key.
+        """
+        self._wsb.touch_record()
+        return self
+
     # -- Expression operations (direct on segment) ----------------------------
 
     def select_from(

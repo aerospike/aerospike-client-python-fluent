@@ -2352,6 +2352,56 @@ class WriteSegmentBuilder(_WriteVerbs):
         """Delete a bin from the record."""
         return self._add_op(Operation.put(bin_name, None))
 
+    # -- Record-level operations ----------------------------------------------
+
+    def delete_record(self) -> WriteSegmentBuilder:
+        """Add a record-level delete to the current operate call.
+
+        Unlike :meth:`~_WriteVerbs.delete` which targets a different key,
+        this deletes the record being operated on as part of the same
+        atomic operation.
+
+        Example::
+
+            stream = await (
+                session.upsert(key)
+                    .bin("name").get()
+                    .delete_record()
+                    .execute()
+            )
+
+        Returns:
+            This segment for chaining.
+
+        See Also:
+            :meth:`~_WriteVerbs.delete`: Start a new delete segment for a key.
+        """
+        return self._add_op(Operation.delete())
+
+    def touch_record(self) -> WriteSegmentBuilder:
+        """Add a record-level touch to the current operate call.
+
+        Resets the record's TTL as part of an atomic multi-operation call.
+        Combine with :meth:`expire_record_after_seconds` to set a new TTL.
+
+        Example::
+
+            stream = await (
+                session.upsert(key)
+                    .bin("score").get()
+                    .touch_record()
+                    .expire_record_after_seconds(120)
+                    .execute()
+            )
+
+        Returns:
+            This segment for chaining.
+
+        See Also:
+            :meth:`~_WriteVerbs.touch`: Start a new touch segment for a key.
+        """
+        return self._add_op(Operation.touch())
+
     # -- Expression operations (direct on segment) ----------------------------
 
     def select_from(

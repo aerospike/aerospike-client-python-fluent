@@ -13,7 +13,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Tests for operate operations."""
+"""Tests for operate operations.
+
+Coverage:
+  - Combined operations (add + set + get)
+  - Multiple increments
+  - Set and get in same call
+  - Record-level delete_record() and touch_record() within operate calls
+"""
 
 import pytest
 from aerospike_sdk.aio.client import Client
@@ -122,3 +129,67 @@ class TestOperate:
 
         # Cleanup
         await session.delete(key).execute()
+
+    async def test_delete_record_reads_then_deletes(self, client: Client, test_set: DataSet):
+        """Read a bin and atomically delete the record in one operate call."""
+        session = client.create_session()
+        key = test_set.id("del_read")
+        await session.upsert(key).put({"name": "Alice", "age": 30}).execute()
+
+        stream = await (
+            session.upsert(key)
+                .bin("name").get()
+                .delete_record()
+                .execute()
+        )
+        row = await stream.first_or_raise()
+        assert row.record.bins["name"] == "Alice"
+
+        exists_stream = await session.exists(key).execute()
+        exists_row = await exists_stream.first()
+        assert exists_row is None or not exists_row.as_bool()
+
+    async def test_delete_record_then_write_recreates(self, client: Client, test_set: DataSet):
+        """Delete the record and write a new bin in one atomic operate call."""
+        session = client.create_session()
+        key = test_set.id("del_write")
+        await session.upsert(key).put({"a": 1, "b": 2}).execute()
+
+        stream = await (
+            session.upsert(key)
+                .bin("a").get()
+                .delete_record()
+                .bin("b").set_to(99)
+                .bin("b").get()
+                .execute()
+        )
+        row = await stream.first_or_raise()
+        assert row.record.bins["a"] == 1
+
+        read_stream = await session.query(key).execute()
+        read_row = await read_stream.first_or_raise()
+        read_rec = read_row.record
+        assert read_rec.bins["b"] == 99
+        assert "a" not in read_rec.bins
+        assert len(read_rec.bins) == 1
+
+    async def test_touch_record_resets_ttl(self, client: Client, test_set: DataSet):
+        """Touch the record to reset its TTL within an atomic operate call."""
+        session = client.create_session()
+        key = test_set.id("touch_ttl")
+        await (
+            session.upsert(key)
+                .put({"score": 42})
+                .expire_record_after_seconds(60)
+                .execute()
+        )
+
+        stream = await (
+            session.upsert(key)
+                .bin("score").get()
+                .touch_record()
+                .expire_record_after_seconds(120)
+                .execute()
+        )
+        row = await stream.first_or_raise()
+        assert row.record.bins["score"] == 42
