@@ -1,7 +1,0 @@
-# ClusterDefinition & Host
-
-```{eval-rst}
-.. automodule:: aerospike_sdk.aio.cluster_definition
-   :members:
-   :show-inheritance:
-```

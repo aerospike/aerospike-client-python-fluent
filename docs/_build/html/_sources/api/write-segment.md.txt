@@ -1,7 +1,0 @@
-# WriteSegmentBuilder
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.aio.operations.query.WriteSegmentBuilder
-   :members:
-   :show-inheritance:
-```

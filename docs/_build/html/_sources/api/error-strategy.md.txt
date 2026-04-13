@@ -1,7 +1,0 @@
-# Error Strategy
-
-```{eval-rst}
-.. automodule:: aerospike_sdk.error_strategy
-   :members:
-   :show-inheritance:
-```

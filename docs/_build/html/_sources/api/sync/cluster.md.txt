@@ -1,7 +1,0 @@
-# Sync Cluster
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.sync.cluster.Cluster
-   :members:
-   :show-inheritance:
-```

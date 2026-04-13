@@ -1,7 +1,0 @@
-# SystemSettings
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.policy.system_settings.SystemSettings
-   :members:
-   :show-inheritance:
-```

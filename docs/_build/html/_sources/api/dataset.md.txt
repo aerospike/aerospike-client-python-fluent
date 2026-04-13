@@ -1,7 +1,0 @@
-# DataSet
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.dataset.DataSet
-   :members:
-   :show-inheritance:
-```

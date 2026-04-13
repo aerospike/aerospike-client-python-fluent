@@ -1,7 +1,0 @@
-# RecordResult
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.record_result.RecordResult
-   :members:
-   :show-inheritance:
-```

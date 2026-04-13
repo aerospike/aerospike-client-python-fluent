@@ -1,7 +1,0 @@
-# SyncClient
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.sync.client.SyncClient
-   :members:
-   :show-inheritance:
-```

@@ -1,7 +1,0 @@
-# TransactionalSession
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.aio.transactional_session.TransactionalSession
-   :members:
-   :show-inheritance:
-```

@@ -1,7 +1,0 @@
-# Client
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.aio.client.Client
-   :members:
-   :show-inheritance:
-```

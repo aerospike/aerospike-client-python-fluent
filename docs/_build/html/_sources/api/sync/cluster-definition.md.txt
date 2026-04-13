@@ -1,7 +1,0 @@
-# Sync ClusterDefinition & Host
-
-```{eval-rst}
-.. automodule:: aerospike_sdk.sync.cluster_definition
-   :members:
-   :show-inheritance:
-```

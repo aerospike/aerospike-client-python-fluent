@@ -1,7 +1,0 @@
-# SyncSession
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.sync.session.SyncSession
-   :members:
-   :show-inheritance:
-```

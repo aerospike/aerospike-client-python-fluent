@@ -1,7 +1,0 @@
-# SyncIndexBuilder
-
-```{eval-rst}
-.. autoclass:: aerospike_sdk.sync.operations.index.SyncIndexBuilder
-   :members:
-   :show-inheritance:
-```

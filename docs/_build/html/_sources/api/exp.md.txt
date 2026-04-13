@@ -1,7 +1,0 @@
-# Exp — Expression Builder
-
-```{eval-rst}
-.. automodule:: aerospike_sdk.exp
-   :members:
-   :show-inheritance:
-```
