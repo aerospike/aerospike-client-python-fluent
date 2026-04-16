@@ -369,7 +369,8 @@ class ListValueRangePart(CDTPart):
     def get_context(self) -> CTX:
         raise NotImplementedError("ListValueRangePart cannot be used as context")
 
-    def _make_val_expr(self, value: Any) -> Optional[FilterExpression]:
+    @staticmethod
+    def _make_val_expr(value: Any) -> Optional[FilterExpression]:
         if value is None:
             return None
         if isinstance(value, int):
@@ -706,7 +707,8 @@ class MapValueRangePart(CDTPart):
     def get_context(self) -> CTX:
         raise NotImplementedError("MapValueRangePart cannot be used as context")
 
-    def _make_val_expr(self, value: Any) -> Optional[FilterExpression]:
+    @staticmethod
+    def _make_val_expr(value: Any) -> Optional[FilterExpression]:
         if value is None:
             return None
         if isinstance(value, int):
@@ -819,7 +821,8 @@ class ListRankRangeRelativePart(CDTPart):
     def get_context(self) -> CTX:
         raise NotImplementedError("ListRankRangeRelativePart cannot be used as context")
 
-    def _make_val_expr(self, value: Any) -> FilterExpression:
+    @staticmethod
+    def _make_val_expr(value: Any) -> FilterExpression:
         if isinstance(value, int):
             return FilterExpression.int_val(value)
         elif isinstance(value, float):
@@ -872,7 +875,8 @@ class MapRankRangeRelativePart(CDTPart):
     def get_context(self) -> CTX:
         raise NotImplementedError("MapRankRangeRelativePart cannot be used as context")
 
-    def _make_val_expr(self, value: Any) -> FilterExpression:
+    @staticmethod
+    def _make_val_expr(value: Any) -> FilterExpression:
         if isinstance(value, int):
             return FilterExpression.int_val(value)
         elif isinstance(value, float):
@@ -1336,7 +1340,7 @@ def _validate_min_arg_count(func_name: str, args: list, min_count: int) -> None:
         )
 
 
-def _require_numeric_operands(op: ArithOp, left: ExprOrDeferred, right: ExprOrDeferred) -> None:
+def _require_numeric_operands(_op: ArithOp, left: ExprOrDeferred, right: ExprOrDeferred) -> None:
     """Raise AelParseException if either operand has a known non-numeric type."""
     non_numeric = (InferredType.STRING, InferredType.BOOL, InferredType.LIST, InferredType.MAP, InferredType.BLOB)
     left_hint = _get_type_hint(left)
@@ -1691,7 +1695,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
         
         return base_path
     
-    def _build_count(self, base_path: ExprOrDeferred) -> Optional[FilterExpression]:
+    @staticmethod
+    def _build_count(base_path: ExprOrDeferred) -> Optional[FilterExpression]:
         """Build a count/size expression for a path with .count()."""
         if isinstance(base_path, CDTPath) and base_path.parts:
             last_part = base_path.parts[-1]
@@ -1792,7 +1797,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
             )
         return None
 
-    def _apply_get_params(self, cdt_path: CDTPath, get_ctx) -> None:
+    @staticmethod
+    def _apply_get_params(cdt_path: CDTPath, get_ctx) -> None:
         """Apply get() function parameters to a CDTPath."""
         if hasattr(get_ctx, 'pathFunctionParams') and get_ctx.pathFunctionParams() is not None:
             params_ctx = get_ctx.pathFunctionParams()
@@ -1864,7 +1870,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
                                         elif param_value == "COUNT":
                                             cdt_path.value_type = ExpType.INT
 
-    def _apply_get_params_to_deferred(self, deferred: DeferredBin, get_ctx) -> None:
+    @staticmethod
+    def _apply_get_params_to_deferred(deferred: DeferredBin, get_ctx) -> None:
         """Apply get() function type parameter to a DeferredBin.
 
         For simple bins like $.name.get(type: STRING), this sets the explicit_type.
@@ -2038,7 +2045,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
 
         return None
 
-    def _parse_value_identifier(self, ctx) -> Any:
+    @staticmethod
+    def _parse_value_identifier(ctx) -> Any:
         """Parse a valueIdentifier into a Python value."""
         if ctx is None:
             return None
@@ -2052,10 +2060,11 @@ class ExpressionConditionVisitor(ConditionVisitor):
             return ctx.IN().getText()
         return ctx.getText()
 
-    def _parse_index_range(self, ctx) -> tuple[int, Optional[int]]:
+    @staticmethod
+    def _parse_index_range(ctx) -> tuple[int, Optional[int]]:
         """Parse indexRangeIdentifier into (start, count)."""
         if ctx is None:
-            return (0, None)
+            return 0, None
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
         end_ctx = ctx.end() if hasattr(ctx, 'end') and callable(ctx.end) else None
 
@@ -2067,12 +2076,13 @@ class ExpressionConditionVisitor(ConditionVisitor):
             count = end - start
         else:
             count = None
-        return (start, count)
+        return start, count
 
-    def _parse_rank_range(self, ctx) -> tuple[int, Optional[int]]:
+    @staticmethod
+    def _parse_rank_range(ctx) -> tuple[int, Optional[int]]:
         """Parse rankRangeIdentifier into (start, count)."""
         if ctx is None:
-            return (0, None)
+            return 0, None
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
         end_ctx = ctx.end() if hasattr(ctx, 'end') and callable(ctx.end) else None
 
@@ -2084,12 +2094,12 @@ class ExpressionConditionVisitor(ConditionVisitor):
             count = end - start
         else:
             count = None
-        return (start, count)
+        return start, count
 
     def _parse_value_range(self, ctx) -> tuple[Optional[Any], Optional[Any]]:
         """Parse valueRangeIdentifier into (begin, end)."""
         if ctx is None:
-            return (None, None)
+            return None, None
         val_ids = ctx.valueIdentifier()
         if len(val_ids) >= 2:
             begin = self._parse_value_identifier(val_ids[0])
@@ -2100,7 +2110,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         else:
             begin = None
             end = None
-        return (begin, end)
+        return begin, end
 
     def _parse_value_list(self, ctx) -> List[Any]:
         """Parse valueListIdentifier into a list of values."""
@@ -2119,7 +2129,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         and relativeValue is: '~' valueIdentifier
         """
         if ctx is None:
-            return (0, None, None)
+            return 0, None, None
         
         # Get start
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
@@ -2130,7 +2140,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         # Get relativeRankEnd
         rel_end = ctx.relativeRankEnd() if hasattr(ctx, 'relativeRankEnd') else None
         if rel_end is None:
-            return (rank, None, None)
+            return rank, None, None
 
         # Check for end (count)
         end_ctx = rel_end.end() if hasattr(rel_end, 'end') and callable(rel_end.end) else None
@@ -2139,7 +2149,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
             count = end - rank
         else:
             count = None
-        
+
         # Get relativeValue (~value)
         rel_val = rel_end.relativeValue() if hasattr(rel_end, 'relativeValue') else None
         if rel_val:
@@ -2147,8 +2157,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
             value = self._parse_value_identifier(val_id)
         else:
             value = None
-        
-        return (rank, count, value)
+
+        return rank, count, value
 
     def _parse_index_range_relative(self, ctx) -> tuple[int, Optional[int], str]:
         """Parse indexRangeRelativeIdentifier into (index, count, key).
@@ -2157,8 +2167,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
         where relativeKeyEnd is: end '~' mapKey | '~' mapKey
         """
         if ctx is None:
-            return (0, None, "")
-        
+            return 0, None, ""
+
         # Get start
         start_ctx = ctx.getTypedRuleContext(ConditionParser.StartContext, 0)
         index = (
@@ -2168,7 +2178,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         # Get relativeKeyEnd
         rel_end = ctx.relativeKeyEnd() if hasattr(ctx, 'relativeKeyEnd') else None
         if rel_end is None:
-            return (index, None, "")
+            return index, None, ""
 
         # Check for end (count)
         end_ctx = rel_end.end() if hasattr(rel_end, 'end') and callable(rel_end.end) else None
@@ -2185,7 +2195,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         else:
             key = ""
         
-        return (index, count, key)
+        return index, count, key
     
     def _parse_map_part(self, ctx) -> Optional[CDTPart]:
         """Parse a map part from the parse tree."""
@@ -2340,7 +2350,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
     def _parse_key_range(self, ctx) -> tuple[Optional[str], Optional[str]]:
         """Parse keyRangeIdentifier into (begin, end)."""
         if ctx is None:
-            return (None, None)
+            return None, None
         # keyRangeIdentifier has mapKey children
         key_ids = ctx.mapKey()
         if len(key_ids) >= 2:
@@ -2352,7 +2362,7 @@ class ExpressionConditionVisitor(ConditionVisitor):
         else:
             begin = None
             end = None
-        return (begin, end)
+        return begin, end
 
     def _parse_key_list(self, ctx) -> List[str]:
         """Parse keyListIdentifier into a list of keys."""
@@ -2364,7 +2374,8 @@ class ExpressionConditionVisitor(ConditionVisitor):
             keys.append(self._parse_map_key(key_ctx))
         return keys
 
-    def _parse_map_key(self, ctx) -> str:
+    @staticmethod
+    def _parse_map_key(ctx) -> str:
         """Parse a mapKey into a string."""
         if ctx is None:
             return ""
@@ -2662,11 +2673,11 @@ class ExpressionConditionVisitor(ConditionVisitor):
     @staticmethod
     def _extract_plain_number(num: ConditionParser.NumberOperandContext) -> Optional[tuple]:
         if num.intOperand() is not None:
-            return (int(num.intOperand().INT().getText(), 0), InferredType.INT)
+            return int(num.intOperand().INT().getText(), 0), InferredType.INT
         if num.floatOperand() is not None:
             fctx = num.floatOperand()
             text = fctx.FLOAT().getText() if fctx.FLOAT() is not None else fctx.LEADING_DOT_FLOAT().getText()
-            return (float(text), InferredType.FLOAT)
+            return float(text), InferredType.FLOAT
         return None
 
     @staticmethod
@@ -2676,9 +2687,9 @@ class ExpressionConditionVisitor(ConditionVisitor):
         raw = int(text, 0) if num.intOperand() is not None else float(text)
         cast_fn = cast_ctx.pathFunctionCast().PATH_FUNCTION_CAST().getText()
         if cast_fn == "asInt()":
-            return (int(raw), InferredType.INT)
+            return int(raw), InferredType.INT
         if cast_fn == "asFloat()":
-            return (float(raw), InferredType.FLOAT)
+            return float(raw), InferredType.FLOAT
         return None
 
     def visitUnaryPlusExpression(self, ctx: ConditionParser.UnaryPlusExpressionContext) -> ExprOrDeferred:

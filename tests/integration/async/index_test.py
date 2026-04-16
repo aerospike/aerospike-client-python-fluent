@@ -179,7 +179,7 @@ async def test_create_duplicate_index_fails(client):
         pass
 
 
-async def test_create_index_with_cdt_context(client, enterprise):
+async def test_create_index_with_cdt_context(client, enterprise, wait_for_index):
     """Create a numeric index on a nested map element via chainable .context()."""
     index_name = "test_ctx_idx"
     bin_name = "payload"
@@ -191,6 +191,20 @@ async def test_create_index_with_cdt_context(client, enterprise):
     except Exception:
         pass
 
+    k1 = ds.id("ctx_idx_a")
+    k2 = ds.id("ctx_idx_b")
+
+    await (
+        session.upsert(k1)
+            .put({bin_name: {"inner": 10, "other": 99}})
+            .execute()
+    )
+    await (
+        session.upsert(k2)
+            .put({bin_name: {"inner": 20, "other": 99}})
+            .execute()
+    )
+
     await (
         client.index("test", "test")
             .on_bin(bin_name)
@@ -199,23 +213,11 @@ async def test_create_index_with_cdt_context(client, enterprise):
             .context([CTX.map_key("inner")])
             .create()
     )
-    await asyncio.sleep(0.25 if not enterprise else 0.01)
 
-    k1 = ds.id("ctx_idx_a")
-    k2 = ds.id("ctx_idx_b")
+    flt = Filter.equal(bin_name, 10).context([CTX.map_key("inner")])
+    await wait_for_index(client, "test", "test", flt)
+
     try:
-        await (
-            session.upsert(k1)
-                .put({bin_name: {"inner": 10, "other": 99}})
-                .execute()
-        )
-        await (
-            session.upsert(k2)
-                .put({bin_name: {"inner": 20, "other": 99}})
-                .execute()
-        )
-
-        flt = Filter.equal(bin_name, 10).context([CTX.map_key("inner")])
         stream = await client.query("test", "test").filter(flt).bins([bin_name]).execute()
         results = []
         try:

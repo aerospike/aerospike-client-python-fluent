@@ -18,20 +18,28 @@
 from __future__ import annotations
 
 import typing
-from typing import Awaitable, Dict, List, Optional, overload, Union
+from typing import Awaitable, Dict, List, Optional, overload, TYPE_CHECKING, Union
 
-from aerospike_async import Key
+if TYPE_CHECKING:
+    from aerospike_sdk.record_result import RecordResult
+
+from aerospike_async import Key, ResultCode
 
 from aerospike_sdk.aio.background import BackgroundTaskSession
 from aerospike_sdk.aio.client import Client
 from aerospike_sdk.aio.info import InfoCommands
 from aerospike_sdk.aio.operations.batch import BatchOperationBuilder
 from aerospike_sdk.aio.operations.index import IndexBuilder
-from aerospike_sdk.aio.operations.query import QueryBuilder, WriteSegmentBuilder
+from aerospike_sdk.aio.operations.query import (
+    QueryBuilder,
+    WriteSegmentBuilder,
+    _SingleKeyWriteSegment,
+)
 from aerospike_sdk.aio.operations.udf import UdfFunctionBuilder
 from aerospike_sdk.aio.transactional_session import TransactionalSession
 from aerospike_sdk.dataset import DataSet
-from aerospike_sdk.policy.behavior import Behavior
+from aerospike_sdk.policy.behavior import Behavior, OpKind, OpShape
+from aerospike_sdk.policy.policy_mapper import to_read_policy, to_write_policy
 
 
 class Session:
@@ -71,6 +79,18 @@ class Session:
         """
         self._client = client
         self._behavior = behavior
+        # Pre-compute base policies once per session so QueryBuilders
+        # skip per-op policy_mapper calls for the common no-override path.
+        self._cached_read_policy = to_read_policy(
+            behavior.get_settings(OpKind.READ, OpShape.POINT))
+        self._cached_write_policy = to_write_policy(
+            behavior.get_settings(OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+        # Cache the raw PAC client for fast-path methods.
+        self._pac_client = client._async_client
+
+    # -- Fast-path single-key operations ------------------------------------
+    # These bypass the QueryBuilder/OperationSpec/RecordStream chain for
+    # simple single-key reads and writes, calling the PAC directly.
 
     @property
     def behavior(self) -> Behavior:
@@ -207,14 +227,16 @@ class Session:
             first.set_name,
             self._behavior,
             indexes_monitor=self._client._indexes_monitor,
+            cached_read_policy=self._cached_read_policy,
+            cached_write_policy=self._cached_write_policy,
         )
         qb._set_current_keys_from_varargs(keys)
         return UdfFunctionBuilder(qb)
 
     # -- Internal helpers -----------------------------------------------------
 
+    @staticmethod
     def _resolve_keys(
-        self,
         arg1: Optional[Union[Key, List[Key]]] = None,
         arg2: Optional[Key] = None,
         *more_keys: Key,
@@ -280,9 +302,22 @@ class Session:
             set_name=first.set_name,
             behavior=self._behavior,
             indexes_monitor=self._client._indexes_monitor,
+            cached_read_policy=self._cached_read_policy,
+            cached_write_policy=self._cached_write_policy,
         )
         target: Union[Key, List[Key]] = all_keys[0] if len(all_keys) == 1 else all_keys
         return qb._start_write_verb(op_type, target)
+
+    def _fast_write_segment(self, op_type: str, key: Key) -> WriteSegmentBuilder:
+        """Single-key write shortcut: bypass QueryBuilder entirely."""
+        return _SingleKeyWriteSegment(
+            client=self._client._async_client,
+            key=key,
+            op_type=op_type,
+            behavior=self._behavior,
+            write_policy=self._cached_write_policy,
+            read_policy=self._cached_read_policy,
+        )
 
     # -- Read entry point -----------------------------------------------------
 
@@ -407,7 +442,20 @@ class Session:
                 elif keys:
                     all_keys.extend(keys)
                 else:
-                    return self._client.query(key=arg1, behavior=b)
+                    # Fast path for single-key queries: construct the
+                    # QueryBuilder directly with cached policies to skip
+                    # Client.query() overhead and per-op policy rebuilds.
+                    builder = QueryBuilder(
+                        client=self._client._async_client,
+                        namespace=arg1.namespace,
+                        set_name=arg1.set_name,
+                        behavior=b,
+                        indexes_monitor=self._client._indexes_monitor,
+                        cached_read_policy=self._cached_read_policy,
+                        cached_write_policy=self._cached_write_policy,
+                    )
+                    builder._single_key = arg1
+                    return builder
                 return self._client.query(keys=all_keys, behavior=b)
             elif isinstance(arg1, list):
                 if len(arg1) == 0:
@@ -680,6 +728,12 @@ class Session:
             :meth:`update`: Fails if the record does not exist.
             :meth:`replace`: Replace-entire-record semantics when configured.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("upsert", arg1)
         return self._build_write_segment(
             "upsert", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -715,6 +769,12 @@ class Session:
         See Also:
             :meth:`upsert`: Create or update.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("insert", arg1)
         return self._build_write_segment(
             "insert", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -747,6 +807,12 @@ class Session:
             :meth:`upsert`: Create if missing.
             :meth:`replace_if_exists`: Replace semantics when the record exists.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("update", arg1)
         return self._build_write_segment(
             "update", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -779,6 +845,12 @@ class Session:
         See Also:
             :meth:`replace_if_exists`: Replace only when the record exists.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("replace", arg1)
         return self._build_write_segment(
             "replace", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -811,6 +883,12 @@ class Session:
         See Also:
             :meth:`replace`: Unconditional replace semantics.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("replace_if_exists", arg1)
         return self._build_write_segment(
             "replace_if_exists", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -848,6 +926,12 @@ class Session:
         See Also:
             :meth:`background_task`: Delete many records via a server job.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("delete", arg1)
         return self._build_write_segment(
             "delete", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -880,6 +964,12 @@ class Session:
         See Also:
             :meth:`upsert`: Writes that can also set expiration via the builder.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("touch", arg1)
         return self._build_write_segment(
             "touch", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -919,6 +1009,12 @@ class Session:
         See Also:
             :meth:`query`: Read record data when the key is known to exist.
         """
+        if (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        ):
+            return self._fast_write_segment("exists", arg1)
         return self._build_write_segment(
             "exists", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,

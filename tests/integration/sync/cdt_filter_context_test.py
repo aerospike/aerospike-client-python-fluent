@@ -19,8 +19,6 @@ See async :mod:`tests.integration.async.cdt_filter_context_test` for notes on
 ``Filter.context`` and PAC ``create_index`` with ``ctx``.
 """
 
-import time
-
 import pytest
 from aerospike_async import CTX, Filter, IndexType
 
@@ -96,7 +94,7 @@ async def _admin_create_flat(pac, index_name: str) -> None:
     )
 
 
-def test_query_filter_equal_with_map_nested_context(client, enterprise):
+def test_query_filter_equal_with_map_nested_context(client, enterprise, sync_wait_for_index):
     """Sync query with ``Filter.equal(...).context([...])`` on a nested map value."""
     _require_filter_context()
 
@@ -116,48 +114,36 @@ def test_query_filter_equal_with_map_nested_context(client, enterprise):
     except Exception:
         pass
 
+    target = 4242
+    other_inner = 7
+
+    (
+        session.upsert(key_hi)
+        .put({_BIN: {_OUTER: {_INNER: target, "noise": other_inner}}})
+        .execute()
+    )
+    (
+        session.upsert(key_lo)
+        .put({_BIN: {_OUTER: {_INNER: 9999, "noise": 1}}})
+        .execute()
+    )
+    (
+        session.upsert(key_missing_inner)
+        .put({_BIN: {_OUTER: {"noise": 3}}})
+        .execute()
+    )
+
     try:
         _run_async(client, _admin_create_nested(pac))
     except Exception as e:
         pytest.skip(f"Could not create nested-map secondary index: {e}")
 
-    time.sleep(0.25 if not enterprise else 0.01)
-
-    target = 4242
-    other_inner = 7
+    flt = Filter.equal(_BIN, target).context(
+        [CTX.map_key(_OUTER), CTX.map_key(_INNER)]
+    )
+    sync_wait_for_index(client, _NS, _SET, flt)
 
     try:
-        (
-            session.upsert(key_hi)
-            .put(
-                {
-                    _BIN: {
-                        _OUTER: {_INNER: target, "noise": other_inner},
-                    },
-                }
-            )
-            .execute()
-        )
-        (
-            session.upsert(key_lo)
-            .put(
-                {
-                    _BIN: {
-                        _OUTER: {_INNER: 9999, "noise": 1},
-                    },
-                }
-            )
-            .execute()
-        )
-        (
-            session.upsert(key_missing_inner)
-            .put({_BIN: {_OUTER: {"noise": 3}}})
-            .execute()
-        )
-
-        flt = Filter.equal(_BIN, target).context(
-            [CTX.map_key(_OUTER), CTX.map_key(_INNER)]
-        )
         stream = client.query(_NS, _SET).filter(flt).bins([_BIN]).execute()
         try:
             user_keys = sorted(_user_keys_from_stream(stream))
@@ -182,7 +168,7 @@ def test_query_filter_equal_with_map_nested_context(client, enterprise):
         _cleanup_records(session, keys)
 
 
-def test_query_filter_equal_single_map_key_context(client, enterprise):
+def test_query_filter_equal_single_map_key_context(client, enterprise, sync_wait_for_index):
     """``Filter.equal(bin, value).context([CTX.map_key(...)])`` on a scalar under one map key."""
     _require_filter_context()
 
@@ -195,6 +181,7 @@ def test_query_filter_equal_single_map_key_context(client, enterprise):
     ac = client._ensure_connected()
     pac = ac.underlying_client
     index_name = f"{_INDEX}_flat"
+    val = 5150
 
     _cleanup_records(session, keys)
     try:
@@ -202,27 +189,26 @@ def test_query_filter_equal_single_map_key_context(client, enterprise):
     except Exception:
         pass
 
+    (
+        session.upsert(key_match)
+        .put({_BIN: {_INNER: val, "other": 1}})
+        .execute()
+    )
+    (
+        session.upsert(key_other)
+        .put({_BIN: {_INNER: val + 1, "other": 2}})
+        .execute()
+    )
+
     try:
         _run_async(client, _admin_create_flat(pac, index_name))
     except Exception as e:
         pytest.skip(f"Could not create CDT-path numeric index: {e}")
 
-    time.sleep(0.25 if not enterprise else 0.01)
-    val = 5150
+    flt = Filter.equal(_BIN, val).context([CTX.map_key(_INNER)])
+    sync_wait_for_index(client, _NS, _SET, flt)
 
     try:
-        (
-            session.upsert(key_match)
-            .put({_BIN: {_INNER: val, "other": 1}})
-            .execute()
-        )
-        (
-            session.upsert(key_other)
-            .put({_BIN: {_INNER: val + 1, "other": 2}})
-            .execute()
-        )
-
-        flt = Filter.equal(_BIN, val).context([CTX.map_key(_INNER)])
         stream = client.query(_NS, _SET).filter(flt).bins([_BIN]).execute()
         try:
             assert sorted(_user_keys_from_stream(stream)) == ["cdt_ctx_flat_a"]

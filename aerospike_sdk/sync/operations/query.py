@@ -30,7 +30,6 @@ from aerospike_async import (
     Key,
     ListOperation,
     ListOrderType,
-    ListPolicy,
     ListReturnType,
     ListSortFlags,
     MapOperation,

@@ -86,8 +86,8 @@ class PlaceholderValues:
 class AELParser:
     """Parser for Aerospike Expression Language (AEL) text."""
 
+    @staticmethod
     def parse(
-        self,
         expression: str,
         placeholder_values: Optional[PlaceholderValues] = None,
     ) -> FilterExpression:

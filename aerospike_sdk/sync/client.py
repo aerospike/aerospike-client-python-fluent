@@ -230,7 +230,8 @@ class _EventLoopManager:
                 log.debug(f"[_get_or_create_loop] Thread {current_thread_id}: Created new loop: {self._loop}, closed: {self._loop.is_closed()}")
             return self._loop
 
-    def _create_new_loop(self) -> asyncio.AbstractEventLoop:
+    @staticmethod
+    def _create_new_loop() -> asyncio.AbstractEventLoop:
         """Create a new event loop."""
         if DEBUG_SYNC_CLIENT:
             log.debug(f"[_create_new_loop] Thread {threading.get_ident()}: Starting")
@@ -259,155 +260,85 @@ class _EventLoopManager:
             return loop
 
     def run_async(self, coro) -> Any:
-        """Run an async coroutine synchronously."""
-        if DEBUG_SYNC_CLIENT:
-            log.debug(f"[run_async] Thread {threading.get_ident()}: Starting")
-        # Always use our managed loop for sync operations
-        # This avoids complications with nest_asyncio and ensures consistent behavior
-        # We create our own loop which is safe even if we're in an async context
-        if DEBUG_SYNC_CLIENT:
-            log.debug(f"[run_async] Thread {threading.get_ident()}: Using managed loop")
-        # Track if we're creating a new loop or reusing an existing one
-        loop_was_reused = self._loop is not None and self._thread_id == threading.get_ident()
-        loop = self._get_or_create_loop()
-        loop_is_fresh = not loop_was_reused
-        if DEBUG_SYNC_CLIENT:
-            log.debug(f"[run_async] Thread {threading.get_ident()}: Got loop: {loop}, closed: {loop.is_closed()}, fresh: {loop_is_fresh}")
-        try:
-            # Check if loop is running - if so, we can't use run_until_complete
-            if loop.is_running():
-                if DEBUG_SYNC_CLIENT:
-                    log.warning(f"[run_async] Thread {threading.get_ident()}: Loop is running, resetting")
-                self._reset_loop()
-                loop = self._get_or_create_loop()
-                loop_is_fresh = True  # After reset, it's definitely fresh
-                if DEBUG_SYNC_CLIENT:
-                    log.debug(f"[run_async] Thread {threading.get_ident()}: Got fresh loop after reset")
-            
-            # Ensure the loop is set as the current event loop for this thread
-            # Some asyncio operations need the current loop to be set
-            # Save the old loop if it exists (but don't create one if it doesn't)
-            old_loop = None
+        """Run an async coroutine synchronously.
+
+        Fast path: when the loop is already established for the current
+        thread, skip all defensive checks and go straight to
+        ``run_until_complete``.  The slow path handles first-call setup,
+        thread migration, and error recovery.
+        """
+        # ---- fast path: reuse an established loop ----
+        loop = self._loop
+        if loop is not None and self._thread_id == threading.get_ident():
             try:
-                # Try to get the running loop first (won't create a new one)
-                old_loop = asyncio.get_running_loop()
-            except RuntimeError:
-                # No running loop, check if there's a current event loop set
-                # Use get_event_loop() carefully - in Python 3.10+ it might create a new loop
-                try:
-                    # Check if there's already a loop set for this thread
-                    # We'll use a try/except to avoid creating one
-                    if hasattr(asyncio, '_get_running_loop'):
-                        # Python 3.7+ - try to get the thread-local loop without creating one
-                        old_loop = None
-                    else:
-                        # Fallback - try get_event_loop but be careful
-                        try:
-                            old_loop = asyncio.get_event_loop()
-                            # If it's closed or not our loop, ignore it
-                            if old_loop.is_closed() or old_loop == loop:
-                                old_loop = None
-                        except RuntimeError:
-                            old_loop = None
-                except Exception:
-                    old_loop = None
-            
-            # Always set our loop as the current event loop before using it
-            # This is critical for asyncio operations to work correctly
-            asyncio.set_event_loop(loop)
-            
-            if DEBUG_SYNC_CLIENT:
-                log.debug(f"[run_async] Thread {threading.get_ident()}: Set loop as current event loop")
-            
-            try:
-                result = loop.run_until_complete(coro)
-                if DEBUG_SYNC_CLIENT:
-                    log.debug(f"[run_async] Thread {threading.get_ident()}: Completed successfully (managed loop)")
-                return result
-            finally:
-                # Restore the old loop if there was one and it's different from ours
-                try:
-                    current_loop = asyncio.get_event_loop()
-                    if old_loop is not None and old_loop != current_loop and not old_loop.is_closed():
-                        asyncio.set_event_loop(old_loop)
-                    elif old_loop is None:
-                        # No old loop to restore - keep our loop set for potential reuse
-                        # Don't clear it unless we're resetting
-                        pass
-                except RuntimeError:
-                    # Can't get/set event loop, that's okay
-                    pass
-        except RuntimeError as runtime_err:
-            # RuntimeError from run_until_complete usually means the loop is in a bad state
-            # Check if it's the "no running event loop" error or similar
-            error_msg = str(runtime_err).lower()
-            if "no running event loop" in error_msg or "this event loop is already running" in error_msg:
-                if DEBUG_SYNC_CLIENT:
-                    log.warning(f"[run_async] Thread {threading.get_ident()}: Loop runtime error: {runtime_err}, resetting loop")
+                return loop.run_until_complete(coro)
+            except StopAsyncIteration:
+                raise
+            except RuntimeError as runtime_err:
+                error_msg = str(runtime_err).lower()
+                if "no running event loop" not in error_msg and "this event loop is already running" not in error_msg:
+                    raise
+                # Fall through to slow path for recovery.
+            except AerospikeConnectionError:
                 self._reset_loop()
-                # Try once more with a fresh loop
-                loop = self._get_or_create_loop()
-                if DEBUG_SYNC_CLIENT:
-                    log.debug(f"[run_async] Thread {threading.get_ident()}: Retrying with fresh loop")
-                result = loop.run_until_complete(coro)
-                if DEBUG_SYNC_CLIENT:
-                    log.debug(f"[run_async] Thread {threading.get_ident()}: Completed successfully after retry")
-                return result
-            # If it's a different RuntimeError, let it fall through to the general exception handler
-            raise
-        except StopAsyncIteration:
-            # StopAsyncIteration is a normal part of async iteration protocol, not an error
-            # Re-raise it without logging or resetting the loop
-            raise
-        except AerospikeConnectionError as e:
-            # Connection errors can leave the event loop in a bad state, especially if we're reusing a loop
-            # The loop might have pending operations, closed connections, or other state that prevents new connections
-            # Always clear the loop reference to prevent reuse, but only close it if it was reused (has bad state)
-            # Fresh loops that fail are likely due to external issues - closing them won't help and wastes resources
-            if DEBUG_SYNC_CLIENT:
-                log.error(f"[run_async] Thread {threading.get_ident()}: ConnectionError occurred: {e}")
-            if not loop_is_fresh:
-                # Reset reused loops that fail - they might have bad state
-                if DEBUG_SYNC_CLIENT:
-                    log.warning(f"[run_async] Thread {threading.get_ident()}: Resetting reused loop after ConnectionError to ensure clean state")
-                self._reset_loop()
-            else:
-                # Fresh loop failed - likely external issue, just clear the reference
-                # Don't close it immediately - let the loop manager handle cleanup when refcount reaches 0
-                # This prevents unnecessary resource churn
-                if DEBUG_SYNC_CLIENT:
-                    log.debug(f"[run_async] Thread {threading.get_ident()}: ConnectionError on fresh loop - clearing reference (likely external issue)")
-            with self._lock:
-                self._loop = None
-                self._thread_id = None
-            raise
-        except Exception as e:
-            # If an exception occurs, check if the loop is still valid
-            # Only reset if the loop is actually closed or in a bad state
-            if DEBUG_SYNC_CLIENT:
-                log.error(f"[run_async] Thread {threading.get_ident()}: Exception occurred: {type(e).__name__}: {e}")
-            try:
-                is_closed = loop.is_closed()
-                if DEBUG_SYNC_CLIENT:
-                    log.debug(f"[run_async] Thread {threading.get_ident()}: Loop closed: {is_closed}")
-                if is_closed:
-                    # Loop is closed, clear it so a new one will be created
-                    if DEBUG_SYNC_CLIENT:
-                        log.warning(f"[run_async] Thread {threading.get_ident()}: Loop is closed, clearing it")
+                raise
+            except Exception:
+                if loop.is_closed():
                     with self._lock:
                         if self._loop is loop:
                             self._loop = None
                             self._thread_id = None
-            except (RuntimeError, AttributeError) as loop_check_error:
-                # Loop is in a bad state, clear it
-                if DEBUG_SYNC_CLIENT:
-                    log.warning(f"[run_async] Thread {threading.get_ident()}: Loop check failed: {loop_check_error}, clearing loop")
+                raise
+
+        # ---- slow path: first call or recovery ----
+        return self._run_async_slow(coro)
+
+    def _run_async_slow(self, coro) -> Any:
+        """Slow path for :meth:`run_async` — setup and error recovery."""
+        if DEBUG_SYNC_CLIENT:
+            log.debug(f"[run_async] Thread {threading.get_ident()}: Slow path")
+        loop_was_reused = self._loop is not None and self._thread_id == threading.get_ident()
+        loop = self._get_or_create_loop()
+        loop_is_fresh = not loop_was_reused
+        try:
+            if loop.is_running():
+                self._reset_loop()
+                loop = self._get_or_create_loop()
+                loop_is_fresh = True
+
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(coro)
+            return result
+        except RuntimeError as runtime_err:
+            error_msg = str(runtime_err).lower()
+            if "no running event loop" in error_msg or "this event loop is already running" in error_msg:
+                self._reset_loop()
+                loop = self._get_or_create_loop()
+                asyncio.set_event_loop(loop)
+                return loop.run_until_complete(coro)
+            raise
+        except StopAsyncIteration:
+            raise
+        except AerospikeConnectionError:
+            if not loop_is_fresh:
+                self._reset_loop()
+            else:
+                with self._lock:
+                    self._loop = None
+                    self._thread_id = None
+            raise
+        except Exception:
+            try:
+                if loop.is_closed():
+                    with self._lock:
+                        if self._loop is loop:
+                            self._loop = None
+                            self._thread_id = None
+            except (RuntimeError, AttributeError):
                 with self._lock:
                     if self._loop is loop:
                         self._loop = None
                         self._thread_id = None
-            if DEBUG_SYNC_CLIENT:
-                log.error(f"[run_async] Thread {threading.get_ident()}: Re-raising exception: {type(e).__name__}: {e}")
             raise
 
     def close(self) -> None:

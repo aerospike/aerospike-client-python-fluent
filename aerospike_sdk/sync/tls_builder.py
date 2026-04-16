@@ -28,7 +28,7 @@ class TlsBuilder:
     """
     Builder class for configuring TLS settings for Aerospike cluster connections (sync version).
     
-    This class provides a SDK API for configuring TLS parameters such as
+    This class provides an SDK API for configuring TLS parameters such as
     TLS name, CA file, protocols, ciphers, and other TLS-specific options.
     
     Simple example usage::

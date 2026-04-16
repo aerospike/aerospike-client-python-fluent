@@ -58,7 +58,6 @@ from aerospike_async import (
     Key,
     ListOperation,
     ListOrderType,
-    ListPolicy,
     ListReturnType,
     ListSortFlags,
     MapOperation,
@@ -377,6 +376,8 @@ _OP_TYPE_TO_REA: dict[str, RecordExistsAction] = {
     "replace_if_exists": RecordExistsAction.REPLACE_ONLY,
 }
 
+_FAST_WRITES_REQUIRING_KEY = frozenset({"update", "replace_if_exists"})
+
 
 def _build_exp_write_flags(
     base: int,
@@ -469,6 +470,8 @@ class QueryBuilder(_WriteVerbs):
         set_name: str,
         behavior: Optional[Behavior] = None,
         indexes_monitor: Optional["IndexesMonitor"] = None,
+        cached_read_policy: Optional[ReadPolicy] = None,
+        cached_write_policy: Optional[WritePolicy] = None,
     ) -> None:
         """
         Initialize a QueryBuilder.
@@ -480,6 +483,8 @@ class QueryBuilder(_WriteVerbs):
             behavior: Optional Behavior for deriving policies.
             indexes_monitor: Optional monitor providing cached index metadata
                 for transparent filter generation from AEL expressions.
+            cached_read_policy: Pre-computed read policy from the session.
+            cached_write_policy: Pre-computed write policy from the session.
         """
         self._client = client
         self._namespace = namespace
@@ -512,6 +517,10 @@ class QueryBuilder(_WriteVerbs):
         self._udf_package: Optional[str] = None
         self._udf_function: Optional[str] = None
         self._udf_args: Optional[List[Any]] = None
+        # Reuse session-cached policies when available; fall back to
+        # computing them lazily from the behavior on first use.
+        self._base_read_policy: Optional[ReadPolicy] = cached_read_policy
+        self._base_write_policy: Optional[WritePolicy] = cached_write_policy
 
     def bins(self, bin_names: List[str]) -> QueryBuilder:
         """Restrict the read to a non-empty set of bin names.
@@ -1269,21 +1278,45 @@ class QueryBuilder(_WriteVerbs):
         self._finalize_current_spec()
 
         if self._specs:
+            # Fast path for the common single-spec case: skip the
+            # sum/log overhead that only benefits multi-spec debugging.
+            if len(self._specs) == 1:
+                spec0 = self._specs[0]
+                is_single = len(spec0.keys) == 1
+
+                # Ultra-fast path: single-key operations with no spec-level
+                # overrides bypass the full _execute_spec → policy-build →
+                # RecordStream chain and call the PAC directly.
+                if (
+                    is_single
+                    and on_error is None
+                    and spec0.filter_expression is None
+                    and spec0.generation is None
+                    and spec0.ttl_seconds is None
+                    and not spec0.durable_delete
+                ):
+                    result = await self._execute_single_key_direct(spec0)
+                    if result is not None:
+                        return result
+
+                if __debug__ and log.isEnabledFor(logging.DEBUG):
+                    log.debug(
+                        "execute: %s.%s specs=1 keys=%d",
+                        self._namespace, self._set_name,
+                        len(spec0.keys),
+                    )
+                disp = _resolve_disposition(on_error, is_single)
+                handler = on_error if callable(on_error) else None
+                return await self._execute_spec(spec0, disp, handler)
             total_keys = sum(len(s.keys) for s in self._specs)
             log.debug(
                 "execute: %s.%s specs=%d keys=%d",
                 self._namespace, self._set_name,
                 len(self._specs), total_keys,
             )
-            is_single = (
-                len(self._specs) == 1
-                and len(self._specs[0].keys) == 1
-            )
+            is_single = False
             disp = _resolve_disposition(on_error, is_single)
             handler = on_error if callable(on_error) else None
-            if len(self._specs) == 1:
-                return await self._execute_spec(
-                    self._specs[0], disp, handler)
             if self._specs_require_sequential_run():
                 sub_disp = _resolve_disposition(on_error, is_single_key=False)
                 streams: List[RecordStream] = []
@@ -1434,9 +1467,11 @@ class QueryBuilder(_WriteVerbs):
         filt = self._filter_expression or self._default_filter_expression
         ttl = self._ttl_seconds if self._ttl_seconds is not None else self._default_ttl_seconds
 
+        # Hand off the current operations list directly; allocate a fresh
+        # one for the next spec instead of copying.
         self._specs.append(_OperationSpec(
             keys=keys,
-            operations=list(self._operations),
+            operations=self._operations,
             bins=self._bins,
             filter_expression=filt,
             op_type=self._op_type,
@@ -1524,10 +1559,11 @@ class QueryBuilder(_WriteVerbs):
         """Execute a single :class:`_OperationSpec`."""
         keys = spec.keys
         op_type = spec.op_type
-        log.debug(
-            "_execute_spec: op=%s keys=%d ops=%d",
-            op_type or "read", len(keys), len(spec.operations),
-        )
+        if __debug__ and log.isEnabledFor(logging.DEBUG):
+            log.debug(
+                "_execute_spec: op=%s keys=%d ops=%d",
+                op_type or "read", len(keys), len(spec.operations),
+            )
 
         if op_type is None:
             has_ops = bool(spec.operations)
@@ -1740,8 +1776,8 @@ class QueryBuilder(_WriteVerbs):
 
         return RecordStream.from_error(key, rc, in_doubt, exception=pfc_exc)
 
+    @staticmethod
     def _handle_batch_error(
-        self,
         keys: List[Key],
         exc: Exception,
         disp: _ErrorDisposition,
@@ -1780,6 +1816,11 @@ class QueryBuilder(_WriteVerbs):
         if self._read_policy is not None:
             rp = self._read_policy
         elif self._behavior is not None:
+            if self._base_read_policy is None:
+                self._base_read_policy = to_read_policy(
+                    self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+            if spec.filter_expression is None:
+                return self._base_read_policy
             rp = to_read_policy(
                 self._behavior.get_settings(OpKind.READ, OpShape.POINT))
         else:
@@ -1787,6 +1828,62 @@ class QueryBuilder(_WriteVerbs):
         if spec.filter_expression is not None:
             rp.filter_expression = spec.filter_expression
         return rp
+
+    async def _execute_single_key_direct(
+        self, spec: _OperationSpec,
+    ) -> Optional[RecordStream]:
+        """Ultra-fast path for single-key reads and writes.
+
+        Calls the PAC directly, bypassing _execute_spec, policy
+        construction, and full RecordStream wrapping.  Returns
+        ``None`` if the operation type is not supported by this path
+        (caller falls back to the normal chain).  On PAC exceptions,
+        uses the standard error disposition (single-key default = THROW).
+        """
+        key = spec.keys[0]
+        op_type = spec.op_type
+        has_ops = bool(spec.operations)
+
+        if op_type is None and not has_ops:
+            # Simple read — all bins or projected bins.
+            if self._base_read_policy is None and self._behavior is not None:
+                self._base_read_policy = to_read_policy(
+                    self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+            rp = self._base_read_policy or ReadPolicy()
+            try:
+                record = await self._client.get(rp, key, spec.bins)
+            except Exception as e:
+                return self._handle_error(
+                    key, e, _ErrorDisposition.THROW, None)
+            return RecordStream.from_single(key, record)
+
+        if has_ops and op_type not in ("delete", "touch", "exists", "udf"):
+            # Write via operate — upsert or verb with REA override.
+            if self._base_write_policy is None and self._behavior is not None:
+                self._base_write_policy = to_write_policy(
+                    self._behavior.get_settings(
+                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+            rea = _OP_TYPE_TO_REA.get(op_type) if op_type else None
+            if rea is not None:
+                if self._behavior is not None:
+                    wp = to_write_policy(
+                        self._behavior.get_settings(
+                            OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+                else:
+                    wp = WritePolicy()
+                wp.record_exists_action = rea
+            else:
+                wp = self._base_write_policy or WritePolicy()
+            try:
+                record = await self._client.operate(wp, key, spec.operations)
+            except Exception as e:
+                return self._handle_error(
+                    key, e, _ErrorDisposition.THROW, None,
+                    op_type=spec.op_type)
+            return RecordStream.from_single(key, record)
+
+        # Not a simple case — fall back to normal chain.
+        return None
 
     async def _execute_single_key_read(
         self, spec: _OperationSpec,
@@ -1859,14 +1956,28 @@ class QueryBuilder(_WriteVerbs):
 
     def _make_write_policy(self, spec: _OperationSpec) -> WritePolicy:
         """Build a ``WritePolicy`` for single-key writes."""
+        op_type = spec.op_type or "upsert"
+        rea = _OP_TYPE_TO_REA.get(op_type)
+        # Fast path: reuse the cached base policy when no spec-level
+        # overrides exist and the op type doesn't require a REA change.
         if self._behavior is not None:
+            if self._base_write_policy is None:
+                self._base_write_policy = to_write_policy(
+                    self._behavior.get_settings(
+                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+            if (
+                rea is None
+                and spec.filter_expression is None
+                and spec.generation is None
+                and spec.ttl_seconds is None
+                and not spec.durable_delete
+            ):
+                return self._base_write_policy
             wp = to_write_policy(
                 self._behavior.get_settings(
                     OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
         else:
             wp = WritePolicy()
-        op_type = spec.op_type or "upsert"
-        rea = _OP_TYPE_TO_REA.get(op_type)
         if rea is not None:
             wp.record_exists_action = rea
         if spec.filter_expression is not None:
@@ -2646,6 +2757,232 @@ class WriteSegmentBuilder(_WriteVerbs):
             Same as :meth:`QueryBuilder.execute`.
         """
         return await self._qb.execute(on_error)
+
+
+class _SingleKeyWriteSegment(WriteSegmentBuilder):
+    """Lightweight single-key write path that bypasses QueryBuilder overhead.
+
+    On the hot path (put + execute), calls the PAC directly without
+    ``_finalize_current_spec``, ``_OperationSpec``, or ``execute()`` dispatch.
+    Advanced features (``where``, TTL, generation, chaining) trigger in-place
+    promotion: ``self._qb`` is populated so all inherited
+    ``WriteSegmentBuilder`` methods work naturally.
+    """
+
+    __slots__ = (
+        "_client_fast", "_key", "_op_type_fast", "_ops",
+        "_write_policy", "_behavior_fast", "_read_policy",
+    )
+
+    def __init__(
+        self,
+        client: Client,
+        key: Key,
+        op_type: str,
+        behavior: Any,
+        write_policy: WritePolicy | None,
+        read_policy: ReadPolicy | None = None,
+    ) -> None:
+        self._qb = None  # type: ignore[assignment]
+        self._client_fast = client
+        self._key = key
+        self._op_type_fast = op_type
+        self._ops: list[Any] = []
+        self._write_policy = write_policy
+        self._behavior_fast = behavior
+        self._read_policy = read_policy
+
+    # -- Operation methods ---------------------------------------------------
+    # On the fast path (_qb is None) these use self._ops directly.
+    # After promotion (_qb is set) they delegate to the QB's list.
+
+    def put(self, bins: dict) -> WriteSegmentBuilder:
+        if self._qb is not None:
+            return super().put(bins)
+        ops = self._ops
+        for bin_name, value in bins.items():
+            ops.append(Operation.put(bin_name, value))
+        return self
+
+    def _add_op(self, op: Any) -> WriteSegmentBuilder:
+        if self._qb is not None:
+            self._qb._operations.append(op)
+        else:
+            self._ops.append(op)
+        return self
+
+    def add_operation(self, op: Any) -> None:
+        if self._qb is not None:
+            self._qb._operations.append(op)
+        else:
+            self._ops.append(op)
+
+    def replace_only(self) -> WriteSegmentBuilder:
+        if self._qb is not None:
+            return super().replace_only()
+        self._op_type_fast = "replace_if_exists"
+        return self
+
+    # -- In-place promotion --------------------------------------------------
+
+    def _promote(self) -> None:
+        """Populate ``self._qb`` so inherited WriteSegmentBuilder methods work."""
+        if self._qb is not None:
+            return
+        qb = QueryBuilder(
+            client=self._client_fast,
+            namespace=self._key.namespace,
+            set_name=self._key.set_name,
+            behavior=self._behavior_fast,
+            cached_write_policy=self._write_policy,
+            cached_read_policy=self._read_policy,
+        )
+        qb._op_type = self._op_type_fast
+        qb._single_key = self._key
+        qb._operations = self._ops
+        self._qb = qb
+
+    def where(self, expression):
+        self._promote()
+        return super().where(expression)
+
+    def expire_record_after_seconds(self, seconds):
+        self._promote()
+        return super().expire_record_after_seconds(seconds)
+
+    def never_expire(self):
+        self._promote()
+        return super().never_expire()
+
+    def with_no_change_in_expiration(self):
+        self._promote()
+        return super().with_no_change_in_expiration()
+
+    def expiry_from_server_default(self):
+        self._promote()
+        return super().expiry_from_server_default()
+
+    def ensure_generation_is(self, generation):
+        self._promote()
+        return super().ensure_generation_is(generation)
+
+    def durably_delete(self):
+        self._promote()
+        return super().durably_delete()
+
+    def respond_all_keys(self):
+        self._promote()
+        return super().respond_all_keys()
+
+    def fail_on_filtered_out(self):
+        self._promote()
+        return super().fail_on_filtered_out()
+
+    def query(self, arg1, *more_keys):
+        self._promote()
+        return super().query(arg1, *more_keys)
+
+    def _start_write_verb(self, op_type, arg1, *more_keys):
+        self._promote()
+        return super()._start_write_verb(op_type, arg1, *more_keys)
+
+    # -- Error handling ------------------------------------------------------
+
+    @staticmethod
+    def _handle_fast_error(
+        exc: Exception, op_type: str,
+    ) -> RecordStream:
+        pfc_exc = _convert_pac_exception(exc)
+        rc = pfc_exc.result_code or ResultCode.OK
+        if rc == ResultCode.KEY_NOT_FOUND_ERROR:
+            if op_type in _FAST_WRITES_REQUIRING_KEY:
+                raise pfc_exc from exc
+        elif rc != ResultCode.FILTERED_OUT:
+            raise pfc_exc from exc
+        return RecordStream.from_list([])
+
+    # -- Policy helpers ------------------------------------------------------
+
+    def _get_write_policy(self) -> WritePolicy:
+        wp = self._write_policy
+        if wp is None and self._behavior_fast is not None:
+            wp = to_write_policy(
+                self._behavior_fast.get_settings(
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+            self._write_policy = wp
+        return wp or WritePolicy()
+
+    # -- Execution -----------------------------------------------------------
+
+    async def execute(  # type: ignore[override]
+        self, on_error: OnError | None = None,
+    ) -> RecordStream:
+        if self._qb is not None:
+            return await self._qb.execute(on_error)
+        if on_error is not None:
+            self._promote()
+            return await self._qb.execute(on_error)  # type: ignore[union-attr]
+
+        key = self._key
+        op_type = self._op_type_fast
+
+        # -- delete (PAC returns bool, no record) --
+        if op_type == "delete":
+            wp = self._get_write_policy()
+            try:
+                existed = await self._client_fast.delete(wp, key)
+            except Exception as exc:
+                return self._handle_fast_error(exc, "delete")
+            if existed:
+                return RecordStream.from_error(key, ResultCode.OK)
+            return RecordStream.from_list([])
+
+        # -- touch (no record returned) --
+        if op_type == "touch":
+            wp = self._get_write_policy()
+            try:
+                await self._client_fast.touch(wp, key)
+            except Exception as exc:
+                return self._handle_fast_error(exc, "touch")
+            return RecordStream.from_error(key, ResultCode.OK)
+
+        # -- exists (uses ReadPolicy, returns bool) --
+        if op_type == "exists":
+            rp = self._read_policy
+            if rp is None and self._behavior_fast is not None:
+                rp = to_read_policy(
+                    self._behavior_fast.get_settings(
+                        OpKind.READ, OpShape.POINT))
+                self._read_policy = rp
+            if rp is None:
+                rp = ReadPolicy()
+            try:
+                found = await self._client_fast.exists(rp, key)
+            except Exception as exc:
+                return self._handle_fast_error(exc, "exists")
+            if found:
+                return RecordStream.from_error(key, ResultCode.OK)
+            return RecordStream.from_list([])
+
+        # -- operate-based: upsert, insert, update, replace, replace_if_exists --
+        rea = _OP_TYPE_TO_REA.get(op_type) if op_type else None
+        if rea is not None:
+            if self._behavior_fast is not None:
+                wp = to_write_policy(
+                    self._behavior_fast.get_settings(
+                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+            else:
+                wp = WritePolicy()
+            wp.record_exists_action = rea
+        else:
+            wp = self._get_write_policy()
+
+        try:
+            record = await self._client_fast.operate(
+                wp, key, self._ops)
+        except Exception as exc:
+            return self._handle_fast_error(exc, op_type or "upsert")
+        return RecordStream.from_single(key, record)
 
 
 class WriteBinBuilder(_WriteVerbs):
