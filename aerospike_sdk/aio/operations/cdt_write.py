@@ -71,13 +71,13 @@ def _resolve_list_policy(
     """
     flags = 0
     if unique:
-        flags |= int(ListWriteFlags.ADD_UNIQUE)
+        flags |= int(ListWriteFlags.ADD_UNIQUE)  # type: ignore[arg-type]
     if bounded:
-        flags |= int(ListWriteFlags.INSERT_BOUNDED)
+        flags |= int(ListWriteFlags.INSERT_BOUNDED)  # type: ignore[arg-type]
     if no_fail:
-        flags |= int(ListWriteFlags.NO_FAIL)
+        flags |= int(ListWriteFlags.NO_FAIL)  # type: ignore[arg-type]
     if partial:
-        flags |= int(ListWriteFlags.PARTIAL)
+        flags |= int(ListWriteFlags.PARTIAL)  # type: ignore[arg-type]
     if not flags:
         if order is None:
             return _UNORDERED_LIST_POLICY

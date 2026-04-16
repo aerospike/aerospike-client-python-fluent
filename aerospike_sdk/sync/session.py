@@ -90,6 +90,11 @@ class SyncSession:
         )
         return SyncWriteSegmentBuilder(wsb, self._loop_manager)
 
+    def _fast_write_segment(self, op_type: str, key: Key) -> "SyncWriteSegmentBuilder":
+        """Single-key write shortcut: delegate to async fast path and wrap."""
+        wsb = self._async_session._fast_write_segment(op_type, key)
+        return SyncWriteSegmentBuilder(wsb, self._loop_manager)
+
     def query(
         self,
         arg1: Optional[Union[DataSet, Key, List[Key], str]] = None,
@@ -274,6 +279,15 @@ class SyncSession:
             return self._loop_manager.run_async(_info())
         return SyncInfoCommands(self._async_session.info(), self._loop_manager)
 
+    def _is_single_key(
+        self, arg1, arg2, keys, key, dataset, namespace, key_value,
+    ) -> bool:
+        return (
+            isinstance(arg1, Key) and arg2 is None and not keys
+            and key is None and dataset is None
+            and namespace is None and key_value is None
+        )
+
     def upsert(
         self,
         arg1: Optional[Union[Key, List[Key]]] = None,
@@ -286,6 +300,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create an upsert write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("upsert", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "upsert", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -304,6 +320,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create an insert write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("insert", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "insert", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -322,6 +340,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create an update write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("update", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "update", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -340,6 +360,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create a replace write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("replace", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "replace", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -358,6 +380,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create a replace-if-exists write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("replace_if_exists", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "replace_if_exists", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -376,6 +400,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create a delete write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("delete", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "delete", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -394,6 +420,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create a touch write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("touch", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "touch", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,
@@ -412,6 +440,8 @@ class SyncSession:
         key_value: Optional[Union[str, int, bytes]] = None,
     ) -> "SyncWriteSegmentBuilder":
         """Create an exists-check write segment (synchronous)."""
+        if self._is_single_key(arg1, arg2, keys, key, dataset, namespace, key_value):
+            return self._fast_write_segment("exists", arg1)  # type: ignore[arg-type]
         return self._build_write_segment(
             "exists", arg1, arg2, *keys,
             key=key, dataset=dataset, namespace=namespace,

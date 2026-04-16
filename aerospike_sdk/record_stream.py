@@ -31,6 +31,25 @@ if TYPE_CHECKING:  # Not unused — needed for forward-reference type annotation
 log = logging.getLogger(__name__)
 
 
+class _SingleResultIter:
+    """Lightweight async iterator that yields exactly one RecordResult."""
+
+    __slots__ = ("_result",)
+
+    def __init__(self, result: RecordResult) -> None:
+        self._result: RecordResult | None = result
+
+    def __aiter__(self) -> _SingleResultIter:
+        return self
+
+    async def __anext__(self) -> RecordResult:
+        r = self._result
+        if r is None:
+            raise StopAsyncIteration
+        self._result = None
+        return r
+
+
 class RecordStream:
     """Async iterator of :class:`~aerospike_sdk.record_result.RecordResult` rows.
 
@@ -63,6 +82,9 @@ class RecordStream:
         self._chunk_limit: int = 0
         self._chunk_count: int = 0
         self._counter_ref: list[int] = [0]
+        # Fast-path cache for single-result streams: avoids async
+        # iteration overhead in first() / first_or_raise().
+        self._single_result: RecordResult | None = None
 
     # -- factory constructors ------------------------------------------------
 
@@ -179,21 +201,11 @@ class RecordStream:
         Example::
             stream = RecordStream.from_single(key, record)
         """
-        if record is None:
-            results = [RecordResult(
-                key=key,
-                record=None,
-                result_code=ResultCode.KEY_NOT_FOUND_ERROR,
-                index=0,
-            )]
-        else:
-            results = [RecordResult(
-                key=key,
-                record=record,
-                result_code=ResultCode.OK,
-                index=0,
-            )]
-        return cls.from_list(results)
+        rc = ResultCode.OK if record is not None else ResultCode.KEY_NOT_FOUND_ERROR
+        result = RecordResult(key=key, record=record, result_code=rc, index=0)
+        inst = cls(_SingleResultIter(result))
+        inst._single_result = result
+        return inst
 
     @classmethod
     def from_error(
@@ -314,6 +326,12 @@ class RecordStream:
             if row is None:
                 ...
         """
+        # Fast path: skip async iteration for single-result streams.
+        r = self._single_result
+        if r is not None:
+            self._single_result = None
+            self._closed = True
+            return r
         try:
             return await self.__anext__()
         except StopAsyncIteration:

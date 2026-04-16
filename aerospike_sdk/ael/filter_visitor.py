@@ -230,7 +230,8 @@ class FilterTreeVisitor(ConditionVisitor):
                 )
         return None
 
-    def _flip_op(self, op: OperationType) -> OperationType:
+    @staticmethod
+    def _flip_op(op: OperationType) -> OperationType:
         if op == OperationType.LT:
             return OperationType.GT
         if op == OperationType.LE:
@@ -278,7 +279,8 @@ class FilterTreeVisitor(ConditionVisitor):
             return None
         return self._get_operand_from_shift(bitwise_ctx.getChild(0))
 
-    def _unwrap_parenthesized_bitwise(self, bw_ctx: Any) -> Optional[Any]:
+    @staticmethod
+    def _unwrap_parenthesized_bitwise(bw_ctx: Any) -> Optional[Any]:
         """If bw_ctx wraps a parenthesized expression, return the inner bitwiseExpression context."""
         if bw_ctx.getChildCount() != 1:
             return None
@@ -333,9 +335,9 @@ class FilterTreeVisitor(ConditionVisitor):
                 right = self._get_operand_from_multiplicative(add_ctx.getChild(2))
                 if left is not None and right is not None:
                     if isinstance(left, _BinRef) and isinstance(right, _Constant) and isinstance(right.value, int) and not isinstance(right.value, bool):
-                        return (left, op_text, int(right.value), True)
+                        return left, op_text, int(right.value), True
                     if isinstance(right, _BinRef) and isinstance(left, _Constant) and isinstance(left.value, int) and not isinstance(left.value, bool):
-                        return (right, op_text, int(left.value), False)
+                        return right, op_text, int(left.value), False
         if add_ctx.getChildCount() == 1:
             mult_ctx = add_ctx.getChild(0)
             if mult_ctx.getChildCount() == 3:
@@ -345,9 +347,9 @@ class FilterTreeVisitor(ConditionVisitor):
                     right = self._get_operand_from_power(mult_ctx.getChild(2))
                     if left is not None and right is not None:
                         if isinstance(left, _BinRef) and isinstance(right, _Constant) and isinstance(right.value, int) and not isinstance(right.value, bool):
-                            return (left, op_text, int(right.value), True)
+                            return left, op_text, int(right.value), True
                         if isinstance(right, _BinRef) and isinstance(left, _Constant) and isinstance(left.value, int) and not isinstance(left.value, bool):
-                            return (right, op_text, int(left.value), False)
+                            return right, op_text, int(left.value), False
         return None
 
     def _try_simple_operand(self, bw_ctx: Any) -> Optional[_SimpleOperand]:
@@ -435,21 +437,25 @@ class FilterTreeVisitor(ConditionVisitor):
             return _Constant(int(raw), IndexTypeEnum.NUMERIC)
         return _Constant(float(raw), IndexTypeEnum.NUMERIC)
 
-    def _constant_from_number(self, num_ctx: Any) -> _Constant:
+    @staticmethod
+    def _constant_from_number(num_ctx: Any) -> _Constant:
         text = num_ctx.getText()
         if '.' in text:
             return _Constant(float(text), IndexTypeEnum.NUMERIC)
         return _Constant(int(text), IndexTypeEnum.NUMERIC)
 
-    def _constant_from_string(self, str_ctx: Any) -> _Constant:
+    @staticmethod
+    def _constant_from_string(str_ctx: Any) -> _Constant:
         text = str_ctx.getText()
         return _Constant(_unquote(text), IndexTypeEnum.STRING)
 
-    def _constant_from_boolean(self, bool_ctx: Any) -> _Constant:
+    @staticmethod
+    def _constant_from_boolean(bool_ctx: Any) -> _Constant:
         text = bool_ctx.getText().lower()
         return _Constant(text == 'true', None)
 
-    def _parse_value_identifier(self, text: str) -> Any:
+    @staticmethod
+    def _parse_value_identifier(text: str) -> Any:
         """Parse valueIdentifier text to int, float, or string for CTX.list_value."""
         text = text.strip()
         if not text:

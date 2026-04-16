@@ -16,6 +16,7 @@
 """Tests for QueryBuilder SDK API."""
 
 import asyncio
+
 import pytest
 from aerospike_async import Filter, PartitionFilter, QueryPolicy
 from aerospike_sdk import DataSet, Exp, Client
@@ -121,13 +122,13 @@ async def test_query_builder_chaining(client):
     stream.close()
     assert count > 0
 
-async def test_query_with_range_filter(client, enterprise):
+async def test_query_with_range_filter(client, enterprise, wait_for_index):
     """Test query with range filter (requires index)."""
     try:
         await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
-        await asyncio.sleep(0.25 if not enterprise else 0.01)
     except Exception:
         pass
+    await wait_for_index(client, "test", "query_test", Filter.range("age", 22, 26))
 
     try:
         stream = await (
@@ -201,13 +202,13 @@ async def test_query_with_filter_expression(client):
     stream.close()
     assert count > 0
 
-async def test_query_with_filter_and_filter_expression(client, enterprise):
+async def test_query_with_filter_and_filter_expression(client, enterprise, wait_for_index):
     """Test query with both Filter (secondary index) and Exp (FilterExpression)."""
     try:
         await client.index("test", "query_test").on_bin("age").named("age_idx").numeric().create()
-        await asyncio.sleep(0.25 if not enterprise else 0.01)
     except Exception:
         pass
+    await wait_for_index(client, "test", "query_test", Filter.range("age", 20, 30))
 
     filter_exp = Exp.eq(
         Exp.string_bin("name"),

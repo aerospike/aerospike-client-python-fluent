@@ -1,4 +1,4 @@
-.PHONY: antlr generate-ael clean-ael test dev docs docs-clean docs-serve examples
+.PHONY: antlr generate-ael clean-ael test dev docs docs-clean docs-serve examples bench bench-quick bench-compare
 
 # ANTLR JAR location - download if not present
 ANTLR_JAR ?= antlr-4.13.0-complete.jar
@@ -57,3 +57,13 @@ docs:
 
 docs-serve:
 	sphinx-autobuild docs docs/_build/html
+
+bench:
+	python -m benchmarks.benchmark -k 100000 -z 32 -w I -c 100000 -d 120
+	python -m benchmarks.benchmark -k 100000 -z 32 -w RU,50 -d 10
+
+bench-quick:
+	python -m benchmarks.benchmark -k 1000 -z 4 -w RU,50 -d 5 --warmup 0 --cooldown 0
+
+bench-compare:
+	python -m benchmarks.compare -k 100000 -z 32 --threads 4 -w RU,50 -d 15 --warmup 3 --cooldown 3 --modes pac,async,sim-sync

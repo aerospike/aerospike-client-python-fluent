@@ -5,8 +5,11 @@ If aerospike.env exists, only that file is read (override=True); aerospike.env.e
 is not merged. If aerospike.env is missing, aerospike.env.example supplies defaults
 for variables not already in os.environ (override=False).
 """
+import asyncio
 import logging
 import os
+import time
+
 import pytest
 import pytest_asyncio
 from pathlib import Path
@@ -72,6 +75,11 @@ def pytest_configure(config):
                 logger.setLevel(numeric)
                 logger.addHandler(handler)
 
+    # Suppress noisy core warning until the msgpack decoder is fixed upstream.
+    _decoder_logger = logging.getLogger("aerospike_core.msgpack.decoder")
+    _decoder_logger.addFilter(
+        lambda r: "Skipping over type extension" not in r.getMessage())
+
     # Ensure python path includes the tests directory for imports
     import sys
     tests_dir = Path(__file__).parent / "tests"
@@ -109,7 +117,63 @@ async def enterprise(aerospike_host, client_policy):
         await client.close()
 
 
-@pytest.fixture(scope="session") 
+@pytest.fixture
+def wait_for_index():
+    """Fixture returning an async helper that retries until a secondary index is queryable.
+
+    Usage::
+
+        await wait_for_index(client, "test", "my_set", Filter.range("age", 0, 100))
+    """
+    async def _wait(client, ns, set_name, sindex_filter, *, timeout=5.0, interval=0.25):
+        deadline = time.monotonic() + timeout
+        last_err = None
+        while time.monotonic() < deadline:
+            try:
+                stream = await client.query(ns, set_name).filter(sindex_filter).execute()
+                async for _ in stream:
+                    break
+                stream.close()
+                return
+            except Exception as exc:
+                if "IndexNotReadable" not in str(exc):
+                    raise
+                last_err = exc
+                await asyncio.sleep(interval)
+        raise last_err  # type: ignore[misc]
+
+    return _wait
+
+
+@pytest.fixture
+def sync_wait_for_index():
+    """Fixture returning a sync helper that retries until a secondary index is queryable.
+
+    Usage::
+
+        sync_wait_for_index(client, "test", "my_set", Filter.range("age", 0, 100))
+    """
+    def _wait(client, ns, set_name, sindex_filter, *, timeout=5.0, interval=0.25):
+        deadline = time.monotonic() + timeout
+        last_err = None
+        while time.monotonic() < deadline:
+            try:
+                stream = client.query(ns, set_name).filter(sindex_filter).execute()
+                for _ in stream:
+                    break
+                stream.close()
+                return
+            except Exception as exc:
+                if "IndexNotReadable" not in str(exc):
+                    raise
+                last_err = exc
+                time.sleep(interval)
+        raise last_err  # type: ignore[misc]
+
+    return _wait
+
+
+@pytest.fixture(scope="session")
 def aerospike_host_tls():
     """Fixture providing the TLS-enabled Aerospike host for tests"""
     return os.environ.get('AEROSPIKE_HOST_TLS', 'localhost:3107')

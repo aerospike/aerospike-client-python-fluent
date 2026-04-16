@@ -15,8 +15,6 @@
 
 """Integration tests for QueryHint with index_name, bin_name, and query_duration."""
 
-import asyncio
-
 import pytest
 from aerospike_async import Filter, QueryDuration
 
@@ -32,12 +30,11 @@ INDEX_NAME = "pfc_qhint_age_idx"
 
 
 @pytest.fixture
-async def client(aerospike_host, client_policy, enterprise):
+async def client(aerospike_host, client_policy, enterprise, wait_for_index):
     """Setup client, data, and a secondary index for hint tests."""
     async with Client(
         seeds=aerospike_host,
         policy=client_policy,
-        # refresh interval set super-small to spped up testing:
         index_refresh_interval=0.25,
     ) as client:
         session = client.create_session()
@@ -67,7 +64,7 @@ async def client(aerospike_host, client_policy, enterprise):
         except Exception:
             pass
 
-        await asyncio.sleep(0.5 if not enterprise else 0.1)
+        await wait_for_index(client, "test", SET_NAME, Filter.range("age", 20, 29))
 
         yield client
 
