@@ -14,7 +14,7 @@ import pytest
 import pytest_asyncio
 from pathlib import Path
 
-from aerospike_async import ClientPolicy, new_client
+from aerospike_async import AuthMode, ClientPolicy, new_client
 
 
 def load_env_file(env_file_path, *, override: bool = True) -> None:
@@ -87,6 +87,13 @@ def pytest_configure(config):
         sys.path.insert(0, str(tests_dir))
 
 
+_AUTH_MODES = {
+    "INTERNAL": AuthMode.INTERNAL,
+    "EXTERNAL": AuthMode.EXTERNAL,
+    "PKI": AuthMode.PKI,
+}
+
+
 def _use_services_alternate_from_env() -> bool:
     v = os.environ.get('AEROSPIKE_USE_SERVICES_ALTERNATE', 'true').strip().lower()
     return v in ('true', '1', 'yes')
@@ -94,9 +101,24 @@ def _use_services_alternate_from_env() -> bool:
 
 @pytest.fixture(scope="session")
 def client_policy():
-    """Fixture providing ClientPolicy with use_services_alternate from AEROSPIKE_USE_SERVICES_ALTERNATE."""
+    """Fixture providing ClientPolicy from AEROSPIKE_* env vars.
+
+    Reads AEROSPIKE_USE_SERVICES_ALTERNATE, AEROSPIKE_AUTH_MODE,
+    AEROSPIKE_AUTH_USER, and AEROSPIKE_AUTH_PASSWORD.
+    """
     policy = ClientPolicy()
     policy.use_services_alternate = _use_services_alternate_from_env()
+
+    mode_str = os.environ.get('AEROSPIKE_AUTH_MODE', '').strip().upper()
+    if mode_str and mode_str in _AUTH_MODES:
+        mode = _AUTH_MODES[mode_str]
+        user = os.environ.get('AEROSPIKE_AUTH_USER', '')
+        password = os.environ.get('AEROSPIKE_AUTH_PASSWORD', '')
+        if mode == AuthMode.PKI:
+            policy.set_auth_mode(mode)
+        else:
+            policy.set_auth_mode(mode, user=user, password=password)
+
     return policy
 
 

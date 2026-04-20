@@ -8,7 +8,7 @@ import os
 
 import pytest
 import pytest_asyncio
-from aerospike_async import ClientPolicy
+from aerospike_async import AuthMode, ClientPolicy
 
 from aerospike_sdk import (
     Behavior,
@@ -28,9 +28,21 @@ def _use_services_alternate() -> bool:
     ).lower() in ("true", "1", "yes")
 
 
+_AUTH_MODES = {"INTERNAL": AuthMode.INTERNAL, "EXTERNAL": AuthMode.EXTERNAL, "PKI": AuthMode.PKI}
+
+
 def _client_policy() -> ClientPolicy:
     policy = ClientPolicy()
     policy.use_services_alternate = _use_services_alternate()
+    mode_str = os.environ.get("AEROSPIKE_AUTH_MODE", "").strip().upper()
+    if mode_str and mode_str in _AUTH_MODES:
+        mode = _AUTH_MODES[mode_str]
+        user = os.environ.get("AEROSPIKE_AUTH_USER", "")
+        password = os.environ.get("AEROSPIKE_AUTH_PASSWORD", "")
+        if mode == AuthMode.PKI:
+            policy.set_auth_mode(mode)
+        else:
+            policy.set_auth_mode(mode, user=user, password=password)
     return policy
 
 
@@ -106,10 +118,19 @@ def test_quick_example_sync():
 @pytest.mark.asyncio(loop_scope="session")
 async def test_cluster_definition_connect():
     """docs/guide/connecting.md — ClusterDefinition section."""
-    host, port = SEEDS.split(":", 1)
+    host, port = SEEDS.split(",")[0].rsplit(":", 1)
     defn = ClusterDefinition(host, int(port))
     if _use_services_alternate():
         defn = defn.using_services_alternate()
+    mode_str = os.environ.get("AEROSPIKE_AUTH_MODE", "").strip().upper()
+    if mode_str == "INTERNAL":
+        user = os.environ.get("AEROSPIKE_AUTH_USER", "")
+        password = os.environ.get("AEROSPIKE_AUTH_PASSWORD", "")
+        defn = defn.with_native_credentials(user, password)
+    elif mode_str == "EXTERNAL":
+        user = os.environ.get("AEROSPIKE_AUTH_USER", "")
+        password = os.environ.get("AEROSPIKE_AUTH_PASSWORD", "")
+        defn = defn.with_external_credentials(user, password)
     cluster = await defn.connect()
     try:
         s = cluster.create_session(Behavior.DEFAULT)

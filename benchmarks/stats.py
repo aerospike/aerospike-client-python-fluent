@@ -268,13 +268,14 @@ class StatsCollector:
                     for j, thresh in enumerate(thresholds):
                         if latency_ms > thresh:
                             w_gt[j] += 1
-            if include_in_summary_latency and not is_error and not is_timeout:
-                self._lat_summary.append(latency_ms)
+            if not is_error and not is_timeout:
                 latency_us = int(latency_ms * 1000.0)
                 if is_read:
                     self._ycsb_read.add(latency_us)
                 else:
                     self._ycsb_write.add(latency_us)
+                if include_in_summary_latency:
+                    self._lat_summary.append(latency_ms)
 
     def sample_cpu(self) -> None:
         ru = resource.getrusage(resource.RUSAGE_SELF)
