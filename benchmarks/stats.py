@@ -33,6 +33,10 @@ except ImportError:
     _HAS_PSUTIL = False
 
 
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
 def latency_threshold_ms(column_index: int, shift: int) -> float:
     """Exclusive lower bound in ms for the ``>`` column at *column_index* (>= 1)."""
     if column_index <= 0:
@@ -52,6 +56,94 @@ def latency_column_labels(columns: int, shift: int) -> List[str]:
         else:
             labels.append(f">{ms:g}ms")
     return labels
+
+
+def _format_latency_us(us: float) -> str:
+    """Format a latency value with human-readable units (us or ms)."""
+    if us < 1000.0:
+        return f"{int(us)}us"
+    return f"{us / 1000.0:.1f}ms"
+
+
+# ---------------------------------------------------------------------------
+# Per-operation-type YCSB tracker (used inside StatsCollector)
+# ---------------------------------------------------------------------------
+
+class _YcsbTracker:
+    """Per-op-type latency tracker mirroring Java ``LatencyManagerYcsb``.
+
+    Uses 100us-granularity buckets (0-99.9ms in 1000 slots) for better
+    sub-millisecond percentile resolution than the Java 1ms histogram,
+    plus windowed and cumulative counters for avg / min / max / percentile
+    reporting.
+    """
+
+    _BUCKETS = 1000
+    _US_PER_BUCKET = 100
+
+    __slots__ = (
+        "_hist", "_overflow", "_ops", "_total_us",
+        "_win_ops", "_win_total_us", "_min_us", "_max_us",
+    )
+
+    def __init__(self) -> None:
+        self._hist = [0] * self._BUCKETS
+        self._overflow = 0
+        self._ops = 0
+        self._total_us = 0
+        self._win_ops = 0
+        self._win_total_us = 0
+        self._min_us = -1
+        self._max_us = -1
+
+    def add(self, latency_us: int) -> None:
+        bucket = latency_us // self._US_PER_BUCKET
+        if bucket >= self._BUCKETS:
+            self._overflow += 1
+        else:
+            self._hist[bucket] += 1
+        self._ops += 1
+        self._total_us += latency_us
+        self._win_ops += 1
+        self._win_total_us += latency_us
+        if self._min_us < 0 or latency_us < self._min_us:
+            self._min_us = latency_us
+        if latency_us > self._max_us:
+            self._max_us = latency_us
+
+    def _percentile_us(self, p: float) -> float:
+        """Return the *p*-th percentile latency in microseconds."""
+        if self._ops == 0:
+            return 0.0
+        cum = 0
+        for i, count in enumerate(self._hist):
+            cum += count
+            if cum / self._ops >= p:
+                return float(i * self._US_PER_BUCKET)
+        return float(self._BUCKETS * self._US_PER_BUCKET)
+
+    def format_period_total(self, name: str) -> str:
+        win_avg = (
+            self._win_total_us / self._win_ops if self._win_ops else 0
+        )
+        tot_avg = self._total_us / self._ops if self._ops else 0
+
+        p95 = _format_latency_us(self._percentile_us(0.95))
+        p99 = _format_latency_us(self._percentile_us(0.99))
+
+        return (
+            f"{name}: Period[Ops:{self._win_ops}"
+            f" Avg Latency:{_format_latency_us(win_avg)}]"
+            f" Total[Ops:{self._ops}"
+            f" Latency:(avg:{_format_latency_us(tot_avg)}"
+            f" Min:{_format_latency_us(max(0, self._min_us))}"
+            f" Max:{_format_latency_us(max(0, self._max_us))})"
+            f" 95th%:{p95} 99th%:{p99}]"
+        )
+
+    def reset_window(self) -> None:
+        self._win_ops = 0
+        self._win_total_us = 0
 
 
 @dataclass
@@ -80,11 +172,14 @@ class StatsCollector:
         shift: int,
         warmup_intervals: int,
         cooldown_intervals: int,
+        *,
+        latency_style: str = "columns",
     ) -> None:
         self._columns = columns
         self._shift = shift
         self._warmup = warmup_intervals
         self._cooldown = cooldown_intervals
+        self._latency_style = latency_style
         self._lock = threading.Lock()
         self._reads = 0
         self._writes = 0
@@ -96,7 +191,6 @@ class StatsCollector:
         self._w_le1 = 0
         self._r_gt = [0] * max(0, columns - 1)
         self._w_gt = [0] * max(0, columns - 1)
-        # Pre-compute latency thresholds so record() avoids per-op math.
         self._thresholds = tuple(
             latency_threshold_ms(j + 1, shift) for j in range(max(0, columns - 1))
         )
@@ -114,6 +208,9 @@ class StatsCollector:
         self._cpu_samples: List[float] = []
         self._current_interval = 0
         self._planned_intervals = 0
+        # YCSB per-op-type trackers
+        self._ycsb_read = _YcsbTracker()
+        self._ycsb_write = _YcsbTracker()
 
     def set_planned_intervals(self, n: int) -> None:
         with self._lock:
@@ -173,9 +270,13 @@ class StatsCollector:
                             w_gt[j] += 1
             if include_in_summary_latency and not is_error and not is_timeout:
                 self._lat_summary.append(latency_ms)
+                latency_us = int(latency_ms * 1000.0)
+                if is_read:
+                    self._ycsb_read.add(latency_us)
+                else:
+                    self._ycsb_write.add(latency_us)
 
     def sample_cpu(self) -> None:
-        # Sample RSS once per interval instead of per-op.
         ru = resource.getrusage(resource.RUSAGE_SELF)
         rss = ru.ru_maxrss
         if rss > self._peak_rss:
@@ -217,9 +318,7 @@ class StatsCollector:
 
         rss = float(self._peak_rss)
         if sys.platform == "darwin":
-            # macOS: ru_maxrss is in bytes
             return rss / (1024 * 1024)
-        # Linux: ru_maxrss is in kilobytes
         return rss / 1024.0
 
     @staticmethod
@@ -231,19 +330,35 @@ class StatsCollector:
             row.append(f"{100.0 * c / total:.0f}%")
         return row
 
+    def _format_tps_line(self, snap: IntervalSnapshot) -> str:
+        total = snap.reads + snap.writes
+        return (
+            f"write(tps={snap.writes} timeouts={snap.write_timeouts} "
+            f"errors={snap.write_errors}) read(tps={snap.reads} "
+            f"timeouts={snap.read_timeouts} errors={snap.read_errors}) "
+            f"total(tps={total} timeouts={snap.read_timeouts + snap.write_timeouts} "
+            f"errors={snap.read_errors + snap.write_errors})"
+        )
+
     def format_interval_lines(
         self,
         snap: IntervalSnapshot,
         stamp: str,
         labels: List[str],
     ) -> str:
-        total = snap.reads + snap.writes
+        tps_line = f"{stamp} {self._format_tps_line(snap)}"
+
+        if self._latency_style == "ycsb":
+            lines = [tps_line]
+            with self._lock:
+                lines.append(self._ycsb_write.format_period_total("write"))
+                lines.append(self._ycsb_read.format_period_total("read"))
+                self._ycsb_write.reset_window()
+                self._ycsb_read.reset_window()
+            return "\n".join(lines)
+
         lines = [
-            f"{stamp} write(tps={snap.writes} timeouts={snap.write_timeouts} "
-            f"errors={snap.write_errors}) read(tps={snap.reads} "
-            f"timeouts={snap.read_timeouts} errors={snap.read_errors}) "
-            f"total(tps={total} timeouts={snap.read_timeouts + snap.write_timeouts} "
-            f"errors={snap.read_errors + snap.write_errors})",
+            tps_line,
             "      " + " ".join(f"{lb:>7}" for lb in labels),
         ]
         lines.append(

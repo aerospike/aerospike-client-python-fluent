@@ -76,7 +76,8 @@ class WorkloadConfig:
     auth_mode: Optional[str] = None
     auth_user: Optional[str] = None
     auth_password: Optional[str] = None
-    services_alternate: bool = True
+    services_alternate: bool = False
+    latency_style: str = "columns"
 
 
 def parse_latency_arg(value: str) -> tuple[int, int]:
@@ -293,10 +294,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Authentication mode (default: INTERNAL when user is set).",
     )
     p.add_argument(
+        "--latency-style",
+        choices=("columns", "ycsb"),
+        default="columns",
+        help="Latency output style: 'columns' (histogram buckets) or "
+        "'ycsb' (avg/min/max/percentile per op type) (default: %(default)s).",
+    )
+    p.add_argument(
         "--services-alternate",
         action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Use services-alternate for cluster discovery (default: True).",
+        default=False,
+        help="Use services-alternate for cluster discovery (default: False).",
     )
     return p
 
@@ -342,5 +350,6 @@ def config_from_args(ns: argparse.Namespace) -> WorkloadConfig:
         auth_mode=auth_mode,
         auth_user=auth_user,
         auth_password=auth_password,
-        services_alternate=getattr(ns, "services_alternate", True),
+        services_alternate=getattr(ns, "services_alternate", False),
+        latency_style=getattr(ns, "latency_style", "columns"),
     )

@@ -42,6 +42,7 @@ async def _run_async_mode(cfg, runner=None) -> StatsCollector:
         shift,
         cfg.warmup_intervals,
         cfg.cooldown_intervals,
+        latency_style=getattr(cfg, "latency_style", "columns"),
     )
     stop = asyncio.Event()
     connected = asyncio.Event()
@@ -111,6 +112,7 @@ async def _run_sync_mode(cfg) -> StatsCollector:
         shift,
         cfg.warmup_intervals,
         cfg.cooldown_intervals,
+        latency_style=getattr(cfg, "latency_style", "columns"),
     )
     sync_stop = threading.Event()
     sync_connected = threading.Event()

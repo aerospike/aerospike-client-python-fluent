@@ -65,7 +65,7 @@ def default_host() -> str:
 def default_client_policy() -> ClientPolicy:
     """Return a :class:`ClientPolicy` honouring ``AEROSPIKE_USE_SERVICES_ALTERNATE``."""
     policy = ClientPolicy()
-    v = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "true").strip().lower()
+    v = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "false").strip().lower()
     policy.use_services_alternate = v in ("true", "1", "yes")
     return policy
 
@@ -80,7 +80,7 @@ _AUTH_MODES = {
 def client_policy_from_config(cfg: object) -> ClientPolicy:
     """Build a :class:`ClientPolicy` from a :class:`WorkloadConfig`."""
     policy = ClientPolicy()
-    policy.use_services_alternate = getattr(cfg, "services_alternate", True)
+    policy.use_services_alternate = getattr(cfg, "services_alternate", False)
 
     ca = getattr(cfg, "tls_ca_file", None)
     cert = getattr(cfg, "tls_cert_file", None)
