@@ -26,6 +26,7 @@ from aerospike_async import (
     FilterExpression,
     Key,
     Operation,
+    Txn,
 )
 
 from aerospike_sdk.aio.operations.query import (
@@ -327,17 +328,48 @@ class BatchOperationBuilder:
     client's batch_operate method for optimal performance.
     """
     
-    def __init__(self, client: Client, behavior: Optional[Behavior] = None) -> None:
+    def __init__(
+        self,
+        client: Client,
+        behavior: Optional[Behavior] = None,
+        txn: Optional[Txn] = None,
+    ) -> None:
         """
         Initialize a BatchOperationBuilder.
 
         Args:
             client: The underlying async client.
             behavior: Optional Behavior for deriving policies.
+            txn: Optional active :class:`~aerospike_async.Txn` captured from
+                a transactional session; stamped on the outer batch policy
+                at execute. ``None`` means no transaction participation.
         """
         self._client = client
         self._behavior = behavior
         self._key_operations: List[BatchKeyOperationBuilder] = []
+        self._txn: Optional[Txn] = txn
+
+    def _apply_txn(self, policy: Any) -> Any:
+        """Stamp this builder's captured txn on the outer batch policy."""
+        if self._txn is not None and policy is not None:
+            policy.txn = self._txn
+        return policy
+
+    def with_txn(self, txn: Optional[Txn]) -> "BatchOperationBuilder":
+        """Opt this batch into (or out of) a specific transaction.
+
+        See :meth:`aerospike_sdk.aio.operations.query.QueryBuilder.with_txn`
+        for semantics.
+
+        Args:
+            txn: The :class:`~aerospike_async.Txn` to participate in, or
+                ``None`` to opt out.
+
+        Returns:
+            This builder for chaining.
+        """
+        self._txn = txn
+        return self
     
     def insert(self, key: Key) -> BatchKeyOperationBuilder:
         """
@@ -497,6 +529,12 @@ class BatchOperationBuilder:
         if self._behavior is not None:
             batch_policy = to_batch_policy(
                 self._behavior.get_settings(OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        # Under MRT the PAC rejects a null BatchPolicy, so materialize one
+        # just to carry the txn reference when the behavior path didn't.
+        if self._txn is not None and batch_policy is None:
+            from aerospike_async import BatchPolicy
+            batch_policy = BatchPolicy()
+        self._apply_txn(batch_policy)
 
         try:
             if delete_keys:

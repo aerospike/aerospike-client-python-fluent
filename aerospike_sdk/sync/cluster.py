@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import types
 import typing
-from typing import NoReturn, Optional
+from typing import Optional
 
 from aerospike_async import ClientPolicy
 
@@ -29,6 +29,7 @@ from aerospike_sdk.sync.client import SyncClient
 
 if typing.TYPE_CHECKING:
     from aerospike_sdk.sync.session import SyncSession
+    from aerospike_sdk.sync.transactional_session import SyncTransactionalSession
 
 
 class Cluster:
@@ -128,24 +129,38 @@ class Cluster:
     def create_transactional_session(
         self,
         behavior: Optional[Behavior] = None,
-    ) -> NoReturn:
-        """
-        Creates a new transactional session with the specified behavior.
-        
+    ) -> "SyncTransactionalSession":
+        """Return a :class:`SyncTransactionalSession` for a multi-record transaction.
+
+        Equivalent to ``create_session(behavior).begin_transaction()`` — the
+        returned context manager allocates a fresh
+        :class:`~aerospike_async.Txn` on entry and commits/aborts on exit.
+
+        Multi-record transactions require an Aerospike server running in
+        strong-consistency (SC) mode on the target namespace.
+
         Args:
-            behavior: The behavior configuration for the session. If None, uses Behavior.DEFAULT.
-                     Note: Currently TransactionalSession doesn't use behavior, but parameter
-                     is included for API consistency.
-        
+            behavior: Optional :class:`~aerospike_sdk.policy.behavior.Behavior`
+                for operations inside the transaction. Defaults to
+                :attr:`Behavior.DEFAULT` when omitted.
+
         Returns:
-            A new transactional session instance
-        
-        Note:
-            SyncTransactionalSession may not be implemented yet. This is a placeholder
-            for API consistency with the async version.
+            A :class:`~aerospike_sdk.sync.transactional_session.SyncTransactionalSession`
+            bound to this cluster's client and behavior.
+
+        Example::
+
+            with cluster.create_transactional_session() as tx:
+                tx.upsert(accounts.id("A")).bin("balance").set_to(100).execute()
+                tx.upsert(accounts.id("B")).bin("balance").set_to(200).execute()
+
+        See Also:
+            :meth:`create_session`: Non-transactional session.
+            :meth:`~aerospike_sdk.aio.cluster.Cluster.create_transactional_session`: Async equivalent.
         """
-        # TODO: Implement SyncTransactionalSession
-        raise NotImplementedError("SyncTransactionalSession is not yet implemented")
+        if behavior is None:
+            behavior = Behavior.DEFAULT
+        return self._sdk_client.create_transactional_session(behavior)
     
     def is_connected(self) -> bool:
         """

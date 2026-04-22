@@ -35,6 +35,7 @@ from aerospike_async import (
     BasePolicy,
     BatchDeleteOp,
     BatchDeletePolicy,
+    BatchPolicy,
     BatchReadOp,
     BatchReadPolicy,
     BatchUDFPolicy,
@@ -73,6 +74,7 @@ from aerospike_async import (
     RecordExistsAction,
     Replica,
     Statement,
+    Txn,
     WritePolicy,
 )
 from aerospike_async.exceptions import ResultCode
@@ -92,9 +94,9 @@ from aerospike_sdk.aio.operations.cdt_write import (
 
 log = logging.getLogger("aerospike_sdk.query")
 
-_bitwise_and = getattr(BitOperation, "and")
-_bitwise_not = getattr(BitOperation, "not")
-_bitwise_or = getattr(BitOperation, "or")
+_bitwise_and = BitOperation.and_
+_bitwise_not = BitOperation.not_
+_bitwise_or = BitOperation.or_
 
 
 def _bit_policy_or_default(policy: Optional[Any]) -> Any:
@@ -472,6 +474,7 @@ class QueryBuilder(_WriteVerbs):
         indexes_monitor: Optional["IndexesMonitor"] = None,
         cached_read_policy: Optional[ReadPolicy] = None,
         cached_write_policy: Optional[WritePolicy] = None,
+        txn: Optional[Txn] = None,
     ) -> None:
         """
         Initialize a QueryBuilder.
@@ -485,6 +488,12 @@ class QueryBuilder(_WriteVerbs):
                 for transparent filter generation from AEL expressions.
             cached_read_policy: Pre-computed read policy from the session.
             cached_write_policy: Pre-computed write policy from the session.
+            txn: Optional active :class:`~aerospike_async.Txn` captured from
+                a transactional session at construction; every policy this
+                builder hands to the PAC gets stamped with it. ``None``
+                means no transaction participation. Callers rarely pass
+                this directly — transactional sessions thread it through
+                automatically.
         """
         self._client = client
         self._namespace = namespace
@@ -519,8 +528,101 @@ class QueryBuilder(_WriteVerbs):
         self._udf_args: Optional[List[Any]] = None
         # Reuse session-cached policies when available; fall back to
         # computing them lazily from the behavior on first use.
-        self._base_read_policy: Optional[ReadPolicy] = cached_read_policy
-        self._base_write_policy: Optional[WritePolicy] = cached_write_policy
+        # MRT participation: when set, every policy produced by this
+        # builder is stamped via _apply_txn. The cached policies can't be
+        # reused under MRT because they were pre-computed without a txn, so
+        # we null them out to force re-derivation from behavior.
+        self._txn: Optional[Txn] = txn
+        if txn is None:
+            self._base_read_policy: Optional[ReadPolicy] = cached_read_policy
+            self._base_write_policy: Optional[WritePolicy] = cached_write_policy
+        else:
+            self._base_read_policy = None
+            self._base_write_policy = None
+
+    def _apply_txn(self, policy: Any) -> Any:
+        """Stamp this builder's captured txn on an outer policy in place.
+
+        No-op when the builder was constructed outside a transactional
+        session. Applied at every policy-construction site so the txn
+        propagates uniformly without the caller touching the policy.
+
+        Args:
+            policy: A :class:`~aerospike_async.ReadPolicy`,
+                :class:`~aerospike_async.WritePolicy`,
+                :class:`~aerospike_async.QueryPolicy`, or
+                :class:`~aerospike_async.BatchPolicy` (or ``None``).
+
+        Returns:
+            The same ``policy`` object, for fluent use.
+        """
+        if self._txn is not None and policy is not None:
+            policy.txn = self._txn
+        return policy
+
+    def _make_batch_policy(
+        self, settings: Optional[Any],
+    ) -> Optional[BatchPolicy]:
+        """Build a BatchPolicy from settings and stamp the captured txn.
+
+        Returns ``None`` when neither a settings bundle nor an active
+        transaction is in play (the PAC tolerates a ``None`` batch policy
+        in that case). Under MRT, always materializes a policy so the txn
+        can ride along.
+
+        Args:
+            settings: Settings bundle from behavior (may be ``None``).
+
+        Returns:
+            A txn-stamped :class:`~aerospike_async.BatchPolicy`, or
+            ``None`` when no policy is needed.
+        """
+        bp = to_batch_policy(settings) if settings is not None else None
+        if self._txn is not None and bp is None:
+            bp = BatchPolicy()
+        return self._apply_txn(bp)
+
+    def _batch_policy_for(
+        self, op_kind: "OpKind", op_shape: "OpShape",
+    ) -> Optional[BatchPolicy]:
+        """Shorthand: :meth:`_make_batch_policy` keyed off behavior settings."""
+        settings = (
+            self._behavior.get_settings(op_kind, op_shape)
+            if self._behavior is not None else None
+        )
+        return self._make_batch_policy(settings)
+
+    def with_txn(self, txn: Optional[Txn]) -> "QueryBuilder":
+        """Opt this builder into (or out of) a specific transaction.
+
+        Overrides any transaction captured at construction. Pass ``None`` to
+        opt out of an ambient transaction (useful inside a
+        :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`
+        when a single operation must run outside the MRT).
+
+        Args:
+            txn: The :class:`~aerospike_async.Txn` to participate in, or
+                ``None`` to run without a transaction.
+
+        Returns:
+            This builder for method chaining.
+
+        Example:
+            >>> async with session.begin_transaction() as tx:
+            ...     await tx.upsert(k1).bin("v").set_to(1).execute()
+            ...     # Run this one write outside the transaction:
+            ...     await tx.upsert(k2).with_txn(None).bin("v").set_to(2).execute()
+
+        See Also:
+            :meth:`aerospike_sdk.aio.session.Session.get_current_transaction`
+        """
+        self._txn = txn
+        # Cached policies were built without this override — drop them so
+        # subsequent policy lookups re-derive from behavior with the right
+        # txn stamped on.
+        self._base_read_policy = None
+        self._base_write_policy = None
+        return self
 
     def bins(self, bin_names: List[str]) -> QueryBuilder:
         """Restrict the read to a non-empty set of bin names.
@@ -1001,7 +1103,8 @@ class QueryBuilder(_WriteVerbs):
         Set the replica preference for the query.
         
         Args:
-            replica: Replica preference (Replica.MASTER, Replica.SEQUENCE, or Replica.PREFER_RACK).
+            replica: Replica preference. One of ``Replica.MASTER``, ``Replica.MASTER_PROLES``,
+                ``Replica.RANDOM``, ``Replica.SEQUENCE``, or ``Replica.PREFER_RACK``.
         
         Returns:
             self for method chaining.
@@ -1207,7 +1310,7 @@ class QueryBuilder(_WriteVerbs):
     def _ensure_policy(self) -> QueryPolicy:
         """Return the existing policy or create a default one."""
         if self._policy is None:
-            self._policy = QueryPolicy()
+            self._policy = self._apply_txn(QueryPolicy())
         return self._policy
 
     def _build_statement(self) -> Statement:
@@ -1324,11 +1427,8 @@ class QueryBuilder(_WriteVerbs):
                     streams.append(
                         await self._execute_spec(spec, sub_disp, handler))
                 return RecordStream.chain(streams)
-            batch_policy = None
-            if self._behavior is not None:
-                batch_policy = to_batch_policy(
-                    self._behavior.get_settings(
-                        OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+            batch_policy = self._batch_policy_for(
+                OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH)
             all_ops: list = []
             all_keys: List[Key] = []
             for spec in self._specs:
@@ -1609,6 +1709,7 @@ class QueryBuilder(_WriteVerbs):
                     OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
         else:
             wp = WritePolicy()
+        self._apply_txn(wp)
         if spec.filter_expression is not None:
             wp.filter_expression = spec.filter_expression
         return wp
@@ -1650,11 +1751,8 @@ class QueryBuilder(_WriteVerbs):
         fn = spec.udf_function
         if pkg is None or fn is None:
             raise ValueError("UDF spec missing package or function name")
-        batch_policy = None
-        if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(
-                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        batch_policy = self._batch_policy_for(
+            OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH)
         udf_policy: Optional[BatchUDFPolicy] = None
         fe = spec.filter_expression
         if fe is not None:
@@ -1754,9 +1852,9 @@ class QueryBuilder(_WriteVerbs):
         """Route a per-key error according to the resolved disposition.
 
         The PAC raises ``ServerError`` for ``KEY_NOT_FOUND_ERROR`` and
-        ``FILTERED_OUT`` (unlike the Java client which returns null).
-        Whether these codes are routed through disposition depends on
-        the operation context (see ``_is_actionable``).
+        ``FILTERED_OUT`` rather than returning a sentinel. Whether these
+        codes are routed through disposition depends on the operation
+        context (see ``_is_actionable``).
         """
         pfc_exc = _convert_pac_exception(exc)
         rc = pfc_exc.result_code or ResultCode.OK
@@ -1817,14 +1915,14 @@ class QueryBuilder(_WriteVerbs):
             rp = self._read_policy
         elif self._behavior is not None:
             if self._base_read_policy is None:
-                self._base_read_policy = to_read_policy(
-                    self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+                self._base_read_policy = self._apply_txn(to_read_policy(
+                    self._behavior.get_settings(OpKind.READ, OpShape.POINT)))
             if spec.filter_expression is None:
                 return self._base_read_policy
-            rp = to_read_policy(
-                self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+            rp = self._apply_txn(to_read_policy(
+                self._behavior.get_settings(OpKind.READ, OpShape.POINT)))
         else:
-            rp = ReadPolicy()
+            rp = self._apply_txn(ReadPolicy())
         if spec.filter_expression is not None:
             rp.filter_expression = spec.filter_expression
         return rp
@@ -1847,9 +1945,9 @@ class QueryBuilder(_WriteVerbs):
         if op_type is None and not has_ops:
             # Simple read — all bins or projected bins.
             if self._base_read_policy is None and self._behavior is not None:
-                self._base_read_policy = to_read_policy(
-                    self._behavior.get_settings(OpKind.READ, OpShape.POINT))
-            rp = self._base_read_policy or ReadPolicy()
+                self._base_read_policy = self._apply_txn(to_read_policy(
+                    self._behavior.get_settings(OpKind.READ, OpShape.POINT)))
+            rp = self._apply_txn(self._base_read_policy or ReadPolicy())
             try:
                 record = await self._client.get(rp, key, spec.bins)
             except Exception as e:
@@ -1860,20 +1958,20 @@ class QueryBuilder(_WriteVerbs):
         if has_ops and op_type not in ("delete", "touch", "exists", "udf"):
             # Write via operate — upsert or verb with REA override.
             if self._base_write_policy is None and self._behavior is not None:
-                self._base_write_policy = to_write_policy(
+                self._base_write_policy = self._apply_txn(to_write_policy(
                     self._behavior.get_settings(
-                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT)))
             rea = _OP_TYPE_TO_REA.get(op_type) if op_type else None
             if rea is not None:
                 if self._behavior is not None:
-                    wp = to_write_policy(
+                    wp = self._apply_txn(to_write_policy(
                         self._behavior.get_settings(
-                            OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+                            OpKind.WRITE_NON_RETRYABLE, OpShape.POINT)))
                 else:
-                    wp = WritePolicy()
+                    wp = self._apply_txn(WritePolicy())
                 wp.record_exists_action = rea
             else:
-                wp = self._base_write_policy or WritePolicy()
+                wp = self._apply_txn(self._base_write_policy or WritePolicy())
             try:
                 record = await self._client.operate(wp, key, spec.operations)
             except Exception as e:
@@ -1902,7 +2000,7 @@ class QueryBuilder(_WriteVerbs):
         disp: _ErrorDisposition, handler: ErrorHandler | None,
     ) -> RecordStream:
         key = spec.keys[0]
-        policy = WritePolicy()
+        policy = self._apply_txn(WritePolicy())
         if spec.filter_expression is not None:
             policy.filter_expression = spec.filter_expression
         try:
@@ -1915,12 +2013,11 @@ class QueryBuilder(_WriteVerbs):
         self, spec: _OperationSpec,
         disp: _ErrorDisposition, handler: ErrorHandler | None,
     ) -> RecordStream:
-        batch_policy = None
         batch_read_policy = None
         if self._behavior is not None:
             settings = self._behavior.get_settings(OpKind.READ, OpShape.BATCH)
-            batch_policy = to_batch_policy(settings)
             batch_read_policy = to_batch_read_policy(settings)
+        batch_policy = self._batch_policy_for(OpKind.READ, OpShape.BATCH)
         if spec.filter_expression is not None:
             if batch_read_policy is None:
                 batch_read_policy = BatchReadPolicy()
@@ -1936,10 +2033,7 @@ class QueryBuilder(_WriteVerbs):
         self, spec: _OperationSpec,
         disp: _ErrorDisposition, handler: ErrorHandler | None,
     ) -> RecordStream:
-        batch_policy = None
-        if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(OpKind.READ, OpShape.BATCH))
+        batch_policy = self._batch_policy_for(OpKind.READ, OpShape.BATCH)
         ops_per_key = [spec.operations] * len(spec.keys)
         bwp = None
         if spec.filter_expression is not None:
@@ -1962,9 +2056,9 @@ class QueryBuilder(_WriteVerbs):
         # overrides exist and the op type doesn't require a REA change.
         if self._behavior is not None:
             if self._base_write_policy is None:
-                self._base_write_policy = to_write_policy(
+                self._base_write_policy = self._apply_txn(to_write_policy(
                     self._behavior.get_settings(
-                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT)))
             if (
                 rea is None
                 and spec.filter_expression is None
@@ -1973,11 +2067,11 @@ class QueryBuilder(_WriteVerbs):
                 and not spec.durable_delete
             ):
                 return self._base_write_policy
-            wp = to_write_policy(
+            wp = self._apply_txn(to_write_policy(
                 self._behavior.get_settings(
-                    OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.POINT)))
         else:
-            wp = WritePolicy()
+            wp = self._apply_txn(WritePolicy())
         if rea is not None:
             wp.record_exists_action = rea
         if spec.filter_expression is not None:
@@ -2067,11 +2161,8 @@ class QueryBuilder(_WriteVerbs):
         self, spec: _OperationSpec,
         disp: _ErrorDisposition, handler: ErrorHandler | None,
     ) -> RecordStream:
-        batch_policy = None
-        if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(
-                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        batch_policy = self._batch_policy_for(
+            OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH)
         bwp = self._make_batch_write_policy(spec)
         ops_per_key = [spec.operations] * len(spec.keys)
         try:
@@ -2086,11 +2177,8 @@ class QueryBuilder(_WriteVerbs):
         self, spec: _OperationSpec,
         disp: _ErrorDisposition, handler: ErrorHandler | None,
     ) -> RecordStream:
-        batch_policy = None
-        if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(
-                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        batch_policy = self._batch_policy_for(
+            OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH)
         bdp = self._make_batch_delete_policy(spec)
         try:
             batch_records = await self._client.batch_delete(
@@ -2120,11 +2208,8 @@ class QueryBuilder(_WriteVerbs):
         self, spec: _OperationSpec,
         disp: _ErrorDisposition, handler: ErrorHandler | None,
     ) -> RecordStream:
-        batch_policy = None
-        if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(
-                    OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH))
+        batch_policy = self._batch_policy_for(
+            OpKind.WRITE_NON_RETRYABLE, OpShape.BATCH)
         bwp = self._make_batch_write_policy(spec)
         touch_ops = [Operation.touch()]
         ops_per_key = [touch_ops] * len(spec.keys)
@@ -2144,10 +2229,10 @@ class QueryBuilder(_WriteVerbs):
         if self._read_policy is not None:
             rp = self._read_policy
         elif self._behavior is not None:
-            rp = to_read_policy(
-                self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+            rp = self._apply_txn(to_read_policy(
+                self._behavior.get_settings(OpKind.READ, OpShape.POINT)))
         else:
-            rp = ReadPolicy()
+            rp = self._apply_txn(ReadPolicy())
         if spec.filter_expression is not None:
             rp.filter_expression = spec.filter_expression
         try:
@@ -2166,11 +2251,7 @@ class QueryBuilder(_WriteVerbs):
         self, spec: _OperationSpec,
         disp: _ErrorDisposition, handler: ErrorHandler | None,
     ) -> RecordStream:
-        batch_policy = None
-        if self._behavior is not None:
-            batch_policy = to_batch_policy(
-                self._behavior.get_settings(
-                    OpKind.READ, OpShape.BATCH))
+        batch_policy = self._batch_policy_for(OpKind.READ, OpShape.BATCH)
         brp = self._make_batch_read_policy(spec)
         try:
             found_list = await self._client.batch_exists(
@@ -2277,10 +2358,10 @@ class QueryBuilder(_WriteVerbs):
         if self._policy is not None:
             policy = self._policy
         elif self._behavior is not None:
-            policy = to_query_policy(
-                self._behavior.get_settings(OpKind.READ, OpShape.QUERY))
+            policy = self._apply_txn(to_query_policy(
+                self._behavior.get_settings(OpKind.READ, OpShape.QUERY)))
         else:
-            policy = QueryPolicy()
+            policy = self._apply_txn(QueryPolicy())
         if self._chunk_size is not None and self._chunk_size > 0:
             policy.max_records = self._chunk_size
         if self._filter_expression is not None:
@@ -2388,6 +2469,25 @@ class WriteSegmentBuilder(_WriteVerbs):
 
     def __init__(self, qb: QueryBuilder) -> None:
         self._qb = qb
+
+    def with_txn(self, txn: Optional[Txn]) -> "WriteSegmentBuilder":
+        """Opt this write into (or out of) a specific transaction.
+
+        Delegates to the underlying :class:`QueryBuilder`; see
+        :meth:`QueryBuilder.with_txn`.
+
+        Args:
+            txn: The :class:`~aerospike_async.Txn` to participate in, or
+                ``None`` to run without a transaction.
+
+        Returns:
+            This segment for chaining.
+
+        See Also:
+            :meth:`QueryBuilder.with_txn`
+        """
+        self._qb.with_txn(txn)
+        return self
 
     # -- Bin operations -------------------------------------------------------
 
@@ -2772,6 +2872,7 @@ class _SingleKeyWriteSegment(WriteSegmentBuilder):
     __slots__ = (
         "_client_fast", "_key", "_op_type_fast", "_ops",
         "_write_policy", "_behavior_fast", "_read_policy",
+        "_txn",
     )
 
     def __init__(
@@ -2782,15 +2883,42 @@ class _SingleKeyWriteSegment(WriteSegmentBuilder):
         behavior: Any,
         write_policy: WritePolicy | None,
         read_policy: ReadPolicy | None = None,
+        txn: Optional[Txn] = None,
     ) -> None:
         self._qb = None  # type: ignore[assignment]
         self._client_fast = client
         self._key = key
         self._op_type_fast = op_type
         self._ops: list[Any] = []
-        self._write_policy = write_policy
+        # Under MRT we can't reuse the session's cached write/read policies
+        # (they were built without a txn), so null them here and force the
+        # fast path to derive fresh policies from behavior on each execute.
+        if txn is None:
+            self._write_policy = write_policy
+            self._read_policy = read_policy
+        else:
+            self._write_policy = None
+            self._read_policy = None
         self._behavior_fast = behavior
-        self._read_policy = read_policy
+        self._txn: Optional[Txn] = txn
+
+    def _apply_txn(self, policy: Any) -> Any:
+        """Stamp this segment's captured txn on an outer policy in place."""
+        if self._txn is not None and policy is not None:
+            policy.txn = self._txn
+        return policy
+
+    def with_txn(self, txn: Optional[Txn]) -> "_SingleKeyWriteSegment":
+        """Opt this write into (or out of) a specific transaction.
+
+        See :meth:`QueryBuilder.with_txn` for semantics.
+        """
+        self._txn = txn
+        self._write_policy = None
+        self._read_policy = None
+        if self._qb is not None:
+            self._qb.with_txn(txn)
+        return self
 
     # -- Operation methods ---------------------------------------------------
     # On the fast path (_qb is None) these use self._ops directly.
@@ -2836,6 +2964,7 @@ class _SingleKeyWriteSegment(WriteSegmentBuilder):
             behavior=self._behavior_fast,
             cached_write_policy=self._write_policy,
             cached_read_policy=self._read_policy,
+            txn=self._txn,
         )
         qb._op_type = self._op_type_fast
         qb._single_key = self._key
@@ -2906,11 +3035,11 @@ class _SingleKeyWriteSegment(WriteSegmentBuilder):
     def _get_write_policy(self) -> WritePolicy:
         wp = self._write_policy
         if wp is None and self._behavior_fast is not None:
-            wp = to_write_policy(
+            wp = self._apply_txn(to_write_policy(
                 self._behavior_fast.get_settings(
-                    OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+                    OpKind.WRITE_NON_RETRYABLE, OpShape.POINT)))
             self._write_policy = wp
-        return wp or WritePolicy()
+        return self._apply_txn(wp or WritePolicy())
 
     # -- Execution -----------------------------------------------------------
 
@@ -2950,12 +3079,12 @@ class _SingleKeyWriteSegment(WriteSegmentBuilder):
         if op_type == "exists":
             rp = self._read_policy
             if rp is None and self._behavior_fast is not None:
-                rp = to_read_policy(
+                rp = self._apply_txn(to_read_policy(
                     self._behavior_fast.get_settings(
-                        OpKind.READ, OpShape.POINT))
+                        OpKind.READ, OpShape.POINT)))
                 self._read_policy = rp
             if rp is None:
-                rp = ReadPolicy()
+                rp = self._apply_txn(ReadPolicy())
             try:
                 found = await self._client_fast.exists(rp, key)
             except Exception as exc:
@@ -2968,11 +3097,11 @@ class _SingleKeyWriteSegment(WriteSegmentBuilder):
         rea = _OP_TYPE_TO_REA.get(op_type) if op_type else None
         if rea is not None:
             if self._behavior_fast is not None:
-                wp = to_write_policy(
+                wp = self._apply_txn(to_write_policy(
                     self._behavior_fast.get_settings(
-                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+                        OpKind.WRITE_NON_RETRYABLE, OpShape.POINT)))
             else:
-                wp = WritePolicy()
+                wp = self._apply_txn(WritePolicy())
             wp.record_exists_action = rea
         else:
             wp = self._get_write_policy()

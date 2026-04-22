@@ -18,7 +18,7 @@
 from datetime import timedelta
 
 import pytest
-from aerospike_async import CommitLevel, Replica
+from aerospike_async import CommitLevel, ReadModeAP, ReadModeSC, Replica
 
 from aerospike_sdk.policy.behavior import Behavior
 from aerospike_sdk.policy.behavior_registry import (
@@ -441,6 +441,14 @@ class TestPreDefinedBehaviors:
         assert s.max_retries == 2
         assert s.replica == Replica.SEQUENCE
 
+    def test_strictly_consistent_applies_linearize_to_sc_reads(self):
+        s = Behavior.STRICTLY_CONSISTENT.get_settings(OpKind.READ, OpShape.POINT, Mode.SC)
+        assert s.read_mode_sc == ReadModeSC.LINEARIZE
+
+    def test_strictly_consistent_leaves_ap_reads_unset(self):
+        s = Behavior.STRICTLY_CONSISTENT.get_settings(OpKind.READ, OpShape.POINT, Mode.AP)
+        assert s.read_mode_sc is None
+
     def test_fast_rack_aware_uses_prefer_rack(self):
         s = Behavior.FAST_RACK_AWARE.get_settings(OpKind.READ, OpShape.POINT)
         assert s.replica == Replica.PREFER_RACK
@@ -515,6 +523,42 @@ class TestComprehensiveAttributes:
         )
         s = child.get_settings(OpKind.WRITE_RETRYABLE, OpShape.POINT, Mode.AP)
         assert s.commit_level == CommitLevel.COMMIT_MASTER
+
+
+class TestCoreV3Fields:
+    """Verify the v3 core additions (ReadModeAP/SC, compression, new Replica
+    variants) flow through Settings, merge, and derive_with_changes."""
+
+    def test_read_mode_ap_resolves(self):
+        child = Behavior.DEFAULT.derive_with_changes(
+            "ap_all",
+            reads_ap=Settings(read_mode_ap=ReadModeAP.ALL),
+        )
+        s = child.get_settings(OpKind.READ, OpShape.POINT, Mode.AP)
+        assert s.read_mode_ap == ReadModeAP.ALL
+
+    def test_read_mode_sc_resolves(self):
+        child = Behavior.DEFAULT.derive_with_changes(
+            "sc_linearize",
+            reads_sc=Settings(read_mode_sc=ReadModeSC.LINEARIZE),
+        )
+        s = child.get_settings(OpKind.READ, OpShape.POINT, Mode.SC)
+        assert s.read_mode_sc == ReadModeSC.LINEARIZE
+
+    def test_use_compression_flat_kwarg(self):
+        child = Behavior.DEFAULT.derive_with_changes(
+            "compressed", use_compression=True,
+        )
+        s = child.get_settings(OpKind.WRITE_RETRYABLE, OpShape.POINT, Mode.AP)
+        assert s.use_compression is True
+
+    def test_new_replica_variants_available(self):
+        for variant in (Replica.MASTER_PROLES, Replica.RANDOM):
+            child = Behavior.DEFAULT.derive_with_changes(
+                f"replica_{variant}", reads=Settings(replica=variant),
+            )
+            s = child.get_settings(OpKind.READ, OpShape.POINT, Mode.AP)
+            assert s.replica == variant
 
 
 class TestBackwardCompatProperties:

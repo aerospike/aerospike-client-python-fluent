@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import ClassVar, Dict, List, Optional, Tuple
 
-from aerospike_async import CommitLevel, Replica
+from aerospike_async import CommitLevel, ReadModeSC, Replica
 
 from aerospike_sdk.policy.behavior_registry import _register
 from aerospike_sdk.policy.behavior_settings import (
@@ -69,8 +69,8 @@ class Behavior:
     Attributes:
         DEFAULT: Balanced defaults (30 s total timeout, 2 retries, send key).
         READ_FAST: Low-latency reads (200 ms total, 50 ms socket, 3 retries).
-        STRICTLY_CONSISTENT: Placeholder for SC mode when PAC exposes it.
-        FAST_RACK_AWARE: Like READ_FAST with rack-preferred replica.
+        STRICTLY_CONSISTENT: SC-namespace reads with linearizable consistency.
+        FAST_RACK_AWARE: Low-latency rack-preferred reads.
     """
 
     DEFAULT: ClassVar[Behavior]
@@ -158,7 +158,7 @@ class Behavior:
         max_retries: Optional[int] = None,
         retry_delay: Optional[timedelta] = None,
         send_key: Optional[bool] = None,
-        # TODO: add use_compression when PAC exposes compression
+        use_compression: Optional[bool] = None,
     ) -> Behavior:
         """Create a child Behavior with the specified overrides.
 
@@ -182,6 +182,7 @@ class Behavior:
             max_retries=max_retries,
             retry_delay=retry_delay,
             send_key=send_key,
+            use_compression=use_compression,
         )
         if flat is not None:
             if all is not None:
@@ -321,9 +322,11 @@ def _flat_to_settings(
     max_retries: Optional[int] = None,
     retry_delay: Optional[timedelta] = None,
     send_key: Optional[bool] = None,
+    use_compression: Optional[bool] = None,
 ) -> Optional[Settings]:
     """Convert flat keyword arguments to a Settings, or None if all are None."""
-    if all(v is None for v in (total_timeout, socket_timeout, max_retries, retry_delay, send_key)):
+    values = (total_timeout, socket_timeout, max_retries, retry_delay, send_key, use_compression)
+    if all(v is None for v in values):
         return None
     return Settings(
         total_timeout=total_timeout,
@@ -331,6 +334,7 @@ def _flat_to_settings(
         max_retries=max_retries,
         retry_delay=retry_delay,
         send_key=send_key,
+        use_compression=use_compression,
     )
 
 
@@ -383,14 +387,13 @@ Behavior.READ_FAST = Behavior.DEFAULT.derive_with_changes(
     ),
 )
 
-# ReadModeSC not yet available in PAC; placeholder with fields we can set.
 Behavior.STRICTLY_CONSISTENT = Behavior.DEFAULT.derive_with_changes(
     "STRICTLY_CONSISTENT",
-    # TODO: add read_mode_sc=ReadModeSC.LINEARIZE when PAC exposes it
+    reads_sc=Settings(read_mode_sc=ReadModeSC.LINEARIZE),
 )
 
 Behavior.FAST_RACK_AWARE = Behavior.READ_FAST.derive_with_changes(
     "FAST_RACK_AWARE",
     reads=Settings(replica=Replica.PREFER_RACK),
-    # TODO: add read_mode_sc when PAC exposes it
+    reads_sc=Settings(read_mode_sc=ReadModeSC.SESSION),
 )

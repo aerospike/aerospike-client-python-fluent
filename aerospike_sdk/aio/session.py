@@ -21,9 +21,10 @@ import typing
 from typing import Awaitable, Dict, List, Optional, overload, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
+    from aerospike_sdk.aio.transactional_session import TransactionalSession
     from aerospike_sdk.record_result import RecordResult
 
-from aerospike_async import Key, ResultCode
+from aerospike_async import Key, ResultCode, Txn
 
 from aerospike_sdk.aio.background import BackgroundTaskSession
 from aerospike_sdk.aio.client import Client
@@ -36,7 +37,6 @@ from aerospike_sdk.aio.operations.query import (
     _SingleKeyWriteSegment,
 )
 from aerospike_sdk.aio.operations.udf import UdfFunctionBuilder
-from aerospike_sdk.aio.transactional_session import TransactionalSession
 from aerospike_sdk.dataset import DataSet
 from aerospike_sdk.policy.behavior import Behavior, OpKind, OpShape
 from aerospike_sdk.policy.policy_mapper import to_read_policy, to_write_policy
@@ -87,6 +87,50 @@ class Session:
             behavior.get_settings(OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
         # Cache the raw PAC client for fast-path methods.
         self._pac_client = client._async_client
+        # Transaction hook. Non-transactional sessions always return None;
+        # TransactionalSession overrides this to yield its active Txn so every
+        # builder spawned from the session auto-participates.
+        self._txn: Optional[Txn] = None
+
+    def _bind_txn(self, builder):
+        """Stamp the session's current txn onto a builder if one is active.
+
+        Fast-path helper used by every builder factory on :class:`Session`
+        so that operations started inside a
+        :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`
+        auto-participate in the transaction. Returns the builder for fluent
+        use; no-op outside an MRT.
+        """
+        if self._txn is not None:
+            builder.with_txn(self._txn)
+        return builder
+
+    def get_current_transaction(self) -> Optional[Txn]:
+        """Return the active transaction for this session, or ``None``.
+
+        Regular :class:`Session` instances always return ``None``; only
+        :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`
+        inside its ``async with`` block returns a live
+        :class:`~aerospike_async.Txn`. Builders created from this session
+        call this hook at construction and thread the result through every
+        policy they hand to the PAC.
+
+        Returns:
+            The active :class:`~aerospike_async.Txn`, or ``None`` outside a
+            transaction.
+
+        Example:
+            >>> session = client.create_session()
+            >>> session.get_current_transaction() is None
+            True
+            >>> async with session.begin_transaction() as tx:
+            ...     assert tx.get_current_transaction() is tx.txn
+
+        See Also:
+            :meth:`begin_transaction`: Enter a multi-record transaction.
+            :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`
+        """
+        return self._txn
 
     # -- Fast-path single-key operations ------------------------------------
     # These bypass the QueryBuilder/OperationSpec/RecordStream chain for
@@ -145,7 +189,9 @@ class Session:
         if self._client._client is None:
             raise RuntimeError("Client is not connected")
 
-        return BatchOperationBuilder(self._client._client, self._behavior)
+        return BatchOperationBuilder(
+            self._client._client, self._behavior, txn=self._txn,
+        )
 
     def background_task(self) -> "BackgroundTaskSession":
         """Configure a server-side background job (query + scan scope) on a dataset.
@@ -229,6 +275,7 @@ class Session:
             indexes_monitor=self._client._indexes_monitor,
             cached_read_policy=self._cached_read_policy,
             cached_write_policy=self._cached_write_policy,
+            txn=self._txn,
         )
         qb._set_current_keys_from_varargs(keys)
         return UdfFunctionBuilder(qb)
@@ -304,6 +351,7 @@ class Session:
             indexes_monitor=self._client._indexes_monitor,
             cached_read_policy=self._cached_read_policy,
             cached_write_policy=self._cached_write_policy,
+            txn=self._txn,
         )
         target: Union[Key, List[Key]] = all_keys[0] if len(all_keys) == 1 else all_keys
         return qb._start_write_verb(op_type, target)
@@ -317,6 +365,7 @@ class Session:
             behavior=self._behavior,
             write_policy=self._cached_write_policy,
             read_policy=self._cached_read_policy,
+            txn=self._txn,
         )
 
     # -- Read entry point -----------------------------------------------------
@@ -433,7 +482,8 @@ class Session:
         # Handle positional arguments (SDK API)
         if arg1 is not None:
             if isinstance(arg1, DataSet):
-                return self._client.query(dataset=arg1, behavior=b)
+                return self._bind_txn(
+                    self._client.query(dataset=arg1, behavior=b))
             elif isinstance(arg1, Key):
                 all_keys = [arg1]
                 if isinstance(arg2, Key):
@@ -453,18 +503,22 @@ class Session:
                         indexes_monitor=self._client._indexes_monitor,
                         cached_read_policy=self._cached_read_policy,
                         cached_write_policy=self._cached_write_policy,
+                        txn=self._txn,
                     )
                     builder._single_key = arg1
                     return builder
-                return self._client.query(keys=all_keys, behavior=b)
+                return self._bind_txn(
+                    self._client.query(keys=all_keys, behavior=b))
             elif isinstance(arg1, list):
                 if len(arg1) == 0:
                     raise ValueError("keys list cannot be empty")
                 if not isinstance(arg1[0], Key):
                     raise TypeError(f"Expected List[Key], but first element is {type(arg1[0])}")
-                return self._client.query(keys=arg1, behavior=b)
+                return self._bind_txn(
+                    self._client.query(keys=arg1, behavior=b))
             elif isinstance(arg1, str) and arg2 is not None:
-                return self._client.query(namespace=arg1, set_name=arg2, behavior=b)
+                return self._bind_txn(
+                    self._client.query(namespace=arg1, set_name=arg2, behavior=b))
 
         if keys:
             keys_list = list(keys)
@@ -472,16 +526,17 @@ class Session:
                 keys_list.insert(0, arg1)
             if arg2 is not None and isinstance(arg2, Key):
                 keys_list.insert(1 if arg1 is not None and isinstance(arg1, Key) else 0, arg2)
-            return self._client.query(keys=keys_list, behavior=b)
+            return self._bind_txn(
+                self._client.query(keys=keys_list, behavior=b))
 
-        return self._client.query(  # type: ignore[call-overload]
+        return self._bind_txn(self._client.query(  # type: ignore[call-overload]
             namespace=namespace,
             set_name=set_name,
             dataset=dataset,
             key=key,
             keys=keys_list,
             behavior=b,
-        )
+        ))
 
     @typing.overload
     def index(
@@ -552,17 +607,46 @@ class Session:
                 "  - index(namespace=..., set_name=...)"
             )
 
-    def transaction_session(self) -> TransactionalSession:
-        """
-        Create a transactional session for multi-record atomic operations.
+    def transaction_session(self) -> "TransactionalSession":
+        """Create a transactional session using this session's behavior.
+
+        Alias for :meth:`begin_transaction`.
 
         Returns:
-            :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`.
+            :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`
+            bound to this session's client and behavior.
 
         See Also:
-            :meth:`Client.transaction_session`
+            :meth:`begin_transaction`: Preferred entry point.
+            :meth:`aerospike_sdk.aio.client.Client.transaction_session`
         """
-        return self._client.transaction_session()
+        return self.begin_transaction()
+
+    def begin_transaction(self) -> "TransactionalSession":
+        """Start a multi-record transaction (MRT) using this session's behavior.
+
+        Returns an async context manager that allocates a fresh
+        :class:`~aerospike_async.Txn`. Every operation run on the returned
+        session auto-participates in the transaction — builders stamp
+        ``policy.txn = tx.txn`` under the hood, so user code never touches a
+        policy object. On clean exit the transaction is committed; if an
+        exception propagates out of the ``async with`` block the transaction
+        is aborted.
+
+        Example:
+            >>> async with session.begin_transaction() as tx:
+            ...     await tx.upsert(accounts.id("A")).bin("balance").set_to(100).execute()
+            ...     await tx.upsert(accounts.id("B")).bin("balance").set_to(200).execute()
+
+        Returns:
+            :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`
+            bound to this session's client and behavior.
+
+        See Also:
+            :meth:`transaction_session`: Alias for this method.
+            :meth:`do_in_transaction`: Run a callable inside a retrying MRT.
+        """
+        return self._client.transaction_session(behavior=self._behavior)
 
     @overload
     def info(self) -> InfoCommands: ...
@@ -652,33 +736,82 @@ class Session:
 
     async def do_in_transaction(
         self,
-        operation: typing.Callable[[TransactionalSession], typing.Awaitable[typing.Any]],
+        operation: typing.Callable[["TransactionalSession"], typing.Awaitable[typing.Any]],
+        *,
+        max_attempts: int = 5,
+        sleep_between_retries: float = 0.0,
     ) -> typing.Any:
-        """
-        Execute an operation within a transaction.
+        """Run an async callable inside a retrying multi-record transaction.
 
-        This is a convenience method that creates a TransactionalSession,
-        executes the operation, and handles commit/rollback automatically.
+        Creates a :class:`TransactionalSession`, invokes ``operation(tx)``
+        inside ``async with``, and retries the whole block when the server
+        signals a transient conflict (``MRT_BLOCKED``,
+        ``MRT_VERSION_MISMATCH``, or ``TXN_FAILED``). On any non-transient
+        failure the transaction is aborted and the exception re-raised.
 
         Args:
-            operation: An async function that takes a TransactionalSession
-                      and performs operations within it.
+            operation: Async callable accepting a :class:`TransactionalSession`
+                and performing zero or more operations on it. Its return
+                value is returned from :meth:`do_in_transaction`.
+            max_attempts: Maximum total attempts (initial + retries). Must
+                be ``>= 1``. Defaults to ``5``.
+            sleep_between_retries: Optional seconds to ``await asyncio.sleep``
+                between retries. ``0`` (the default) retries immediately.
 
         Returns:
-            The result of the operation function.
+            Whatever ``operation`` returns on the successful attempt.
 
-        Example::
+        Raises:
+            ValueError: If ``max_attempts < 1``.
+            AerospikeError: The last-seen transient error after
+                ``max_attempts`` exhausted retries, or any non-transient
+                error raised by ``operation``.
 
-                async def transfer_funds(tx_session):
-                    await tx_session.upsert(accounts.id("acc1")).put({"balance": 100}).execute()
-                    await tx_session.upsert(accounts.id("acc2")).put({"balance": 200}).execute()
+        Example:
+            >>> async def transfer(tx):
+            ...     await tx.upsert(accounts.id("A")).bin("bal").add(-10).execute()
+            ...     await tx.upsert(accounts.id("B")).bin("bal").add(10).execute()
+            ...     return "ok"
+            >>> result = await session.do_in_transaction(transfer)
 
-                await session.do_in_transaction(transfer_funds)
+        See Also:
+            :meth:`begin_transaction`: Manual MRT lifecycle.
+            :class:`TransactionalSession`
         """
-        # This will be implemented when TransactionalSession is fully functional
-        # For now, delegate to the client's transaction_session
-        async with self.transaction_session() as tx_session:
-            return await operation(tx_session)
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
+
+        import asyncio
+        from aerospike_sdk.exceptions import AerospikeError
+
+        # Transient MRT conflicts that are safe to retry automatically.
+        retryable_codes = {
+            ResultCode.MRT_BLOCKED,
+            ResultCode.MRT_VERSION_MISMATCH,
+        }
+        # TXN_FAILED is a rolled-up code used when the MRT monitor reports
+        # that one or more ops failed — retrying is safe because we abort
+        # and start fresh on each attempt.
+        txn_failed = getattr(ResultCode, "TXN_FAILED", None)
+        if txn_failed is not None:
+            retryable_codes.add(txn_failed)
+
+        last_exc: Optional[BaseException] = None
+        for attempt in range(max_attempts):
+            try:
+                async with self.begin_transaction() as tx_session:
+                    return await operation(tx_session)
+            except AerospikeError as exc:
+                last_exc = exc
+                if exc.result_code not in retryable_codes:
+                    raise
+                if attempt + 1 >= max_attempts:
+                    raise
+                if sleep_between_retries > 0:
+                    await asyncio.sleep(sleep_between_retries)
+        # Unreachable — last iteration always raises — but keep mypy happy.
+        assert last_exc is not None
+        raise last_exc
 
     # -- Write entry points ---------------------------------------------------
 

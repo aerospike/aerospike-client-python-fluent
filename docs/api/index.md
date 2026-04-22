@@ -9,9 +9,12 @@ The primary API. All operations are `async`/`await`.
 | Class | Description |
 |-------|-------------|
 | [`Client`](client.md) | Entry point — connect, create sessions, manage lifecycle |
+| [`Cluster`](cluster.md) | Cluster handle returned by `Client` |
 | [`Session`](session.md) | Scoped reads and writes with a fixed `Behavior` |
 | [`QueryBuilder`](query.md) | Build and execute read queries (point, set, batch) |
 | [`WriteSegmentBuilder`](write-segment.md) | Build and execute writes (upsert, insert, update, replace, delete) |
+| [`CdtReadBuilder`](cdt-read.md) | Read operations on list and map CDTs |
+| [`CdtWriteBuilder`](cdt-write.md) | Write operations on list and map CDTs |
 | [`BatchOperationBuilder`](batch.md) | Low-level batch operation builder |
 | [`IndexBuilder`](index-builder.md) | Create and drop secondary indexes |
 | [`BackgroundTaskSession`](background.md) | Server-side background jobs (update, delete, touch, UDF) |
@@ -26,8 +29,19 @@ Synchronous wrappers for the async API. Same functionality, no `async`/`await`.
 | Class | Description |
 |-------|-------------|
 | [`SyncClient`](sync/client.md) | Sync entry point |
+| [`Cluster`](sync/cluster.md) | Sync cluster handle |
 | [`SyncSession`](sync/session.md) | Sync session |
 | [`SyncQueryBuilder`](sync/query.md) | Sync query builder |
+| [`SyncWriteSegmentBuilder`](sync/write-segment.md) | Sync write builder (upsert, insert, update, replace, delete) |
+| [`SyncBatchOperationBuilder`](sync/batch.md) | Sync batch operation builder |
+| [`SyncIndexBuilder`](sync/index-builder.md) | Sync secondary index builder |
+| [`SyncBackgroundTaskSession`](sync/background.md) | Sync server-side background jobs |
+| [`SyncUdfFunctionBuilder`](sync/udf.md) | Sync foreground UDF execution |
+| [`SyncInfoCommands`](sync/info.md) | Sync info protocol commands |
+| [`SyncTransactionalSession`](sync/transactional-session.md) | Sync multi-record transactions |
+| [`SyncRecordStream`](sync/record-stream.md) | Sync iterator over query results |
+| [`ClusterDefinition`](sync/cluster-definition.md) | Sync cluster connection configuration |
+| [`TlsBuilder`](sync/tls-builder.md) | Sync TLS configuration builder |
 
 ## Core
 
@@ -40,6 +54,8 @@ Shared types used by both async and sync APIs.
 | [`RecordStream`](record-stream.md) | Async iterator over query results |
 | [`Behavior`](behavior.md) | Policy presets (timeouts, consistency) |
 | [`ClusterDefinition`](cluster-definition.md) | Cluster connection configuration |
+| [`TlsBuilder`](tls-builder.md) | TLS configuration builder |
+| [`SystemSettings`](system-settings.md) | Global system-level tunables |
 | [`ErrorStrategy`](error-strategy.md) | Error handling strategies |
 | [`Exceptions`](exceptions.md) | Exception hierarchy |
 | [`QueryHint`](query-hint.md) | Query optimization hints |
@@ -76,6 +92,10 @@ sync/client
 sync/cluster
 sync/session
 sync/query
+sync/write-segment
+sync/batch
+sync/transactional-session
+sync/record-stream
 sync/cluster-definition
 sync/index-builder
 sync/background

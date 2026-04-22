@@ -46,8 +46,12 @@ def to_read_policy(settings: Settings) -> ReadPolicy:
         p.sleep_between_retries = _ms(settings.retry_delay)
     if settings.replica is not None:
         p.replica = settings.replica
-    if settings.consistency_level is not None:
-        p.consistency_level = settings.consistency_level
+    if settings.read_mode_ap is not None:
+        p.read_mode_ap = settings.read_mode_ap
+    if settings.read_mode_sc is not None:
+        p.read_mode_sc = settings.read_mode_sc
+    if settings.use_compression is not None:
+        p.use_compression = settings.use_compression
     if settings.read_touch_ttl_percent is not None:
         p.read_touch_ttl = settings.read_touch_ttl_percent
     return p
@@ -70,6 +74,8 @@ def to_write_policy(settings: Settings) -> WritePolicy:
         p.durable_delete = settings.durable_delete
     if settings.commit_level is not None:
         p.commit_level = settings.commit_level
+    if settings.use_compression is not None:
+        p.use_compression = settings.use_compression
     return p
 
 
@@ -86,6 +92,12 @@ def to_query_policy(settings: Settings) -> QueryPolicy:
         p.sleep_between_retries = _ms(settings.retry_delay)
     if settings.replica is not None:
         p.replica = settings.replica
+    if settings.read_mode_ap is not None:
+        p.read_mode_ap = settings.read_mode_ap
+    if settings.read_mode_sc is not None:
+        p.read_mode_sc = settings.read_mode_sc
+    if settings.use_compression is not None:
+        p.use_compression = settings.use_compression
     if settings.max_concurrent_nodes is not None:
         p.max_concurrent_nodes = settings.max_concurrent_nodes
     if settings.record_queue_size is not None:
@@ -116,6 +128,8 @@ def to_batch_policy(settings: Settings) -> BatchPolicy:
         p.allow_inline = settings.allow_inline
     if settings.allow_inline_ssd is not None:
         p.allow_inline_ssd = settings.allow_inline_ssd
+    if settings.use_compression is not None:
+        p.use_compression = settings.use_compression
     return p
 
 
@@ -133,6 +147,12 @@ def apply_to_read_policy(settings: Settings, policy: ReadPolicy) -> ReadPolicy:
         policy.max_retries = settings.max_retries
     if settings.replica is not None:
         policy.replica = settings.replica
+    if settings.read_mode_ap is not None:
+        policy.read_mode_ap = settings.read_mode_ap
+    if settings.read_mode_sc is not None:
+        policy.read_mode_sc = settings.read_mode_sc
+    if settings.use_compression is not None:
+        policy.use_compression = settings.use_compression
     return policy
 
 
@@ -152,4 +172,6 @@ def apply_to_write_policy(settings: Settings, policy: WritePolicy) -> WritePolic
         policy.send_key = settings.send_key
     if settings.commit_level is not None:
         policy.commit_level = settings.commit_level
+    if settings.use_compression is not None:
+        policy.use_compression = settings.use_compression
     return policy

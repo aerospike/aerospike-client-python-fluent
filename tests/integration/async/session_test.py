@@ -308,7 +308,7 @@ async def test_session_truncate(session):
     Truncate is an async server-side operation that may not propagate
     instantly, so we verify the call completes without error and that
     records written *after* the truncate (whose timestamps exceed the
-    cutoff) are immediately readable — matching the Java client pattern.
+    cutoff) are immediately readable.
     """
     users = DataSet.of("test", "trunc_test")
 

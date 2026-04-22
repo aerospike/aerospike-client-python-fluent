@@ -113,6 +113,7 @@ pip install -e ".[dev]"
 - [Connecting to a Cluster](guide/connecting.md)
 - [Reading Data](guide/reads.md)
 - [Writing Data](guide/writes.md)
+- [Transactions](guide/transactions.md)
 - [API Reference](api/index.md)
 
 ```{toctree}
@@ -124,6 +125,7 @@ guide/reads
 guide/writes
 guide/cdt-operations
 guide/expression-ael
+guide/transactions
 guide/error-handling
 guide/background-udf
 guide/indexes

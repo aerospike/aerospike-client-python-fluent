@@ -21,7 +21,8 @@ import pytest
 from aerospike_async import (
     BatchPolicy,
     CommitLevel,
-    ConsistencyLevel,
+    ReadModeAP,
+    ReadModeSC,
     ReadPolicy,
     QueryPolicy,
     Replica,
@@ -49,7 +50,9 @@ class TestToReadPolicy:
             max_retries=3,
             retry_delay=timedelta(milliseconds=100),
             replica=Replica.PREFER_RACK,
-            consistency_level=ConsistencyLevel.CONSISTENCY_ALL,
+            read_mode_ap=ReadModeAP.ALL,
+            read_mode_sc=ReadModeSC.LINEARIZE,
+            use_compression=True,
         )
         p = to_read_policy(s)
         assert p.total_timeout == 10_000
@@ -57,7 +60,9 @@ class TestToReadPolicy:
         assert p.max_retries == 3
         assert p.sleep_between_retries == 100
         assert p.replica == Replica.PREFER_RACK
-        assert p.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert p.read_mode_ap == ReadModeAP.ALL
+        assert p.read_mode_sc == ReadModeSC.LINEARIZE
+        assert p.use_compression is True
 
     def test_none_fields_not_set(self):
         p = to_read_policy(Settings())

@@ -1,0 +1,314 @@
+# Copyright 2025-2026 Aerospike, Inc.
+#
+# Portions may be licensed to Aerospike, Inc. under one or more contributor
+# license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+"""Unit tests for SyncTransactionalSession API shape and lifecycle.
+
+Mirrors ``transactional_session_test.py`` but exercises the sync wrapper's
+event-loop hop through a real :class:`_EventLoopManager`. The underlying
+PAC client is mocked so these tests don't need an SC cluster.
+"""
+
+import pytest
+
+from aerospike_async import ResultCode
+
+from aerospike_sdk import (
+    AbortStatus,
+    CommitStatus,
+    SyncTransactionalSession,
+    Txn,
+)
+from aerospike_sdk.aio.transactional_session import TransactionalSession as AsyncTransactionalSession
+from aerospike_sdk.exceptions import AerospikeError
+from aerospike_sdk.policy.behavior import Behavior
+from aerospike_sdk.sync.client import _EventLoopManager
+
+
+class _FakePacClient:
+    """Minimal async stand-in for the PAC Client with commit/abort stubs."""
+
+    def __init__(self) -> None:
+        self.commit_calls: list = []
+        self.abort_calls: list = []
+        self.commit_return: CommitStatus = CommitStatus.OK
+        self.abort_return: AbortStatus = AbortStatus.OK
+
+    async def commit(self, txn):
+        self.commit_calls.append(txn)
+        return self.commit_return
+
+    async def abort(self, txn):
+        self.abort_calls.append(txn)
+        return self.abort_return
+
+
+class _FakeSdkClient:
+    """Stand-in for aerospike_sdk.aio.client.Client."""
+
+    def __init__(self) -> None:
+        self._async_client = _FakePacClient()
+        self._client = self._async_client
+        self._indexes_monitor = None
+
+
+@pytest.fixture
+def sdk_client() -> _FakeSdkClient:
+    return _FakeSdkClient()
+
+
+@pytest.fixture
+def loop_manager() -> _EventLoopManager:
+    mgr = _EventLoopManager()
+    mgr.acquire()
+    try:
+        yield mgr
+    finally:
+        mgr.release()
+
+
+@pytest.fixture
+def sync_tx(
+    sdk_client: _FakeSdkClient,
+    loop_manager: _EventLoopManager,
+) -> SyncTransactionalSession:
+    async_tx = AsyncTransactionalSession(client=sdk_client)  # type: ignore[arg-type]
+    return SyncTransactionalSession(async_tx, loop_manager)
+
+
+def test_txn_attribute_raises_before_enter(
+    sync_tx: SyncTransactionalSession,
+) -> None:
+    with pytest.raises(RuntimeError, match="not active"):
+        _ = sync_tx.txn
+    assert sync_tx.active is False
+
+
+def test_enter_allocates_txn(sync_tx: SyncTransactionalSession) -> None:
+    with sync_tx as tx:
+        assert tx is sync_tx
+        assert isinstance(tx.txn, Txn)
+        assert tx.active is True
+
+
+def test_clean_exit_commits(
+    sync_tx: SyncTransactionalSession,
+    sdk_client: _FakeSdkClient,
+) -> None:
+    with sync_tx as tx:
+        txn_ref = tx.txn
+    assert len(sdk_client._async_client.commit_calls) == 1
+    assert sdk_client._async_client.commit_calls[0] is txn_ref
+    assert len(sdk_client._async_client.abort_calls) == 0
+    assert sync_tx.active is False
+
+
+def test_exception_exit_aborts(
+    sync_tx: SyncTransactionalSession,
+    sdk_client: _FakeSdkClient,
+) -> None:
+    class _Boom(RuntimeError):
+        pass
+
+    with pytest.raises(_Boom):
+        with sync_tx as tx:
+            _ = tx.txn
+            raise _Boom("oops")
+    assert len(sdk_client._async_client.abort_calls) == 1
+    assert len(sdk_client._async_client.commit_calls) == 0
+    assert sync_tx.active is False
+
+
+def test_explicit_commit_returns_status(
+    sync_tx: SyncTransactionalSession,
+    sdk_client: _FakeSdkClient,
+) -> None:
+    with sync_tx as tx:
+        status = tx.commit()
+        assert status == CommitStatus.OK
+        assert tx.active is False
+    # __exit__ must not double-commit after an explicit commit:
+    assert len(sdk_client._async_client.commit_calls) == 1
+
+
+def test_explicit_abort_returns_status(
+    sync_tx: SyncTransactionalSession,
+    sdk_client: _FakeSdkClient,
+) -> None:
+    with sync_tx as tx:
+        status = tx.abort()
+        assert status == AbortStatus.OK
+        assert tx.active is False
+    assert len(sdk_client._async_client.abort_calls) == 1
+    assert len(sdk_client._async_client.commit_calls) == 0
+
+
+def test_rollback_is_alias_for_abort(
+    sync_tx: SyncTransactionalSession,
+    sdk_client: _FakeSdkClient,
+) -> None:
+    with sync_tx as tx:
+        status = tx.rollback()
+        assert status == AbortStatus.OK
+    assert len(sdk_client._async_client.abort_calls) == 1
+
+
+def test_commit_without_active_txn_raises(
+    sync_tx: SyncTransactionalSession,
+) -> None:
+    with pytest.raises(RuntimeError, match="No active transaction"):
+        sync_tx.commit()
+
+
+def test_abort_without_active_txn_raises(
+    sync_tx: SyncTransactionalSession,
+) -> None:
+    with pytest.raises(RuntimeError, match="No active transaction"):
+        sync_tx.abort()
+
+
+def test_double_enter_raises(sync_tx: SyncTransactionalSession) -> None:
+    with sync_tx:
+        with pytest.raises(RuntimeError, match="already active"):
+            sync_tx.__enter__()
+
+
+def test_subclasses_sync_session() -> None:
+    """SyncTransactionalSession must be a proper SyncSession subclass so
+    session APIs (query, upsert, batch, ...) work inside the ``with`` block.
+    """
+    from aerospike_sdk.sync.session import SyncSession
+    assert issubclass(SyncTransactionalSession, SyncSession)
+
+
+def test_default_behavior_applied(
+    sdk_client: _FakeSdkClient,
+    loop_manager: _EventLoopManager,
+) -> None:
+    async_tx = AsyncTransactionalSession(client=sdk_client)  # type: ignore[arg-type]
+    sync_tx = SyncTransactionalSession(async_tx, loop_manager)
+    assert sync_tx.behavior is Behavior.DEFAULT
+
+
+def test_explicit_behavior_honored(
+    sdk_client: _FakeSdkClient,
+    loop_manager: _EventLoopManager,
+) -> None:
+    custom = Behavior.DEFAULT.derive_with_changes(name="custom_sync_mrt")
+    async_tx = AsyncTransactionalSession(  # type: ignore[arg-type]
+        client=sdk_client, behavior=custom,
+    )
+    sync_tx = SyncTransactionalSession(async_tx, loop_manager)
+    assert sync_tx.behavior is custom
+
+
+# -- do_in_transaction retry logic -------------------------------------------
+
+
+class _SdkClientWithTxnSession(_FakeSdkClient):
+    """Fake SDK client that also supports ``begin_transaction`` through a
+    real ``aio.Session`` so ``SyncSession.do_in_transaction`` can drive it.
+    """
+
+    def transaction_session(self, behavior=None):
+        return AsyncTransactionalSession(client=self, behavior=behavior)  # type: ignore[arg-type]
+
+
+def _make_sync_session(loop_manager: _EventLoopManager):
+    from aerospike_sdk.aio.session import Session as AsyncSession
+    from aerospike_sdk.sync.session import SyncSession
+
+    client = _SdkClientWithTxnSession()
+    async_session = AsyncSession.__new__(AsyncSession)
+    async_session._client = client  # type: ignore[attr-defined]
+    async_session._behavior = Behavior.DEFAULT  # type: ignore[attr-defined]
+    async_session._txn = None  # type: ignore[attr-defined]
+    return SyncSession(async_session, loop_manager), client
+
+
+def test_do_in_transaction_commits_on_success(
+    loop_manager: _EventLoopManager,
+) -> None:
+    sync_session, client = _make_sync_session(loop_manager)
+
+    def op(tx):
+        assert isinstance(tx, SyncTransactionalSession)
+        assert tx.active is True
+        return "ok"
+
+    result = sync_session.do_in_transaction(op)
+    assert result == "ok"
+    assert len(client._async_client.commit_calls) == 1
+    assert len(client._async_client.abort_calls) == 0
+
+
+def test_do_in_transaction_aborts_on_non_retryable(
+    loop_manager: _EventLoopManager,
+) -> None:
+    sync_session, client = _make_sync_session(loop_manager)
+
+    def op(tx):
+        raise AerospikeError("boom", result_code=ResultCode.PARAMETER_ERROR)
+
+    with pytest.raises(AerospikeError):
+        sync_session.do_in_transaction(op)
+    assert len(client._async_client.commit_calls) == 0
+    assert len(client._async_client.abort_calls) == 1
+
+
+def test_do_in_transaction_retries_then_succeeds(
+    loop_manager: _EventLoopManager,
+) -> None:
+    sync_session, client = _make_sync_session(loop_manager)
+    calls = {"n": 0}
+
+    def op(tx):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise AerospikeError(
+                "conflict", result_code=ResultCode.MRT_BLOCKED,
+            )
+        return "eventually"
+
+    result = sync_session.do_in_transaction(op, max_attempts=5)
+    assert result == "eventually"
+    assert calls["n"] == 3
+    # Two aborted attempts + one committed attempt:
+    assert len(client._async_client.abort_calls) == 2
+    assert len(client._async_client.commit_calls) == 1
+
+
+def test_do_in_transaction_exhausts_retries(
+    loop_manager: _EventLoopManager,
+) -> None:
+    sync_session, client = _make_sync_session(loop_manager)
+
+    def op(tx):
+        raise AerospikeError(
+            "persistent conflict",
+            result_code=ResultCode.MRT_VERSION_MISMATCH,
+        )
+
+    with pytest.raises(AerospikeError):
+        sync_session.do_in_transaction(op, max_attempts=3)
+    assert len(client._async_client.abort_calls) == 3
+    assert len(client._async_client.commit_calls) == 0
+
+
+def test_do_in_transaction_rejects_zero_attempts(
+    loop_manager: _EventLoopManager,
+) -> None:
+    sync_session, _ = _make_sync_session(loop_manager)
+    with pytest.raises(ValueError, match="max_attempts"):
+        sync_session.do_in_transaction(lambda tx: None, max_attempts=0)

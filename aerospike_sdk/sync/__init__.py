@@ -24,6 +24,7 @@ from aerospike_sdk.sync.operations.index import SyncIndexBuilder
 from aerospike_sdk.sync.operations.query import SyncQueryBuilder
 from aerospike_sdk.sync.session import SyncSession
 from aerospike_sdk.sync.tls_builder import TlsBuilder
+from aerospike_sdk.sync.transactional_session import SyncTransactionalSession
 
 __all__ = [
     "Cluster",
@@ -35,6 +36,7 @@ __all__ = [
     "SyncIndexBuilder",
     "SyncQueryBuilder",
     "SyncSession",
+    "SyncTransactionalSession",
     "TlsBuilder",
 ]
 

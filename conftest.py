@@ -75,11 +75,6 @@ def pytest_configure(config):
                 logger.setLevel(numeric)
                 logger.addHandler(handler)
 
-    # Suppress noisy core warning until the msgpack decoder is fixed upstream.
-    _decoder_logger = logging.getLogger("aerospike_core.msgpack.decoder")
-    _decoder_logger.addFilter(
-        lambda r: "Skipping over type extension" not in r.getMessage())
-
     # Ensure python path includes the tests directory for imports
     import sys
     tests_dir = Path(__file__).parent / "tests"

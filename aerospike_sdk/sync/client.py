@@ -33,6 +33,7 @@ if TYPE_CHECKING:  # Not unused — avoids circular import; used in type annotat
     from aerospike_sdk.sync.operations.index import SyncIndexBuilder
     from aerospike_sdk.sync.operations.query import SyncQueryBuilder
     from aerospike_sdk.sync.session import SyncSession
+    from aerospike_sdk.sync.transactional_session import SyncTransactionalSession
 
 from aerospike_async import (
     AdminPolicy,
@@ -851,4 +852,44 @@ class SyncClient:
         async_client = self._ensure_connected()
         async_session = async_client.create_session(behavior)
         return SyncSession(async_session, self._loop_manager)
+
+    def create_transactional_session(
+        self, behavior: Optional[Behavior] = None,
+    ) -> "SyncTransactionalSession":
+        """Create a synchronous multi-record transaction (MRT) session.
+
+        Allocates a fresh :class:`~aerospike_async.Txn` on entry. Operations
+        chained off the returned session (``tx.upsert(...)``, ``tx.query(...)``,
+        ``tx.batch()``, ...) auto-participate in the transaction — every
+        builder stamps ``policy.txn = tx.txn`` under the hood. On clean exit
+        the transaction is committed; if an exception propagates out of the
+        ``with`` block it is aborted.
+
+        Multi-record transactions require an Aerospike server running in
+        strong-consistency (SC) mode on the target namespace.
+
+        Args:
+            behavior: Optional :class:`~aerospike_sdk.policy.behavior.Behavior`
+                for operations inside the transaction. Defaults to
+                :attr:`Behavior.DEFAULT` when omitted.
+
+        Returns:
+            A :class:`~aerospike_sdk.sync.transactional_session.SyncTransactionalSession`
+            bound to this client and behavior.
+
+        Example::
+
+            with client.create_transactional_session() as tx:
+                tx.upsert(accounts.id("A")).bin("balance").set_to(100).execute()
+                tx.upsert(accounts.id("B")).bin("balance").set_to(200).execute()
+
+        See Also:
+            :meth:`~aerospike_sdk.aio.client.Client.transaction_session`:
+                Async equivalent.
+        """
+        from aerospike_sdk.sync.transactional_session import SyncTransactionalSession
+
+        async_client = self._ensure_connected()
+        async_txn_session = async_client.transaction_session(behavior)
+        return SyncTransactionalSession(async_txn_session, self._loop_manager)
 
