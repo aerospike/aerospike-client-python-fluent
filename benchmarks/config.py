@@ -78,6 +78,15 @@ class WorkloadConfig:
     auth_password: Optional[str] = None
     services_alternate: bool = False
     latency_style: str = "columns"
+    # Python allocation tracing. Off by default — `tracemalloc.start()` hooks
+    # every PyObject alloc/free and walks the Python frame stack each time,
+    # which historically consumed ~40% of the GIL thread on RU,50 profiles.
+    # Enable only for memory investigations, not for TPS measurement.
+    tracemalloc_enabled: bool = False
+    fast_path: bool = False
+    """Use Session.get/put shortcuts (bypass QueryBuilder / RecordStream) for
+    single-key RU reads and full-bin writes. Prototype path for benchmarking
+    the upper bound on PSDK single-key throughput."""
 
 
 def parse_latency_arg(value: str) -> tuple[int, int]:
@@ -306,6 +315,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=False,
         help="Use services-alternate for cluster discovery (default: False).",
     )
+    p.add_argument(
+        "--tracemalloc",
+        dest="tracemalloc",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable Python allocation tracing (tracemalloc). Off by default "
+        "because it consumes ~40%% of the GIL thread on hot paths; enable only "
+        "for memory-leak investigations.",
+    )
+    p.add_argument(
+        "--fast-path",
+        dest="fast_path",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Use Session.get/put shortcut methods for single-key RU reads "
+        "and full-bin writes (bypasses QueryBuilder/RecordStream). "
+        "Experimental upper-bound bench mode.",
+    )
     return p
 
 
@@ -352,4 +379,6 @@ def config_from_args(ns: argparse.Namespace) -> WorkloadConfig:
         auth_password=auth_password,
         services_alternate=getattr(ns, "services_alternate", False),
         latency_style=getattr(ns, "latency_style", "columns"),
+        tracemalloc_enabled=bool(getattr(ns, "tracemalloc", False)),
+        fast_path=bool(getattr(ns, "fast_path", False)),
     )

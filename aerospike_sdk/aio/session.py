@@ -18,13 +18,13 @@
 from __future__ import annotations
 
 import typing
-from typing import Awaitable, Dict, List, Optional, overload, TYPE_CHECKING, Union
+from typing import Any, Awaitable, Dict, List, Optional, overload, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from aerospike_sdk.aio.transactional_session import TransactionalSession
     from aerospike_sdk.record_result import RecordResult
 
-from aerospike_async import Key, ResultCode, Txn
+from aerospike_async import Key, Record, ResultCode, Txn
 
 from aerospike_sdk.aio.background import BackgroundTaskSession
 from aerospike_sdk.aio.client import Client
@@ -135,6 +135,92 @@ class Session:
     # -- Fast-path single-key operations ------------------------------------
     # These bypass the QueryBuilder/OperationSpec/RecordStream chain for
     # simple single-key reads and writes, calling the PAC directly.
+
+    async def get(
+        self, key: Key, bins: Optional[List[str]] = None,
+    ) -> Record:
+        """Direct single-key point read — returns ``Record`` or raises.
+
+        Bypasses the builder chain (``session.query(key).execute()``) and
+        the :class:`~aerospike_sdk.record_stream.RecordStream` wrapper: one
+        ``await`` reaches the underlying client and the resulting
+        :class:`~aerospike_async.Record` is returned unwrapped. Use when
+        you have a single key and want minimum per-op overhead; use
+        :meth:`query` when you need filters, projections, or streaming.
+
+        Args:
+            key: Target :class:`~aerospike_async.Key`.
+            bins: Optional bin-name projection. ``None`` (default) reads
+                all bins.
+
+        Returns:
+            The :class:`~aerospike_async.Record` for ``key``.
+
+        Raises:
+            AerospikeError: Server or client errors (including
+                ``KEY_NOT_FOUND_ERROR``) are raised from the underlying
+                client without being wrapped in a
+                :class:`~aerospike_sdk.record_result.RecordResult`.
+
+        Example:
+            >>> users = DataSet.of("test", "users")
+            >>> rec = await session.get(users.id(1))
+            >>> name = rec.bins["name"]
+
+        See Also:
+            :meth:`query`: Builder-based reads for projections, streams,
+                and secondary-index queries.
+            :meth:`put`: Direct single-key upsert.
+        """
+        if self._txn is None:
+            return await self._pac_client.get(
+                self._cached_read_policy, key, bins)
+        policy = to_read_policy(
+            self._behavior.get_settings(OpKind.READ, OpShape.POINT))
+        policy.txn = self._txn
+        return await self._pac_client.get(policy, key, bins)
+
+    async def put(
+        self, key: Key, bins: Dict[str, Any],
+    ) -> None:
+        """Direct single-key upsert — returns ``None`` or raises.
+
+        Bypasses the builder chain (``session.upsert(key).put(...).execute()``)
+        and the :class:`~aerospike_sdk.record_stream.RecordStream` wrapper:
+        one ``await`` reaches the underlying client. Use when you have a
+        single key and want minimum per-op overhead; use :meth:`upsert`
+        when you need atomic multi-op semantics, TTL overrides,
+        generation checks, durable delete, or filter expressions.
+
+        Args:
+            key: Target :class:`~aerospike_async.Key`.
+            bins: Mapping of bin name to value to write. An empty mapping
+                is permitted.
+
+        Returns:
+            ``None`` on success.
+
+        Raises:
+            AerospikeError: Server or client errors are raised from the
+                underlying client.
+
+        Example:
+            >>> users = DataSet.of("test", "users")
+            >>> await session.put(users.id(1), {"name": "Tim", "age": 30})
+
+        See Also:
+            :meth:`upsert`: Builder-based writes with full feature set.
+            :meth:`get`: Direct single-key point read.
+        """
+        if self._txn is None:
+            await self._pac_client.put(
+                self._cached_write_policy, key, bins)
+            return
+        policy = to_write_policy(
+            self._behavior.get_settings(
+                OpKind.WRITE_NON_RETRYABLE, OpShape.POINT))
+        policy.txn = self._txn
+        await self._pac_client.put(policy, key, bins)
 
     @property
     def behavior(self) -> Behavior:

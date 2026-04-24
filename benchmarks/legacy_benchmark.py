@@ -313,7 +313,9 @@ def main() -> int:
 
     # Connect
     import aerospike
-    config = {"hosts": [(host, port)]}
+    use_alt = os.environ.get(
+        "AEROSPIKE_USE_SERVICES_ALTERNATE", "").strip().lower() in ("true", "1", "yes")
+    config = {"hosts": [(host, port)], "use_services_alternate": use_alt}
     client = aerospike.client(config).connect()
     print(f"Connected to {args.hosts}. Starting legacy benchmark ...")
 
