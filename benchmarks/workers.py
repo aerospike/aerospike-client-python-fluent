@@ -124,10 +124,14 @@ async def _one_op_async(
                 if bsz > 1:
                     assert isinstance(keys, list)
                     stream = await session.query(keys).execute(on_error=ErrorStrategy.IN_STREAM)
+                    await _drain_async(stream, bsz)
+                elif cfg.fast_path:
+                    assert isinstance(keys, Key)
+                    await session.get(keys)
                 else:
                     assert isinstance(keys, Key)
                     stream = await session.query(keys).execute()
-                await _drain_async(stream, bsz)
+                    await _drain_async(stream, bsz)
             else:
                 assert isinstance(keys, Key)
                 bi = pick_bin_index(rng, len(fields))
@@ -146,6 +150,9 @@ async def _one_op_async(
                     cur = cur.upsert(k).put(bins)
                 stream = await cur.execute()
                 await _drain_async(stream, bsz)
+            elif cfg.fast_path:
+                assert isinstance(keys, Key)
+                await session.put(keys, bins)
             else:
                 assert isinstance(keys, Key)
                 stream = await session.upsert(keys).put(bins).execute()

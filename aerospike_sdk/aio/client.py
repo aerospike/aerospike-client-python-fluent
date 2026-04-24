@@ -35,12 +35,12 @@ from aerospike_async import (
 from aerospike_sdk.dataset import DataSet
 from aerospike_sdk.aio.operations.index import IndexBuilder
 from aerospike_sdk.aio.operations.query import QueryBuilder
-from aerospike_sdk.aio.transactional_session import TransactionalSession
 from aerospike_sdk.index_monitor import IndexesMonitor
 from aerospike_sdk.policy.behavior import Behavior
 
 if typing.TYPE_CHECKING:
     from aerospike_sdk.aio.session import Session
+    from aerospike_sdk.aio.transactional_session import TransactionalSession
 
 
 class Client:
@@ -472,28 +472,41 @@ class Client:
             set_name=set_name,
         )
 
-    def transaction_session(self) -> TransactionalSession:
-        """
-        Create a transactional session.
+    def transaction_session(
+        self, behavior: Optional[Behavior] = None,
+    ) -> "TransactionalSession":
+        """Create a multi-record transaction (MRT) session.
 
-        All operations within this session will be part of the same
-        transaction. The transaction is automatically committed when
-        the session exits successfully, or rolled back on error.
+        Allocates a fresh :class:`~aerospike_async.Txn` on entry. Operations
+        chained off the returned session (``tx.upsert(...)``, ``tx.query(...)``,
+        ``tx.batch()``, ...) auto-participate in the transaction — every
+        builder stamps ``policy.txn = tx.txn`` under the hood. On clean exit
+        the transaction is committed; if an exception propagates out of the
+        block it is aborted.
 
-        Note: Full transaction support depends on Aerospike server
-        capabilities. This is a placeholder for future transaction support.
+        Multi-record transactions require an Aerospike server running in
+        strong-consistency (SC) mode on the target namespace.
+
+        Args:
+            behavior: Optional :class:`~aerospike_sdk.policy.behavior.Behavior`
+                for operations inside the transaction. Defaults to
+                :attr:`Behavior.DEFAULT` when omitted.
 
         Returns:
-            A TransactionalSession for transactional operations.
+            A :class:`~aerospike_sdk.aio.transactional_session.TransactionalSession`
+            bound to this client and behavior.
 
         Example::
 
-            async with client.transaction_session() as session:
-                kv = session.key_value("test", "users")
-                await kv.put("user1", {"name": "John"})
-                await kv.put("user2", {"name": "Jane"})
+            async with client.transaction_session() as tx:
+                await tx.upsert(accounts.id("A")).bin("balance").set_to(100).execute()
+                await tx.upsert(accounts.id("B")).bin("balance").set_to(200).execute()
         """
-        return TransactionalSession(client=self._async_client)
+        # Late import breaks the client -> transactional_session -> session ->
+        # client cycle (TransactionalSession subclasses Session, and Session
+        # imports Client at module level).
+        from aerospike_sdk.aio.transactional_session import TransactionalSession
+        return TransactionalSession(client=self, behavior=behavior)
 
     def create_session(self, behavior: Optional[Behavior] = None) -> Session:
         """

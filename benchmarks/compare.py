@@ -201,6 +201,7 @@ def run_psdk(
     password: Optional[str] = None,
     auth_mode: Optional[str] = None,
     truncate: bool = False,
+    batch_size: int = 0,
 ) -> RunResult:
     """Run the PSDK benchmark tool and parse its output."""
     env = os.environ.copy()
@@ -240,6 +241,8 @@ def run_psdk(
         "--warmup", str(warmup), "--cooldown", str(cooldown),
         *extra,
     ]
+    if batch_size and batch_size > 1:
+        cmd.extend(["--batch-size", str(batch_size)])
     try:
         proc = subprocess.run(
             cmd, capture_output=True, text=True, cwd=str(psdk_path),
@@ -325,6 +328,7 @@ def run_pac_benchmark(
     duration: float,
     warmup: int,
     cooldown: int,
+    batch_size: int = 0,
 ) -> RunResult:
     """Run the standalone PAC benchmark and parse its output."""
     cmd = [
@@ -334,6 +338,8 @@ def run_pac_benchmark(
         "-w", workload, "-d", str(duration),
         "--warmup", str(warmup), "--cooldown", str(cooldown),
     ]
+    if batch_size and batch_size > 1:
+        cmd.extend(["--batch-size", str(batch_size)])
     env = os.environ.copy()
     env["PYTHONPATH"] = str(pac_path)
     try:
@@ -512,6 +518,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("-z", "--async-tasks", type=int, default=32, dest="async_tasks",
                    help="Number of concurrent async tasks (default: %(default)s).")
+    p.add_argument("--batch-size", dest="batch_size", type=int, default=0,
+                   help="If >1, each operation issues one batch command of N keys "
+                   "(drives batch_read/batch_write paths). Default: 0 (single-key).")
     p.add_argument("--threads", type=int, default=None,
                    help="OS threads for sim-sync mode (default: falls back to -z).")
     p.add_argument("-d", "--duration", type=float, default=10.0, help="Run duration in seconds.")
@@ -613,6 +622,7 @@ def main() -> int:
                 duration=args.duration,
                 warmup=args.warmup,
                 cooldown=args.cooldown,
+                batch_size=args.batch_size,
             )
             if r.error:
                 print(f"    ERROR: {r.error}")
@@ -652,6 +662,7 @@ def main() -> int:
                 password=args.password,
                 auth_mode=args.auth_mode,
                 truncate=(args.truncate and not has_populated and run_idx == 0),
+                batch_size=args.batch_size,
             )
             if do_populate:
                 has_populated = True

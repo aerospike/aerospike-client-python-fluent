@@ -620,7 +620,11 @@ async def test_expire_record_after_seconds(client):
     import asyncio
 
     session = client.create_session()
-    k = DataSet.of("test", "test").id(1)
+    # Isolated set avoids races with any other tooling sharing
+    # (test, test, 1); the 4s sleep otherwise opens a wide window for
+    # a concurrent writer to reseed the key after nsup GCs our record.
+    k = DataSet.of("test", "ttl_expire_test").id(1)
+    await session.delete(k).execute()
 
     await (
         session.upsert(k)
@@ -631,13 +635,24 @@ async def test_expire_record_after_seconds(client):
 
     result = await session.query(k).execute()
     first = await result.first_or_raise()
-    assert first.record_or_raise().bins["data"] == "ephemeral"
+    rec = first.record_or_raise()
+    assert rec.bins["data"] == "ephemeral"
+    expected_generation = rec.generation
 
     await asyncio.sleep(4)
 
     result = await session.query(k).execute()
     first = await result.first()
-    assert first is None or not first.is_ok
+    if first is None or not first.is_ok:
+        return
+    # Record is present — ours only counts as "not expired" if it's the
+    # exact same write we made. Any other write at this key means ours
+    # was GC'd and something reseeded (no-op for this test's intent).
+    rec2 = first.record_or_raise()
+    assert rec2.generation != expected_generation or "data" not in rec2.bins, (
+        f"Record with TTL=2 did not expire: gen={rec2.generation}, "
+        f"bins={dict(rec2.bins)}"
+    )
 
 
 async def test_never_expire(client):

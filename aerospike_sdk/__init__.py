@@ -16,17 +16,21 @@
 """Aerospike Python SDK — high-level API built on the ``aerospike_async`` package."""
 
 from aerospike_async import (
+    AbortStatus,
     AuthMode,
     BitPolicy,
     BitwiseOverflowActions,
     BitwiseResizeFlags,
     BitwiseWriteFlags,
+    CommitStatus,
     HLLWriteFlags,
     ListReturnType,
     ListWriteFlags,
     MapReturnType,
     MapWriteFlags,
     SpecialValue,
+    Txn,
+    TxnState,
 )
 
 from aerospike_sdk.aio import Client, Session, TransactionalSession, ClusterDefinition, Host
@@ -56,12 +60,14 @@ from aerospike_sdk.exp import Exp, val, in_list, map_keys, map_values
 from aerospike_sdk.policy.behavior import Behavior
 from aerospike_sdk.record_result import RecordResult
 from aerospike_sdk.record_stream import RecordStream
-from aerospike_sdk.sync import SyncClient
+from aerospike_sdk.sync import SyncClient, SyncTransactionalSession
 from aerospike_sdk.sync.record_stream import SyncRecordStream
+from aerospike_sdk.sync.session import SyncSession
 
 __version__ = "0.1.0"
 
 __all__ = [
+    "AbortStatus",
     "AerospikeError",
     "AuthenticationError",
     "AuthMode",
@@ -74,6 +80,7 @@ __all__ = [
     "Behavior",
     "ClusterDefinition",
     "CommitError",
+    "CommitStatus",
     "ConnectionError",
     "DataSet",
     "AelParseException",
@@ -110,8 +117,12 @@ __all__ = [
     "SpecialValue",
     "SyncClient",
     "SyncRecordStream",
+    "SyncSession",
+    "SyncTransactionalSession",
     "TimeoutError",
     "TransactionalSession",
+    "Txn",
+    "TxnState",
     "map_keys",
     "map_values",
     "val",

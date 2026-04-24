@@ -173,3 +173,37 @@ expr = Exp.and_([
 
 stream = await session.query(users).where(expr).execute()
 ```
+
+## Path Expressions (Server 8.1.1+)
+
+Path expressions — `select_by_path` / `modify_by_path`, the `SelectFlag` and
+`ModifyFlag` return/modify flag enums, `CTX.all_children()` /
+`CTX.all_children_with_filter()`, and the loop-variable family
+(`FilterExpression.int_loop_var`, `.string_loop_var`, `.map_loop_var`, etc.)
+— are not yet surfaced through the AEL string grammar. Use the low-level
+`aerospike_async` types directly:
+
+```python
+from aerospike_async import (
+    CTX,
+    CdtOperation,
+    FilterExpression,
+    LoopVarPart,
+    ModifyFlag,
+    SelectFlag,
+)
+
+in_stock = FilterExpression.eq(
+    FilterExpression.map_loop_var(LoopVarPart.VALUE),
+    FilterExpression.bool_val(True),
+)
+
+op = CdtOperation.select_by_path(
+    "store",
+    SelectFlag.VALUE,
+    [CTX.map_key("books"), CTX.all_children_with_filter(in_stock)],
+)
+```
+
+These constructs require Aerospike Server 8.1.1 or newer. A dedicated AEL
+surface is deferred until the DSL shape stabilizes across clients.

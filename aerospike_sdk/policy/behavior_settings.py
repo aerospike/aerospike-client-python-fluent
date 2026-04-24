@@ -22,7 +22,7 @@ from datetime import timedelta
 from enum import Enum
 from typing import Optional
 
-from aerospike_async import CommitLevel, ConsistencyLevel, Replica
+from aerospike_async import CommitLevel, ReadModeAP, ReadModeSC, Replica
 
 
 class OpKind(Enum):
@@ -86,7 +86,10 @@ class Settings:
     commit_level: Optional[CommitLevel] = None
 
     replica: Optional[Replica] = None
-    consistency_level: Optional[ConsistencyLevel] = None
+    read_mode_ap: Optional[ReadModeAP] = None
+    read_mode_sc: Optional[ReadModeSC] = None
+
+    use_compression: Optional[bool] = None
 
     max_concurrent_nodes: Optional[int] = None
     record_queue_size: Optional[int] = None
@@ -107,7 +110,9 @@ class Settings:
             durable_delete=_pick(override.durable_delete, base.durable_delete),
             commit_level=_pick(override.commit_level, base.commit_level),
             replica=_pick(override.replica, base.replica),
-            consistency_level=_pick(override.consistency_level, base.consistency_level),
+            read_mode_ap=_pick(override.read_mode_ap, base.read_mode_ap),
+            read_mode_sc=_pick(override.read_mode_sc, base.read_mode_sc),
+            use_compression=_pick(override.use_compression, base.use_compression),
             max_concurrent_nodes=_pick(override.max_concurrent_nodes, base.max_concurrent_nodes),
             record_queue_size=_pick(override.record_queue_size, base.record_queue_size),
             allow_inline=_pick(override.allow_inline, base.allow_inline),

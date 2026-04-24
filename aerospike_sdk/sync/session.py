@@ -17,7 +17,8 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, overload, Union
+import typing
+from typing import Dict, List, Optional, TYPE_CHECKING, overload, Union
 
 from aerospike_async import Key
 
@@ -32,6 +33,9 @@ from aerospike_sdk.sync.operations.batch import SyncBatchOperationBuilder
 from aerospike_sdk.sync.operations.index import SyncIndexBuilder
 from aerospike_sdk.sync.operations.query import SyncQueryBuilder, SyncWriteSegmentBuilder
 from aerospike_sdk.sync.operations.udf import SyncUdfFunctionBuilder
+
+if TYPE_CHECKING:
+    from aerospike_sdk.sync.transactional_session import SyncTransactionalSession
 
 
 class SyncSession:
@@ -183,6 +187,126 @@ class SyncSession:
         inner = self._async_session.batch()
         return SyncBatchOperationBuilder(inner, self._loop_manager)
 
+    def transaction_session(self) -> "SyncTransactionalSession":
+        """Alias for :meth:`begin_transaction`.
+
+        Returns:
+            :class:`~aerospike_sdk.sync.transactional_session.SyncTransactionalSession`
+            bound to this session's client and behavior.
+
+        See Also:
+            :meth:`begin_transaction`: Preferred entry point.
+            :meth:`~aerospike_sdk.aio.session.Session.transaction_session`: Async equivalent.
+        """
+        return self.begin_transaction()
+
+    def begin_transaction(self) -> "SyncTransactionalSession":
+        """Start a multi-record transaction (MRT) using this session's behavior.
+
+        Returns a context manager that allocates a fresh
+        :class:`~aerospike_async.Txn`. Every operation run on the returned
+        session auto-participates in the transaction — builders stamp
+        ``policy.txn = tx.txn`` under the hood, so user code never touches a
+        policy object. On clean exit the transaction is committed; if an
+        exception propagates out of the ``with`` block the transaction is
+        aborted.
+
+        Example:
+            >>> with session.begin_transaction() as tx:
+            ...     tx.upsert(accounts.id("A")).bin("balance").set_to(100).execute()
+            ...     tx.upsert(accounts.id("B")).bin("balance").set_to(200).execute()
+
+        Returns:
+            :class:`~aerospike_sdk.sync.transactional_session.SyncTransactionalSession`
+            bound to this session's client and behavior.
+
+        See Also:
+            :meth:`transaction_session`: Alias for this method.
+            :meth:`do_in_transaction`: Run a callable inside a retrying MRT.
+            :meth:`~aerospike_sdk.aio.session.Session.begin_transaction`: Async equivalent.
+        """
+        from aerospike_sdk.sync.transactional_session import SyncTransactionalSession
+
+        async_txn_session = self._async_session.begin_transaction()
+        return SyncTransactionalSession(async_txn_session, self._loop_manager)
+
+    def do_in_transaction(
+        self,
+        operation: "typing.Callable[[SyncTransactionalSession], typing.Any]",
+        *,
+        max_attempts: int = 5,
+        sleep_between_retries: float = 0.0,
+    ) -> "typing.Any":
+        """Run a callable inside a retrying multi-record transaction.
+
+        Creates a :class:`SyncTransactionalSession`, invokes ``operation(tx)``
+        inside ``with``, and retries the whole block when the server signals
+        a transient conflict (``MRT_BLOCKED``, ``MRT_VERSION_MISMATCH``, or
+        ``TXN_FAILED``). On any non-transient failure the transaction is
+        aborted and the exception re-raised.
+
+        Args:
+            operation: Synchronous callable accepting a
+                :class:`SyncTransactionalSession` and performing zero or more
+                operations on it. Its return value is returned from
+                :meth:`do_in_transaction`.
+            max_attempts: Maximum total attempts (initial + retries). Must
+                be ``>= 1``. Defaults to ``5``.
+            sleep_between_retries: Optional seconds to ``time.sleep`` between
+                retries. ``0`` (the default) retries immediately.
+
+        Returns:
+            Whatever ``operation`` returns on the successful attempt.
+
+        Raises:
+            ValueError: If ``max_attempts < 1``.
+            AerospikeError: The last-seen transient error after
+                ``max_attempts`` exhausted retries, or any non-transient
+                error raised by ``operation``.
+
+        Example:
+            >>> def transfer(tx):
+            ...     tx.upsert(accounts.id("A")).bin("bal").add(-10).execute()
+            ...     tx.upsert(accounts.id("B")).bin("bal").add(10).execute()
+            ...     return "ok"
+            >>> result = session.do_in_transaction(transfer)
+
+        See Also:
+            :meth:`begin_transaction`: Manual MRT lifecycle.
+            :class:`SyncTransactionalSession`
+            :meth:`~aerospike_sdk.aio.session.Session.do_in_transaction`: Async equivalent.
+        """
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
+
+        import time
+        from aerospike_async import ResultCode
+        from aerospike_sdk.exceptions import AerospikeError
+
+        retryable_codes = {
+            ResultCode.MRT_BLOCKED,
+            ResultCode.MRT_VERSION_MISMATCH,
+        }
+        txn_failed = getattr(ResultCode, "TXN_FAILED", None)
+        if txn_failed is not None:
+            retryable_codes.add(txn_failed)
+
+        last_exc: Optional[BaseException] = None
+        for attempt in range(max_attempts):
+            try:
+                with self.begin_transaction() as tx_session:
+                    return operation(tx_session)
+            except AerospikeError as exc:
+                last_exc = exc
+                if exc.result_code not in retryable_codes:
+                    raise
+                if attempt + 1 >= max_attempts:
+                    raise
+                if sleep_between_retries > 0:
+                    time.sleep(sleep_between_retries)
+        assert last_exc is not None
+        raise last_exc
+
     def background_task(self) -> "SyncBackgroundTaskSession":
         """Start a background dataset task chain (synchronous).
 
@@ -250,6 +374,33 @@ class SyncSession:
             await self._async_session.truncate(dataset, before_nanos)
 
         self._loop_manager.run_async(_truncate())
+
+    def is_namespace_sc(self, namespace: str) -> bool:
+        """Check if a namespace is in strong-consistency (SC) mode.
+
+        Args:
+            namespace: The namespace name to check.
+
+        Returns:
+            ``True`` if the namespace is configured for strong consistency,
+            ``False`` otherwise.
+
+        Raises:
+            RuntimeError: If the underlying client is not connected.
+            ValueError: If the namespace is unknown or the info command fails.
+
+        Example::
+
+            if session.is_namespace_sc("test_sc"):
+                print("Namespace is SC — MRTs are supported here.")
+
+        See Also:
+            :meth:`~aerospike_sdk.aio.session.Session.is_namespace_sc`:
+                Async equivalent.
+        """
+        return self._loop_manager.run_async(
+            self._async_session.is_namespace_sc(namespace)
+        )
 
     @overload
     def info(self) -> "SyncInfoCommands": ...

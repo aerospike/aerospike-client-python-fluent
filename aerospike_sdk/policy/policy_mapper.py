@@ -34,47 +34,66 @@ def _ms(td) -> int:
 
 
 def to_read_policy(settings: Settings) -> ReadPolicy:
-    """Build a ReadPolicy from resolved Settings."""
-    p = ReadPolicy()
-    if settings.total_timeout is not None:
-        p.total_timeout = _ms(settings.total_timeout)
-    if settings.socket_timeout is not None:
-        p.socket_timeout = _ms(settings.socket_timeout)
-    if settings.max_retries is not None:
-        p.max_retries = settings.max_retries
-    if settings.retry_delay is not None:
-        p.sleep_between_retries = _ms(settings.retry_delay)
-    if settings.replica is not None:
-        p.replica = settings.replica
-    if settings.consistency_level is not None:
-        p.consistency_level = settings.consistency_level
-    if settings.read_touch_ttl_percent is not None:
-        p.read_touch_ttl = settings.read_touch_ttl_percent
-    return p
+    """Build a ReadPolicy from resolved Settings.
+
+    Uses :meth:`ReadPolicy.from_fields` so that the full policy crosses the
+    Rust boundary exactly once instead of once per field.
+    """
+    return ReadPolicy.from_fields(
+        total_timeout=(
+            _ms(settings.total_timeout)
+            if settings.total_timeout is not None else None
+        ),
+        socket_timeout=(
+            _ms(settings.socket_timeout)
+            if settings.socket_timeout is not None else None
+        ),
+        max_retries=settings.max_retries,
+        sleep_between_retries=(
+            _ms(settings.retry_delay)
+            if settings.retry_delay is not None else None
+        ),
+        replica=settings.replica,
+        read_mode_ap=settings.read_mode_ap,
+        read_mode_sc=settings.read_mode_sc,
+        read_touch_ttl=settings.read_touch_ttl_percent,
+        use_compression=settings.use_compression,
+    )
 
 
 def to_write_policy(settings: Settings) -> WritePolicy:
-    """Build a WritePolicy from resolved Settings."""
-    p = WritePolicy()
-    if settings.total_timeout is not None:
-        p.total_timeout = _ms(settings.total_timeout)
-    if settings.socket_timeout is not None:
-        p.socket_timeout = _ms(settings.socket_timeout)
-    if settings.max_retries is not None:
-        p.max_retries = settings.max_retries
-    if settings.retry_delay is not None:
-        p.sleep_between_retries = _ms(settings.retry_delay)
-    if settings.send_key is not None:
-        p.send_key = settings.send_key
-    if settings.durable_delete is not None:
-        p.durable_delete = settings.durable_delete
-    if settings.commit_level is not None:
-        p.commit_level = settings.commit_level
-    return p
+    """Build a WritePolicy from resolved Settings.
+
+    Uses :meth:`WritePolicy.from_fields` so that the full policy crosses the
+    Rust boundary exactly once instead of once per field.
+    """
+    return WritePolicy.from_fields(
+        total_timeout=(
+            _ms(settings.total_timeout)
+            if settings.total_timeout is not None else None
+        ),
+        socket_timeout=(
+            _ms(settings.socket_timeout)
+            if settings.socket_timeout is not None else None
+        ),
+        max_retries=settings.max_retries,
+        sleep_between_retries=(
+            _ms(settings.retry_delay)
+            if settings.retry_delay is not None else None
+        ),
+        send_key=settings.send_key,
+        durable_delete=settings.durable_delete,
+        commit_level=settings.commit_level,
+        use_compression=settings.use_compression,
+    )
 
 
 def to_query_policy(settings: Settings) -> QueryPolicy:
-    """Build a QueryPolicy from resolved Settings."""
+    """Build a QueryPolicy from resolved Settings.
+
+    ``QueryPolicy`` has no bulk constructor, so this still fills fields
+    individually; keeping the shape simple for now.
+    """
     p = QueryPolicy()
     if settings.total_timeout is not None:
         p.total_timeout = _ms(settings.total_timeout)
@@ -86,6 +105,12 @@ def to_query_policy(settings: Settings) -> QueryPolicy:
         p.sleep_between_retries = _ms(settings.retry_delay)
     if settings.replica is not None:
         p.replica = settings.replica
+    if settings.read_mode_ap is not None:
+        p.read_mode_ap = settings.read_mode_ap
+    if settings.read_mode_sc is not None:
+        p.read_mode_sc = settings.read_mode_sc
+    if settings.use_compression is not None:
+        p.use_compression = settings.use_compression
     if settings.max_concurrent_nodes is not None:
         p.max_concurrent_nodes = settings.max_concurrent_nodes
     if settings.record_queue_size is not None:
@@ -102,21 +127,29 @@ def to_batch_read_policy(settings: Settings) -> BatchReadPolicy:
 
 
 def to_batch_policy(settings: Settings) -> BatchPolicy:
-    """Build a BatchPolicy from resolved Settings."""
-    p = BatchPolicy()
-    if settings.total_timeout is not None:
-        p.total_timeout = _ms(settings.total_timeout)
-    if settings.socket_timeout is not None:
-        p.socket_timeout = _ms(settings.socket_timeout)
-    if settings.max_retries is not None:
-        p.max_retries = settings.max_retries
-    if settings.retry_delay is not None:
-        p.sleep_between_retries = _ms(settings.retry_delay)
-    if settings.allow_inline is not None:
-        p.allow_inline = settings.allow_inline
-    if settings.allow_inline_ssd is not None:
-        p.allow_inline_ssd = settings.allow_inline_ssd
-    return p
+    """Build a BatchPolicy from resolved Settings.
+
+    Uses :meth:`BatchPolicy.from_fields` so that the full policy crosses the
+    Rust boundary exactly once instead of once per field.
+    """
+    return BatchPolicy.from_fields(
+        total_timeout=(
+            _ms(settings.total_timeout)
+            if settings.total_timeout is not None else None
+        ),
+        socket_timeout=(
+            _ms(settings.socket_timeout)
+            if settings.socket_timeout is not None else None
+        ),
+        max_retries=settings.max_retries,
+        sleep_between_retries=(
+            _ms(settings.retry_delay)
+            if settings.retry_delay is not None else None
+        ),
+        allow_inline=settings.allow_inline,
+        allow_inline_ssd=settings.allow_inline_ssd,
+        use_compression=settings.use_compression,
+    )
 
 
 def apply_to_read_policy(settings: Settings, policy: ReadPolicy) -> ReadPolicy:
@@ -133,6 +166,12 @@ def apply_to_read_policy(settings: Settings, policy: ReadPolicy) -> ReadPolicy:
         policy.max_retries = settings.max_retries
     if settings.replica is not None:
         policy.replica = settings.replica
+    if settings.read_mode_ap is not None:
+        policy.read_mode_ap = settings.read_mode_ap
+    if settings.read_mode_sc is not None:
+        policy.read_mode_sc = settings.read_mode_sc
+    if settings.use_compression is not None:
+        policy.use_compression = settings.use_compression
     return policy
 
 
@@ -152,4 +191,6 @@ def apply_to_write_policy(settings: Settings, policy: WritePolicy) -> WritePolic
         policy.send_key = settings.send_key
     if settings.commit_level is not None:
         policy.commit_level = settings.commit_level
+    if settings.use_compression is not None:
+        policy.use_compression = settings.use_compression
     return policy

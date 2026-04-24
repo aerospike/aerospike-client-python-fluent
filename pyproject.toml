@@ -9,7 +9,7 @@ description = "Aerospike Python SDK — high-level API on the Aerospike Python A
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 dependencies = [
-    "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.14",
+    "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.15",
     "antlr4-python3-runtime>=4.13.0",
 ]
 classifiers = [

@@ -208,7 +208,8 @@ async def async_main() -> int:
     if cfg.truncate_before_run:
         await _truncate_set(cfg)
 
-    tracemalloc.start()
+    if cfg.tracemalloc_enabled:
+        tracemalloc.start()
     if cfg.mode == "async":
         stats = await _run_async_mode(cfg)
     else:
