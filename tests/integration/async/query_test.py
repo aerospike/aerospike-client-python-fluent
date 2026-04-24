@@ -16,10 +16,42 @@
 """Tests for QueryBuilder SDK API."""
 
 import asyncio
+import time
 
 import pytest
 from aerospike_async import Filter, PartitionFilter, QueryPolicy
 from aerospike_sdk import DataSet, Exp, Client
+
+
+async def _wait_for_set_count(
+    client: Client, ns: str, set_name: str, expected: int,
+    *, timeout: float = 5.0, interval: float = 0.05,
+) -> None:
+    """Poll a set scan until it returns ``expected`` records.
+
+    Set scans iterate partitions and can miss writes that were committed
+    just before the scan started — there is no read-your-own-writes
+    guarantee for scans, only for point reads. A fixed ``asyncio.sleep``
+    is therefore flaky under CI load; this helper polls until the scan
+    is consistent with the fixture, failing only if the server genuinely
+    never catches up within ``timeout``.
+    """
+    deadline = time.monotonic() + timeout
+    last_count = -1
+    while time.monotonic() < deadline:
+        stream = await client.query(ns, set_name).execute()
+        count = 0
+        async for _ in stream:
+            count += 1
+        stream.close()
+        if count >= expected:
+            return
+        last_count = count
+        await asyncio.sleep(interval)
+    raise AssertionError(
+        f"set '{ns}.{set_name}' scan never reached {expected} records "
+        f"within {timeout}s (last observed: {last_count})"
+    )
 
 
 @pytest.fixture
@@ -38,8 +70,10 @@ async def client(aerospike_host, client_policy):
         for i in range(10):
             await session.upsert(ds.id(i)).put({"id": i, "age": 20 + i, "name": f"User{i}"}).execute()
 
-        # Brief pause so the query scan index reflects the committed writes under CI load
-        await asyncio.sleep(0.1)
+        # Poll until all 10 writes are visible to a set scan. Fixes the
+        # intermittent "count == 0 (expected 5)" failures we saw under CI
+        # load when a fixed 100 ms sleep wasn't enough.
+        await _wait_for_set_count(client, "test", "query_test", 10)
 
         yield client
 
