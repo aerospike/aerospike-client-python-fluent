@@ -38,6 +38,12 @@ ENV/
 # Cursor (editor-local rules, plans, and per-developer state)
 .cursor/
 
+# Claude Code (editor-local config and worktrees)
+.claude/
+
+# Local notes and one-off tooling (perf inventories, bench harness)
+scripts/
+
 # Docs
 docs/_build/
 
