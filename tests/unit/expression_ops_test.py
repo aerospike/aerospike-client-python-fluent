@@ -26,23 +26,30 @@ Covers:
 import pytest
 from unittest.mock import MagicMock, patch
 
-from aerospike_async import ExpOperation, FilterExpression, Key
+from aerospike_async import (
+    ExpOperation,
+    ExpReadFlags,
+    ExpWriteFlags,
+    FilterExpression,
+    Key,
+)
 from aerospike_async.exceptions import ResultCode
 
 from aerospike_sdk.aio.operations.query import (
     QueryBinBuilder,
     QueryBuilder,
-    _EXP_READ_DEFAULT,
-    _EXP_READ_EVAL_NO_FAIL,
-    _EXP_WRITE_ALLOW_DELETE,
-    _EXP_WRITE_CREATE_ONLY,
-    _EXP_WRITE_DEFAULT,
-    _EXP_WRITE_EVAL_NO_FAIL,
-    _EXP_WRITE_POLICY_NO_FAIL,
-    _EXP_WRITE_UPDATE_ONLY,
     _build_exp_write_flags,
 )
 from aerospike_sdk.exceptions import AerospikeError
+
+_EXP_READ_DEFAULT = ExpReadFlags.DEFAULT
+_EXP_READ_EVAL_NO_FAIL = ExpReadFlags.EVAL_NO_FAIL
+_EXP_WRITE_DEFAULT = ExpWriteFlags.DEFAULT
+_EXP_WRITE_CREATE_ONLY = ExpWriteFlags.CREATE_ONLY
+_EXP_WRITE_UPDATE_ONLY = ExpWriteFlags.UPDATE_ONLY
+_EXP_WRITE_ALLOW_DELETE = ExpWriteFlags.ALLOW_DELETE
+_EXP_WRITE_POLICY_NO_FAIL = ExpWriteFlags.POLICY_NO_FAIL
+_EXP_WRITE_EVAL_NO_FAIL = ExpWriteFlags.EVAL_NO_FAIL
 
 
 # ---------------------------------------------------------------------------

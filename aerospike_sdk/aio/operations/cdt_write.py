@@ -71,13 +71,13 @@ def _resolve_list_policy(
     """
     flags = 0
     if unique:
-        flags |= int(ListWriteFlags.ADD_UNIQUE)  # type: ignore[arg-type]
+        flags |= ListWriteFlags.ADD_UNIQUE
     if bounded:
-        flags |= int(ListWriteFlags.INSERT_BOUNDED)  # type: ignore[arg-type]
+        flags |= ListWriteFlags.INSERT_BOUNDED
     if no_fail:
-        flags |= int(ListWriteFlags.NO_FAIL)  # type: ignore[arg-type]
+        flags |= ListWriteFlags.NO_FAIL
     if partial:
-        flags |= int(ListWriteFlags.PARTIAL)  # type: ignore[arg-type]
+        flags |= ListWriteFlags.PARTIAL
     if not flags:
         if order is None:
             return _UNORDERED_LIST_POLICY
@@ -98,9 +98,9 @@ def _resolve_map_policy(
     """Build a ``MapPolicy`` from base flags plus caller-supplied options."""
     flags = base_flags
     if no_fail:
-        flags |= int(MapWriteFlags.NO_FAIL)
+        flags |= MapWriteFlags.NO_FAIL
     if partial:
-        flags |= int(MapWriteFlags.PARTIAL)
+        flags |= MapWriteFlags.PARTIAL
     if persist_index:
         return MapPolicy.new_with_flags_and_persisted_index(order, flags)
     if flags:
@@ -582,7 +582,7 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         ctx = self._context_list_for_nested_ops()
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.DEFAULT),
+            MapWriteFlags.DEFAULT,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )
@@ -615,7 +615,7 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         ctx = self._context_list_for_nested_ops()
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.CREATE_ONLY),
+            MapWriteFlags.CREATE_ONLY,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )
@@ -648,7 +648,7 @@ class CdtWriteBuilder(_RemoveMixin, CdtReadBuilder[T]):
         ctx = self._context_list_for_nested_ops()
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.UPDATE_ONLY),
+            MapWriteFlags.UPDATE_ONLY,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )

@@ -902,7 +902,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         """
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.DEFAULT),
+            MapWriteFlags.DEFAULT,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )
@@ -933,7 +933,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         """
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.CREATE_ONLY),
+            MapWriteFlags.CREATE_ONLY,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )
@@ -964,7 +964,7 @@ class SyncWriteBinBuilder(_SyncWriteVerbs):
         """
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.UPDATE_ONLY),
+            MapWriteFlags.UPDATE_ONLY,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )

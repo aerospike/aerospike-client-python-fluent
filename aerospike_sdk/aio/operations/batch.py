@@ -23,20 +23,15 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from aerospike_async import (
     Client,
     ExpOperation,
+    ExpReadFlags,
+    ExpWriteFlags,
     FilterExpression,
     Key,
     Operation,
     Txn,
 )
 
-from aerospike_sdk.aio.operations.query import (
-    _EXP_READ_DEFAULT,
-    _EXP_READ_EVAL_NO_FAIL,
-    _EXP_WRITE_CREATE_ONLY,
-    _EXP_WRITE_DEFAULT,
-    _EXP_WRITE_UPDATE_ONLY,
-    _build_exp_write_flags,
-)
+from aerospike_sdk.aio.operations.query import _build_exp_write_flags
 from aerospike_sdk.ael.parser import parse_ael
 from aerospike_sdk.exceptions import _convert_pac_exception
 from aerospike_sdk.policy.behavior_settings import OpKind, OpShape
@@ -134,7 +129,7 @@ class BatchBinBuilder:
         Returns:
             The parent BatchKeyOperationBuilder for chaining.
         """
-        flags = _EXP_READ_EVAL_NO_FAIL if ignore_eval_failure else _EXP_READ_DEFAULT
+        flags = ExpReadFlags.EVAL_NO_FAIL if ignore_eval_failure else ExpReadFlags.DEFAULT
         expr = parse_ael(expression) if isinstance(expression, str) else expression
         self._key_op._operations.append(ExpOperation.read(self._bin_name, expr, flags))
         return self._key_op
@@ -160,7 +155,7 @@ class BatchBinBuilder:
             The parent BatchKeyOperationBuilder for chaining.
         """
         flags = _build_exp_write_flags(
-            _EXP_WRITE_CREATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
+            ExpWriteFlags.CREATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
         )
         expr = parse_ael(expression) if isinstance(expression, str) else expression
         self._key_op._operations.append(ExpOperation.write(self._bin_name, expr, flags))
@@ -187,7 +182,7 @@ class BatchBinBuilder:
             The parent BatchKeyOperationBuilder for chaining.
         """
         flags = _build_exp_write_flags(
-            _EXP_WRITE_UPDATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
+            ExpWriteFlags.UPDATE_ONLY, ignore_op_failure, ignore_eval_failure, delete_if_null,
         )
         expr = parse_ael(expression) if isinstance(expression, str) else expression
         self._key_op._operations.append(ExpOperation.write(self._bin_name, expr, flags))
@@ -214,7 +209,7 @@ class BatchBinBuilder:
             The parent BatchKeyOperationBuilder for chaining.
         """
         flags = _build_exp_write_flags(
-            _EXP_WRITE_DEFAULT, ignore_op_failure, ignore_eval_failure, delete_if_null,
+            ExpWriteFlags.DEFAULT, ignore_op_failure, ignore_eval_failure, delete_if_null,
         )
         expr = parse_ael(expression) if isinstance(expression, str) else expression
         self._key_op._operations.append(ExpOperation.write(self._bin_name, expr, flags))

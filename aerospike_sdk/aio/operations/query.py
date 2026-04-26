@@ -44,7 +44,7 @@ from aerospike_async import (
     BitOperation,
     BitPolicy,
     BitwiseResizeFlags,
-    BitwiseWriteFlags,
+    BitWriteFlags,
     CTX,
     Client,
     ExecuteTask,
@@ -101,7 +101,7 @@ _bitwise_or = BitOperation.or_
 
 def _bit_policy_or_default(policy: Optional[Any]) -> Any:
     if policy is None:
-        return BitPolicy(BitwiseWriteFlags.DEFAULT)
+        return BitPolicy(BitWriteFlags.DEFAULT)
     return policy
 
 
@@ -111,12 +111,6 @@ def _resize_flags_or_default(resize_flags: Optional[Any]) -> Any:
     return resize_flags
 
 
-_EXP_WRITE_DEFAULT = int(ExpWriteFlags.DEFAULT)
-_EXP_WRITE_CREATE_ONLY = int(ExpWriteFlags.CREATE_ONLY)
-_EXP_WRITE_UPDATE_ONLY = int(ExpWriteFlags.UPDATE_ONLY)
-_EXP_WRITE_ALLOW_DELETE = int(ExpWriteFlags.ALLOW_DELETE)
-_EXP_WRITE_POLICY_NO_FAIL = int(ExpWriteFlags.POLICY_NO_FAIL)
-_EXP_WRITE_EVAL_NO_FAIL = int(ExpWriteFlags.EVAL_NO_FAIL)
 
 _TTL_NEVER_EXPIRE = -1
 _TTL_DONT_UPDATE = -2
@@ -161,10 +155,6 @@ from aerospike_sdk.exceptions import (
 from aerospike_sdk.policy.behavior_settings import OpKind, OpShape
 from aerospike_sdk.record_result import RecordResult, batch_records_to_results
 from aerospike_sdk.record_stream import RecordStream
-
-_EXP_READ_DEFAULT = int(ExpReadFlags.DEFAULT)
-_EXP_READ_EVAL_NO_FAIL = int(ExpReadFlags.EVAL_NO_FAIL)
-
 
 @dataclass(frozen=True)
 class QueryHint:
@@ -390,11 +380,11 @@ def _build_exp_write_flags(
     """OR together ExpWriteFlags bitmask from boolean kwargs."""
     flags = base
     if ignore_op_failure:
-        flags |= _EXP_WRITE_POLICY_NO_FAIL
+        flags |= ExpWriteFlags.POLICY_NO_FAIL
     if ignore_eval_failure:
-        flags |= _EXP_WRITE_EVAL_NO_FAIL
+        flags |= ExpWriteFlags.EVAL_NO_FAIL
     if delete_if_null:
-        flags |= _EXP_WRITE_ALLOW_DELETE
+        flags |= ExpWriteFlags.ALLOW_DELETE
     return flags
 
 
@@ -2623,7 +2613,7 @@ class WriteSegmentBuilder(_WriteVerbs):
         ignore_eval_failure: bool = False,
     ) -> WriteSegmentBuilder:
         """Read a computed value into a bin using an AEL expression."""
-        flags = _EXP_READ_EVAL_NO_FAIL if ignore_eval_failure else _EXP_READ_DEFAULT
+        flags = ExpReadFlags.EVAL_NO_FAIL if ignore_eval_failure else ExpReadFlags.DEFAULT
         expr = parse_ael(expression) if isinstance(expression, str) else expression
         return self._add_op(ExpOperation.read(bin_name, expr, flags))
 
@@ -2638,7 +2628,7 @@ class WriteSegmentBuilder(_WriteVerbs):
     ) -> WriteSegmentBuilder:
         """Write expression result only if bin does not already exist."""
         flags = _build_exp_write_flags(
-            _EXP_WRITE_CREATE_ONLY, ignore_op_failure,
+            ExpWriteFlags.CREATE_ONLY, ignore_op_failure,
             ignore_eval_failure, delete_if_null,
         )
         expr = parse_ael(expression) if isinstance(expression, str) else expression
@@ -2655,7 +2645,7 @@ class WriteSegmentBuilder(_WriteVerbs):
     ) -> WriteSegmentBuilder:
         """Write expression result only if bin already exists."""
         flags = _build_exp_write_flags(
-            _EXP_WRITE_UPDATE_ONLY, ignore_op_failure,
+            ExpWriteFlags.UPDATE_ONLY, ignore_op_failure,
             ignore_eval_failure, delete_if_null,
         )
         expr = parse_ael(expression) if isinstance(expression, str) else expression
@@ -2672,7 +2662,7 @@ class WriteSegmentBuilder(_WriteVerbs):
     ) -> WriteSegmentBuilder:
         """Write expression result, creating or overwriting the bin."""
         flags = _build_exp_write_flags(
-            _EXP_WRITE_DEFAULT, ignore_op_failure,
+            ExpWriteFlags.DEFAULT, ignore_op_failure,
             ignore_eval_failure, delete_if_null,
         )
         expr = parse_ael(expression) if isinstance(expression, str) else expression
@@ -3266,7 +3256,7 @@ class WriteBinBuilder(_WriteVerbs):
         """
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.DEFAULT),
+            MapWriteFlags.DEFAULT,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )
@@ -3293,7 +3283,7 @@ class WriteBinBuilder(_WriteVerbs):
         """
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.CREATE_ONLY),
+            MapWriteFlags.CREATE_ONLY,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )
@@ -3323,7 +3313,7 @@ class WriteBinBuilder(_WriteVerbs):
         """
         pairs = _map_item_pairs(items)
         policy = _resolve_map_policy(
-            int(MapWriteFlags.UPDATE_ONLY),
+            MapWriteFlags.UPDATE_ONLY,
             order=order, persist_index=persist_index,
             no_fail=no_fail, partial=partial,
         )
@@ -3909,7 +3899,7 @@ class WriteBinBuilder(_WriteVerbs):
 
         When ``resize_flags`` is ``None``, :attr:`~aerospike_sdk.BitwiseResizeFlags.DEFAULT`
         is used. When ``policy`` is ``None``, a default :class:`~aerospike_sdk.BitPolicy`
-        is built from :attr:`~aerospike_sdk.BitwiseWriteFlags.DEFAULT`.
+        is built from :attr:`~aerospike_sdk.BitWriteFlags.DEFAULT`.
 
         Example::
             await session.upsert(key).bin("flags").bit_resize(4).execute()
@@ -5346,7 +5336,7 @@ class QueryBinBuilder(_WriteVerbs, Generic[_T]):
         Returns:
             The parent builder for method chaining.
         """
-        flags = _EXP_READ_EVAL_NO_FAIL if ignore_eval_failure else _EXP_READ_DEFAULT
+        flags = ExpReadFlags.EVAL_NO_FAIL if ignore_eval_failure else ExpReadFlags.DEFAULT
         expr = parse_ael(expression) if isinstance(expression, str) else expression
         self._parent.add_operation(ExpOperation.read(self._bin, expr, flags))  # type: ignore[union-attr]
         return self._parent

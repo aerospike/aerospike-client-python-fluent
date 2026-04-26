@@ -20,7 +20,7 @@ from aerospike_async import (
     BitPolicy,
     BitwiseOverflowActions,
     BitwiseResizeFlags,
-    BitwiseWriteFlags,
+    BitWriteFlags,
     HllOperation,
 )
 
@@ -81,11 +81,11 @@ class TestWriteBinBit:
         wbb, segment = _make_wbb("blob")
         wbb.bit_resize(8)
         op = segment._qb._operations[-1]
-        assert isinstance(op, type(BitOperation.resize("b", 1, BitwiseResizeFlags.DEFAULT, BitPolicy(BitwiseWriteFlags.DEFAULT))))
+        assert isinstance(op, type(BitOperation.resize("b", 1, BitwiseResizeFlags.DEFAULT, BitPolicy(BitWriteFlags.DEFAULT))))
 
     def test_bit_set_get_round_trip_ops(self):
         wbb, segment = _make_wbb("blob")
-        pol = BitPolicy(BitwiseWriteFlags.DEFAULT)
+        pol = BitPolicy(BitWriteFlags.DEFAULT)
         wbb.bit_resize(2, BitwiseResizeFlags.GROW_ONLY, pol)
         wbb.bit_set(0, 8, b"\xaa", pol)
         wbb.bit_get(0, 8)

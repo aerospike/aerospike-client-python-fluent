@@ -59,29 +59,29 @@ class TestResolveListPolicy:
     def test_unique_flag(self):
         policy = _resolve_list_policy(None, unique=True)
         assert isinstance(policy, ListPolicy)
-        assert policy.write_flags == int(ListWriteFlags.ADD_UNIQUE)
+        assert policy.write_flags == ListWriteFlags.ADD_UNIQUE
 
     def test_bounded_flag(self):
         policy = _resolve_list_policy(None, bounded=True)
-        assert policy.write_flags == int(ListWriteFlags.INSERT_BOUNDED)
+        assert policy.write_flags == ListWriteFlags.INSERT_BOUNDED
 
     def test_no_fail_flag(self):
         policy = _resolve_list_policy(None, no_fail=True)
-        assert policy.write_flags == int(ListWriteFlags.NO_FAIL)
+        assert policy.write_flags == ListWriteFlags.NO_FAIL
 
     def test_partial_flag(self):
         policy = _resolve_list_policy(None, partial=True)
-        assert policy.write_flags == int(ListWriteFlags.PARTIAL)
+        assert policy.write_flags == ListWriteFlags.PARTIAL
 
     def test_unique_preserves_order(self):
         policy = _resolve_list_policy(ListOrderType.ORDERED, unique=True)
-        assert policy.write_flags == int(ListWriteFlags.ADD_UNIQUE)
+        assert policy.write_flags == ListWriteFlags.ADD_UNIQUE
         assert policy.order == ListOrderType.ORDERED
 
     def test_combined_flags_bitmask(self):
         policy = _resolve_list_policy(None, unique=True, no_fail=True)
         assert policy.write_flags == (
-            int(ListWriteFlags.ADD_UNIQUE) | int(ListWriteFlags.NO_FAIL)
+            ListWriteFlags.ADD_UNIQUE | ListWriteFlags.NO_FAIL
         )
 
     def test_three_combined_flags_bitmask(self):
@@ -89,9 +89,9 @@ class TestResolveListPolicy:
             None, unique=True, no_fail=True, partial=True,
         )
         assert policy.write_flags == (
-            int(ListWriteFlags.ADD_UNIQUE)
-            | int(ListWriteFlags.NO_FAIL)
-            | int(ListWriteFlags.PARTIAL)
+            ListWriteFlags.ADD_UNIQUE
+            | ListWriteFlags.NO_FAIL
+            | ListWriteFlags.PARTIAL
         )
 
 
@@ -102,40 +102,40 @@ class TestResolveListPolicy:
 class TestResolveMapPolicy:
 
     def test_no_flags_returns_default(self):
-        policy = _resolve_map_policy(int(MapWriteFlags.DEFAULT))
+        policy = _resolve_map_policy(MapWriteFlags.DEFAULT)
         assert isinstance(policy, MapPolicy)
 
     def test_base_flags_preserved(self):
-        policy = _resolve_map_policy(int(MapWriteFlags.CREATE_ONLY))
+        policy = _resolve_map_policy(MapWriteFlags.CREATE_ONLY)
         assert isinstance(policy, MapPolicy)
 
     def test_no_fail_combined(self):
         policy = _resolve_map_policy(
-            int(MapWriteFlags.CREATE_ONLY), no_fail=True,
+            MapWriteFlags.CREATE_ONLY, no_fail=True,
         )
         assert isinstance(policy, MapPolicy)
 
     def test_partial_combined(self):
         policy = _resolve_map_policy(
-            int(MapWriteFlags.CREATE_ONLY), no_fail=True, partial=True,
+            MapWriteFlags.CREATE_ONLY, no_fail=True, partial=True,
         )
         assert isinstance(policy, MapPolicy)
 
     def test_order_forwarded(self):
         policy = _resolve_map_policy(
-            int(MapWriteFlags.DEFAULT), order=MapOrder.KEY_ORDERED,
+            MapWriteFlags.DEFAULT, order=MapOrder.KEY_ORDERED,
         )
         assert isinstance(policy, MapPolicy)
 
     def test_persist_index(self):
         policy = _resolve_map_policy(
-            int(MapWriteFlags.DEFAULT), persist_index=True,
+            MapWriteFlags.DEFAULT, persist_index=True,
         )
         assert isinstance(policy, MapPolicy)
 
     def test_persist_index_with_flags(self):
         policy = _resolve_map_policy(
-            int(MapWriteFlags.CREATE_ONLY),
+            MapWriteFlags.CREATE_ONLY,
             persist_index=True, no_fail=True,
         )
         assert isinstance(policy, MapPolicy)

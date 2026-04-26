@@ -721,11 +721,11 @@ class TestCollectionLevelMapOps:
 
     def test_map_insert_items_uses_create_only_policy(self):
         p = MapPolicy.new_with_flags(None, MapWriteFlags.CREATE_ONLY)
-        assert int(p.flags) & int(MapWriteFlags.CREATE_ONLY)
+        assert p.flags & MapWriteFlags.CREATE_ONLY
 
     def test_map_update_items_uses_update_only_policy(self):
         p = MapPolicy.new_with_flags(None, MapWriteFlags.UPDATE_ONLY)
-        assert int(p.flags) & int(MapWriteFlags.UPDATE_ONLY)
+        assert p.flags & MapWriteFlags.UPDATE_ONLY
 
     def test_map_create(self):
         wbb, segment = self._build()
