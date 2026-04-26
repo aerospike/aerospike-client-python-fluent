@@ -143,6 +143,81 @@ async def main():
 asyncio.run(main())
 ```
 
+## Versioning
+
+PSDK follows [SemVer](https://semver.org/) for releases. Pre-releases use the
+`MAJOR.MINOR.PATCH-{alpha,beta,rc}.N` form (e.g. `0.1.0-alpha.1`). PyPI
+normalizes these on upload to the equivalent PEP 440 spelling (`0.1.0a1`).
+
+### Single source of truth
+
+The top-level `VERSION` file is the only place where the version lives:
+
+```
+0.1.0-alpha.1
+```
+
+`pyproject.toml` reads it dynamically:
+
+```toml
+[project]
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+```
+
+So the wheel and the working tree are guaranteed to match.
+
+### Bumping the version
+
+Bumps are manual and happen in PRs against `dev`. Promotion workflows
+(`dev → stage → main`) do not mutate the version.
+
+```bash
+# 1. Edit VERSION:
+#    e.g. 0.1.0-alpha.1  →  0.1.0-alpha.2
+echo '0.1.0-alpha.2' > VERSION
+
+# 2. Confirm:
+bin/get-version    # prints 0.1.0-alpha.2
+
+# 3. Open a PR against dev with just this change.
+```
+
+### Bumping the PAC pin
+
+PSDK depends on a tagged release of the
+[Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async).
+The pin lives in `pyproject.toml` under `[project] dependencies`:
+
+```toml
+"aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.16",
+```
+
+To bump: change the `@v0.3.0-alpha.N` suffix to the new tag, then reinstall:
+
+```bash
+pip uninstall -y aerospike-client-python-async
+pip install --no-deps "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.N"
+```
+
+Open the PR against `dev`. PSDK's own `VERSION` does not need to change for
+a PAC pin bump unless the underlying API contract has shifted enough to
+warrant it.
+
+### Reading the version programmatically
+
+Anywhere a build script, CI step, or release tool needs the version:
+
+```bash
+bin/get-version    # → 0.1.0-alpha.1
+```
+
+The script reads `VERSION` and trims trailing whitespace. No Python or
+setuptools runtime dependency — usable from any shell, container, or CI
+environment.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
