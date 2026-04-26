@@ -35,6 +35,9 @@ ENV/
 *.swo
 *~
 
+# Cursor (editor-local rules, plans, and per-developer state)
+.cursor/
+
 # Docs
 docs/_build/
 
