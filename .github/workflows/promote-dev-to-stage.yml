@@ -1,0 +1,137 @@
+# SKELETON — not yet wired into the live release pipeline.
+#
+# Implements Gate 2 (TEST → STAGE, owner: QE) of the new release pipeline:
+#   1. Promote the JFrog Release Bundle v2 from the DEV-tier environment
+#      to the TEST/STAGE-tier environment (`jf rbp`, copy-mode).
+#   2. Fast-forward `stage` to the current tip of `dev`.
+#
+# Status: dispatch-only with dry-run defaulting to true. Will not promote
+# any bundle or push to `stage` until:
+#   1. DevOps provisions vars (JFROG_PROJECT, JFROG_STAGE_ENV,
+#      JFROG_SIGNING_KEY) and secret (CLIENT_BOT_PAT) — see
+#      .cursor/plans/release-pipeline.md §0.11.
+#   2. The `stage` branch ruleset is amended so the bot can bypass the
+#      "require PR" rule (or alternative: switch this workflow to
+#      open-PR-and-auto-merge instead of direct push).
+#   3. A successful dispatch dry-run validates the chain.
+#
+# See .cursor/plans/release-pipeline.md §0.6.b for full design notes.
+
+name: Promote dev to stage (Gate 2)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release Bundle v2 version to promote (e.g. 0.1.0-alpha.1)"
+        type: string
+        required: true
+      dry-run:
+        description: "Dry-run (skip JFrog promotion + git push)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Enforce branch gate
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" != "dev" ]]; then
+            echo "::error::This workflow must be dispatched from 'dev' (currently on '$BRANCH')."
+            exit 1
+          fi
+          echo "Dispatched from dev — OK"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Need both branch tips to verify FF eligibility.
+          ref: dev
+
+      - name: Verify dev is a fast-forward of stage
+        run: |
+          git fetch origin stage
+          if ! git merge-base --is-ancestor origin/stage HEAD; then
+            echo "::error::origin/stage is not an ancestor of dev — cannot fast-forward."
+            echo "stage tip: $(git rev-parse origin/stage)"
+            echo "dev   tip: $(git rev-parse HEAD)"
+            exit 1
+          fi
+          echo "FF-eligible: $(git rev-parse origin/stage) → $(git rev-parse HEAD)"
+
+  promote-bundle:
+    needs: validate
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Set up JFrog CLI
+        uses: step-security/setup-jfrog-cli@893a92f96c7727242adf0e603c77b1f2a22390e1 # v4.9.1
+        env:
+          JF_URL: https://artifact.aerospike.io
+          JF_PROJECT: ${{ vars.JFROG_PROJECT }}
+        with:
+          oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
+
+      - name: Promote Release Bundle v2 (DEV → STAGE)
+        env:
+          BUNDLE_NAME: aerospike-client-python-sdk
+          BUNDLE_VERSION: ${{ inputs.version }}
+          # TODO: confirm with DevOps (release-pipeline.md §0.10 Q3) the
+          # actual environment names for DEV / TEST / STAGE / PREVIEW / PROD.
+          TARGET_ENV: ${{ vars.JFROG_STAGE_ENV }}
+          # TODO: confirm with DevOps the JFrog-side signing key pair name
+          # used for Bundle v2 promotions (separate from secrets.GPG_*,
+          # which signs the artifacts themselves before they hit JFrog).
+          SIGNING_KEY: ${{ vars.JFROG_SIGNING_KEY }}
+          PROJECT: ${{ vars.JFROG_PROJECT }}
+        run: |
+          if [[ "${{ inputs.dry-run }}" == "true" ]]; then
+            echo "DRY-RUN: would run —"
+            echo "  jf rbp --signing-key=$SIGNING_KEY --project=$PROJECT --sync=true \\"
+            echo "    $BUNDLE_NAME $BUNDLE_VERSION $TARGET_ENV"
+            exit 0
+          fi
+          jf rbp \
+            --signing-key="$SIGNING_KEY" \
+            --project="$PROJECT" \
+            --sync=true \
+            --promotion-type=copy \
+            "$BUNDLE_NAME" "$BUNDLE_VERSION" "$TARGET_ENV"
+
+  ff-stage:
+    needs: promote-bundle
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: dev
+          # CLIENT_BOT_PAT must have permissions to push to `stage` and be
+          # in the `stage` branch ruleset's bypass list.
+          token: ${{ secrets.CLIENT_BOT_PAT }}
+
+      - name: Fast-forward stage to dev
+        run: |
+          git fetch origin stage
+          # Default `git push` is non-fast-forward-rejecting; a non-FF
+          # push will fail at the server side (and the branch ruleset
+          # forbids force pushes regardless).
+          if [[ "${{ inputs.dry-run }}" == "true" ]]; then
+            echo "DRY-RUN: would run —"
+            echo "  git push origin HEAD:refs/heads/stage"
+            git push --dry-run origin HEAD:refs/heads/stage
+            exit 0
+          fi
+          git push origin HEAD:refs/heads/stage
+          echo "stage advanced: $(git rev-parse origin/stage)"
