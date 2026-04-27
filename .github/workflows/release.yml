@@ -113,11 +113,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install build tools
-        run: pip install build
+      - name: Generate ANTLR parser
+        run: make generate-ael
 
       - name: Build sdist and wheel
-        run: python -m build --sdist --wheel --outdir dist
+        run: bash scripts/ci/build-artifacts.sh
 
       - name: Verify wheel contents
         run: |
