@@ -49,7 +49,7 @@ python -m benchmarks.benchmark -H host:tls_name:port --tls-ca-file ca.pem -U adm
 | ``-o`` | Bin spec: ``I1``, ``S128``, ``B1024``, combined with commas |
 | ``-w`` | Workload: ``I``, ``RU,50``, ``RU,80,60,30``, ``RR,20``, ``RMU``, ``RMI``, ``RMD`` |
 | ``-z`` / ``--async-tasks`` | Number of concurrent async tasks (default: 32) |
-| ``--threads`` | Number of OS threads for sim-sync mode (falls back to ``-z``) |
+| ``--threads`` | OS threads for sim-sync mode. Default: ``min(-z, cpu_count*2)`` (one PAC pool per thread, so over-subscribing inflates tail latency without raising TPS). |
 | ``-d`` | Duration in seconds |
 | ``-c`` | Stop after this many successful operations |
 | ``--batch-size`` | Keys per batch command (``0`` or ``1`` for single-record) |

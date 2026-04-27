@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import random
 from dataclasses import dataclass
 from enum import Enum
@@ -25,6 +26,22 @@ from typing import Optional
 
 from ._env import default_host
 from .record_spec import BinField, parse_bin_spec
+
+
+def _default_sim_sync_threads(async_tasks: int) -> int:
+    """Pick a sane sim-sync thread count when ``--threads`` is unset.
+
+    Sim-sync builds one PAC client (and one connection pool, one tend loop)
+    per thread, so naively defaulting to ``-z`` means a typical ``-z 100``
+    run spawns 100 pools on a small box, multiplying tail-latency events
+    from idle-socket retries (PAC core ``socket_timeout`` default = 5000 ms).
+    Cap at ``cpu_count() * 2`` so the bench saturates available CPU without
+    creating dozens of mostly-idle pools. Users can still pass ``--threads``
+    explicitly for high-concurrency scaling tests.
+    """
+    cpu = os.cpu_count() or 2
+    cap = max(2, cpu * 2)
+    return max(1, min(async_tasks, cap))
 
 
 class WorkloadKind(str, Enum):
@@ -76,7 +93,7 @@ class WorkloadConfig:
     auth_mode: Optional[str] = None
     auth_user: Optional[str] = None
     auth_password: Optional[str] = None
-    services_alternate: bool = False
+    services_alternate: Optional[bool] = None
     latency_style: str = "columns"
     # Python allocation tracing. Off by default — `tracemalloc.start()` hooks
     # every PyObject alloc/free and walks the Python frame stack each time,
@@ -87,6 +104,15 @@ class WorkloadConfig:
     """Use Session.get/put shortcuts (bypass QueryBuilder / RecordStream) for
     single-key RU reads and full-bin writes. Prototype path for benchmarking
     the upper bound on PSDK single-key throughput."""
+    prepopulate: bool = True
+    """If true, write keys ``1..key_count`` once before the timed run.
+    Eliminates the empty-keyspace warmup phase where reads return not-found
+    until writes have covered each key. Aligned with the JSDK ``--initialize``
+    pattern. Skipped for ``INSERT`` workloads."""
+    report_not_found: bool = False
+    """If true, surface a ``notfound`` column per interval and a summary
+    line. Otherwise not-found reads are absorbed into the success count
+    (matching the legacy ``kvs.py`` behavior)."""
 
 
 def parse_latency_arg(value: str) -> tuple[int, int]:
@@ -196,7 +222,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Number of OS threads for sim-sync mode. "
-        "If not set, falls back to -z value.",
+        "If unset, defaults to min(-z, cpu_count*2) so each thread maps "
+        "to roughly one CPU's worth of work; sim-sync builds one PAC "
+        "connection pool per thread, so over-subscribing inflates tail "
+        "latency without raising TPS.",
     )
     p.add_argument(
         "-d",
@@ -312,8 +341,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--services-alternate",
         action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Use services-alternate for cluster discovery (default: False).",
+        default=None,
+        help=(
+            "Use services-alternate for cluster discovery. When unset, falls "
+            "back to AEROSPIKE_USE_SERVICES_ALTERNATE; otherwise the explicit "
+            "flag value wins."
+        ),
     )
     p.add_argument(
         "--tracemalloc",
@@ -332,6 +365,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Use Session.get/put shortcut methods for single-key RU reads "
         "and full-bin writes (bypasses QueryBuilder/RecordStream). "
         "Experimental upper-bound bench mode.",
+    )
+    p.add_argument(
+        "--prepopulate",
+        dest="prepopulate",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Write keys 1..K once before the timed run so reads start "
+        "against a fully populated keyspace (aligned with JSDK "
+        "--initialize). Default: on. Use --no-prepopulate to skip.",
+    )
+    p.add_argument(
+        "--report-not-found",
+        dest="report_not_found",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Track and display read/write not-found counts. Default: off "
+        "(misses are absorbed into successful ops, matching kvs.py).",
     )
     return p
 
@@ -359,7 +409,11 @@ def config_from_args(ns: argparse.Namespace) -> WorkloadConfig:
         read_all_bins_percent=rap,
         write_all_bins_percent=wap,
         async_tasks=max(1, ns.async_tasks),
-        threads=max(1, ns.threads if ns.threads is not None else ns.async_tasks),
+        threads=(
+            max(1, ns.threads)
+            if ns.threads is not None
+            else _default_sim_sync_threads(max(1, ns.async_tasks))
+        ),
         duration_sec=float(ns.duration),
         max_ops=ns.max_ops,
         batch_size=max(0, int(ns.batch_size)),
@@ -377,8 +431,10 @@ def config_from_args(ns: argparse.Namespace) -> WorkloadConfig:
         auth_mode=auth_mode,
         auth_user=auth_user,
         auth_password=auth_password,
-        services_alternate=getattr(ns, "services_alternate", False),
+        services_alternate=getattr(ns, "services_alternate", None),
         latency_style=getattr(ns, "latency_style", "columns"),
         tracemalloc_enabled=bool(getattr(ns, "tracemalloc", False)),
         fast_path=bool(getattr(ns, "fast_path", False)),
+        prepopulate=bool(getattr(ns, "prepopulate", True)),
+        report_not_found=bool(getattr(ns, "report_not_found", False)),
     )

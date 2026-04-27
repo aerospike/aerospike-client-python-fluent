@@ -80,16 +80,20 @@ _AUTH_MODES = {
 def client_policy_from_config(cfg: object) -> ClientPolicy:
     """Build a :class:`ClientPolicy` from a :class:`WorkloadConfig`.
 
-    ``use_services_alternate`` falls back to ``AEROSPIKE_USE_SERVICES_ALTERNATE``
-    when the CLI flag is unset, so running from macOS against a container that
-    publishes ``alternate-access-address`` just works via ``aerospike.env``.
+    Precedence for ``use_services_alternate``:
+
+    1. ``--services-alternate`` / ``--no-services-alternate`` (explicit CLI),
+    2. ``AEROSPIKE_USE_SERVICES_ALTERNATE`` env var (when CLI is unset),
+    3. ``False`` (when neither is set).
     """
     policy = ClientPolicy()
-    env_alt = os.environ.get(
-        "AEROSPIKE_USE_SERVICES_ALTERNATE", "").strip().lower() in ("true", "1", "yes")
-    policy.use_services_alternate = (
-        getattr(cfg, "services_alternate", False) or env_alt
-    )
+    cli_alt = getattr(cfg, "services_alternate", None)
+    if cli_alt is None:
+        env_alt = os.environ.get(
+            "AEROSPIKE_USE_SERVICES_ALTERNATE", "").strip().lower() in ("true", "1", "yes")
+        policy.use_services_alternate = env_alt
+    else:
+        policy.use_services_alternate = bool(cli_alt)
 
     ca = getattr(cfg, "tls_ca_file", None)
     cert = getattr(cfg, "tls_cert_file", None)

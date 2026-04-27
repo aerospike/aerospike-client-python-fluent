@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Any, List, Tuple, Union
 
 from aerospike_async import Key
+from aerospike_async.exceptions import ResultCode
 
 from aerospike_sdk.aio.client import Client
 from aerospike_sdk.aio.session import Session
@@ -53,10 +54,27 @@ def _is_timeout(exc: BaseException) -> bool:
     return isinstance(exc, TimeoutError)
 
 
-def _classify_exc(exc: BaseException) -> Tuple[bool, bool]:
-    is_timeout = _is_timeout(exc)
-    is_err = not is_timeout
-    return is_timeout, is_err
+def _is_not_found(exc: BaseException) -> bool:
+    """Detect a key-not-found result raised by the fast-path session.get.
+
+    The builder path returns ``RecordResult(record=None, is_ok=True)`` for
+    missing keys (no exception). Only :meth:`Session.get` and
+    :meth:`Session.put` propagate the error, so this is the one place we
+    need to translate it back into the bench's not-found counter.
+    """
+    rc = getattr(exc, "result_code", None)
+    if rc is None:
+        return False
+    return rc == ResultCode.KEY_NOT_FOUND_ERROR
+
+
+def _classify_exc(exc: BaseException) -> Tuple[bool, bool, bool]:
+    """Return ``(is_timeout, is_error, is_not_found)``."""
+    if _is_timeout(exc):
+        return True, False, False
+    if _is_not_found(exc):
+        return False, False, True
+    return False, True, False
 
 
 def _make_keys(
@@ -83,18 +101,53 @@ class _BenchState:
             return self.insert_seq
 
 
-async def _drain_async(stream: Any, batch: int) -> None:
+async def _drain_async(stream: Any, batch: int, count_misses: bool = False) -> int:
+    """Drain the stream; return count of not-found rows for reads.
+
+    For single-key reads, the builder path signals not-found by raising
+    ``StopAsyncIteration`` from :meth:`RecordStream.first_or_raise` when
+    the stream is empty (no row was produced for a missing key). Catch
+    that explicitly and report it as a miss instead of letting it bubble
+    up as an error. For batch reads, missing keys appear in-stream as
+    rows with a non-OK ``KEY_NOT_FOUND_ERROR`` result code.
+    """
     if batch > 1:
-        await stream.collect()
-    else:
+        rows = await stream.collect()
+        if not count_misses:
+            return 0
+        nf = 0
+        for r in rows:
+            if r.record is None:
+                nf += 1
+        return nf
+    if not count_misses:
         await stream.first_or_raise()
+        return 0
+    try:
+        await stream.first_or_raise()
+    except StopAsyncIteration:
+        return 1
+    return 0
 
 
-def _drain_sync(stream: Any, batch: int) -> None:
+def _drain_sync(stream: Any, batch: int, count_misses: bool = False) -> int:
     if batch > 1:
-        stream.collect()
-    else:
+        rows = stream.collect()
+        if not count_misses:
+            return 0
+        nf = 0
+        for r in rows:
+            if r.record is None:
+                nf += 1
+        return nf
+    if not count_misses:
         stream.first_or_raise()
+        return 0
+    try:
+        stream.first_or_raise()
+    except (StopIteration, StopAsyncIteration):
+        return 1
+    return 0
 
 
 async def _one_op_async(
@@ -104,13 +157,20 @@ async def _one_op_async(
     fields: List[BinField],
     rng: random.Random,
     bench: _BenchState,
-    decision: List[bool],
+    decision: List[int],
 ) -> None:
+    """Execute one workload op.
+
+    ``decision`` is a 2-element scratch list reused across calls to avoid
+    per-op allocation: ``decision[0]`` flags whether the op was a read,
+    ``decision[1]`` is the number of not-found rows observed (always 0 for
+    writes; possibly >0 for batch reads).
+    """
     keys = _make_keys(dataset, cfg.key_count, rng, cfg.batch_size)
     bsz = max(1, cfg.batch_size)
 
     if cfg.workload == WorkloadKind.INSERT:
-        decision[0] = False
+        decision[0] = 0
         kid = bench.next_insert_key()
         stream = await session.insert(dataset.id(kid)).put(full_bins(fields)).execute()
         await _drain_async(stream, bsz)
@@ -118,25 +178,25 @@ async def _one_op_async(
 
     if cfg.workload == WorkloadKind.READ_UPDATE:
         is_read = rng.randint(1, 100) > (100 - cfg.read_percent)
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if rng.randint(1, 100) <= cfg.read_all_bins_percent:
                 if bsz > 1:
                     assert isinstance(keys, list)
                     stream = await session.query(keys).execute(on_error=ErrorStrategy.IN_STREAM)
-                    await _drain_async(stream, bsz)
+                    decision[1] = await _drain_async(stream, bsz, count_misses=True)
                 elif cfg.fast_path:
                     assert isinstance(keys, Key)
                     await session.get(keys)
                 else:
                     assert isinstance(keys, Key)
                     stream = await session.query(keys).execute()
-                    await _drain_async(stream, bsz)
+                    decision[1] = await _drain_async(stream, bsz, count_misses=True)
             else:
                 assert isinstance(keys, Key)
                 bi = pick_bin_index(rng, len(fields))
                 stream = await session.query(keys).bin(fields[bi].name).get().execute()
-                await _drain_async(stream, 1)
+                decision[1] = await _drain_async(stream, 1, count_misses=True)
         else:
             if rng.randint(1, 100) <= cfg.write_all_bins_percent:
                 bins = full_bins(fields)
@@ -161,7 +221,7 @@ async def _one_op_async(
 
     if cfg.workload == WorkloadKind.READ_REPLACE:
         is_read = rng.randint(1, 100) > (100 - cfg.read_percent)
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if bsz > 1:
                 assert isinstance(keys, list)
@@ -169,7 +229,7 @@ async def _one_op_async(
             else:
                 assert isinstance(keys, Key)
                 stream = await session.query(keys).execute()
-            await _drain_async(stream, bsz)
+            decision[1] = await _drain_async(stream, bsz, count_misses=True)
         else:
             bins = full_bins(fields)
             if bsz > 1:
@@ -188,7 +248,7 @@ async def _one_op_async(
 
     if cfg.workload == WorkloadKind.READ_MODIFY_UPDATE:
         is_read = rng.randint(1, 100) <= 50
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if bsz > 1:
                 assert isinstance(keys, list)
@@ -196,7 +256,7 @@ async def _one_op_async(
             else:
                 assert isinstance(keys, Key)
                 stream = await session.query(keys).execute()
-            await _drain_async(stream, bsz)
+            decision[1] = await _drain_async(stream, bsz, count_misses=True)
         else:
             bins = single_bin_put(fields, pick_bin_index(rng, len(fields)))
             if bsz > 1:
@@ -216,7 +276,7 @@ async def _one_op_async(
     int_bin = first_integer_bin(fields)
     if cfg.workload == WorkloadKind.READ_MODIFY_INCREMENT:
         is_read = rng.randint(1, 100) <= 50
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if bsz > 1:
                 assert isinstance(keys, list)
@@ -224,7 +284,7 @@ async def _one_op_async(
             else:
                 assert isinstance(keys, Key)
                 stream = await session.query(keys).execute()
-            await _drain_async(stream, bsz)
+            decision[1] = await _drain_async(stream, bsz, count_misses=True)
         else:
             assert isinstance(keys, Key)
             stream = await session.upsert(keys).add(int_bin, 1).execute()
@@ -233,7 +293,7 @@ async def _one_op_async(
 
     if cfg.workload == WorkloadKind.READ_MODIFY_DECREMENT:
         is_read = rng.randint(1, 100) <= 50
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if bsz > 1:
                 assert isinstance(keys, list)
@@ -241,7 +301,7 @@ async def _one_op_async(
             else:
                 assert isinstance(keys, Key)
                 stream = await session.query(keys).execute()
-            await _drain_async(stream, bsz)
+            decision[1] = await _drain_async(stream, bsz, count_misses=True)
         else:
             assert isinstance(keys, Key)
             stream = await session.upsert(keys).add(int_bin, -1).execute()
@@ -258,13 +318,13 @@ def _one_op_sync(
     fields: List[BinField],
     rng: random.Random,
     bench: _BenchState,
-    decision: List[bool],
+    decision: List[int],
 ) -> None:
     keys = _make_keys(dataset, cfg.key_count, rng, cfg.batch_size)
     bsz = max(1, cfg.batch_size)
 
     if cfg.workload == WorkloadKind.INSERT:
-        decision[0] = False
+        decision[0] = 0
         kid = bench.next_insert_key()
         stream = session.insert(dataset.id(kid)).put(full_bins(fields)).execute()
         _drain_sync(stream, bsz)
@@ -272,7 +332,7 @@ def _one_op_sync(
 
     if cfg.workload == WorkloadKind.READ_UPDATE:
         is_read = rng.randint(1, 100) > (100 - cfg.read_percent)
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if rng.randint(1, 100) <= cfg.read_all_bins_percent:
                 if bsz > 1:
@@ -281,12 +341,12 @@ def _one_op_sync(
                 else:
                     assert isinstance(keys, Key)
                     stream = session.query(keys).execute()
-                _drain_sync(stream, bsz)
+                decision[1] = _drain_sync(stream, bsz, count_misses=True)
             else:
                 assert isinstance(keys, Key)
                 bi = pick_bin_index(rng, len(fields))
                 stream = session.query(keys).bin(fields[bi].name).get().execute()
-                _drain_sync(stream, 1)
+                decision[1] = _drain_sync(stream, 1, count_misses=True)
         else:
             if rng.randint(1, 100) <= cfg.write_all_bins_percent:
                 bins = full_bins(fields)
@@ -308,7 +368,7 @@ def _one_op_sync(
 
     if cfg.workload == WorkloadKind.READ_REPLACE:
         is_read = rng.randint(1, 100) > (100 - cfg.read_percent)
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if bsz > 1:
                 assert isinstance(keys, list)
@@ -316,7 +376,7 @@ def _one_op_sync(
             else:
                 assert isinstance(keys, Key)
                 stream = session.query(keys).execute()
-            _drain_sync(stream, bsz)
+            decision[1] = _drain_sync(stream, bsz, count_misses=True)
         else:
             bins = full_bins(fields)
             if bsz > 1:
@@ -335,7 +395,7 @@ def _one_op_sync(
 
     if cfg.workload == WorkloadKind.READ_MODIFY_UPDATE:
         is_read = rng.randint(1, 100) <= 50
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if bsz > 1:
                 assert isinstance(keys, list)
@@ -343,7 +403,7 @@ def _one_op_sync(
             else:
                 assert isinstance(keys, Key)
                 stream = session.query(keys).execute()
-            _drain_sync(stream, bsz)
+            decision[1] = _drain_sync(stream, bsz, count_misses=True)
         else:
             bins = single_bin_put(fields, pick_bin_index(rng, len(fields)))
             if bsz > 1:
@@ -363,7 +423,7 @@ def _one_op_sync(
     int_bin = first_integer_bin(fields)
     if cfg.workload == WorkloadKind.READ_MODIFY_INCREMENT:
         is_read = rng.randint(1, 100) <= 50
-        decision[0] = is_read
+        decision[0] = 1 if is_read else 0
         if is_read:
             if bsz > 1:
                 assert isinstance(keys, list)
@@ -371,7 +431,7 @@ def _one_op_sync(
             else:
                 assert isinstance(keys, Key)
                 stream = session.query(keys).execute()
-            _drain_sync(stream, bsz)
+            decision[1] = _drain_sync(stream, bsz, count_misses=True)
         else:
             assert isinstance(keys, Key)
             stream = session.upsert(keys).add(int_bin, 1).execute()
@@ -426,37 +486,41 @@ async def run_async(
         async def worker(worker_id: int) -> None:
             seed = (cfg.seed + worker_id + 1) % (2**32)
             rng = random.Random(seed)
-            decision = [False]
+            # decision[0] = is_read flag, decision[1] = not-found count.
+            decision: List[int] = [0, 0]
             has_limit = cfg.max_ops is not None
             while not stop.is_set():
                 if has_limit and stats.total_ops() >= cfg.max_ops:
                     return
                 include_lat = stats.include_latency_sample()
                 t0 = time.perf_counter()
-                decision[0] = False
+                decision[0] = 0
+                decision[1] = 0
                 try:
                     await _one_op_async(
                         session, cfg, dataset, fields, rng, bench_state, decision,
                     )
                 except BaseException as exc:
                     dt = (time.perf_counter() - t0) * 1000.0
-                    to, er = _classify_exc(exc)
+                    to, er, nf = _classify_exc(exc)
                     stats.record(
-                        is_read=decision[0],
+                        is_read=bool(decision[0]),
                         latency_ms=dt,
                         is_timeout=to,
                         is_error=er,
-                        include_in_summary_latency=include_lat,
+                        not_found_count=1 if nf else 0,
+                        include_in_summary_latency=include_lat and nf,
                     )
                     if not isinstance(exc, Exception):
                         raise
                 else:
                     dt = (time.perf_counter() - t0) * 1000.0
                     stats.record(
-                        is_read=decision[0],
+                        is_read=bool(decision[0]),
                         latency_ms=dt,
                         is_timeout=False,
                         is_error=False,
+                        not_found_count=decision[1],
                         include_in_summary_latency=include_lat,
                     )
 
@@ -494,37 +558,40 @@ def run_sync(
             session = client.create_session(Behavior.DEFAULT)
             dataset = DataSet.of(cfg.namespace, cfg.set_name)
             fields = list(cfg.bin_fields)
-            decision = [False]
+            decision: List[int] = [0, 0]
             has_limit = cfg.max_ops is not None
             while not stop.is_set():
                 if has_limit and stats.total_ops() >= cfg.max_ops:
                     return
                 include_lat = stats.include_latency_sample()
                 t0 = time.perf_counter()
-                decision[0] = False
+                decision[0] = 0
+                decision[1] = 0
                 try:
                     _one_op_sync(
                         session, cfg, dataset, fields, rng, bench_state, decision,
                     )
                 except BaseException as exc:
                     dt = (time.perf_counter() - t0) * 1000.0
-                    to, er = _classify_exc(exc)
+                    to, er, nf = _classify_exc(exc)
                     stats.record(
-                        is_read=decision[0],
+                        is_read=bool(decision[0]),
                         latency_ms=dt,
                         is_timeout=to,
                         is_error=er,
-                        include_in_summary_latency=include_lat,
+                        not_found_count=1 if nf else 0,
+                        include_in_summary_latency=include_lat and nf,
                     )
                     if not isinstance(exc, Exception):
                         raise
                 else:
                     dt = (time.perf_counter() - t0) * 1000.0
                     stats.record(
-                        is_read=decision[0],
+                        is_read=bool(decision[0]),
                         latency_ms=dt,
                         is_timeout=False,
                         is_error=False,
+                        not_found_count=decision[1],
                         include_in_summary_latency=include_lat,
                     )
 

@@ -157,6 +157,8 @@ class IntervalSnapshot:
     write_timeouts: int = 0
     read_errors: int = 0
     write_errors: int = 0
+    read_not_found: int = 0
+    write_not_found: int = 0
     read_le1: int = 0
     write_le1: int = 0
     read_gt: List[int] = field(default_factory=list)
@@ -174,12 +176,14 @@ class StatsCollector:
         cooldown_intervals: int,
         *,
         latency_style: str = "columns",
+        report_not_found: bool = False,
     ) -> None:
         self._columns = columns
         self._shift = shift
         self._warmup = warmup_intervals
         self._cooldown = cooldown_intervals
         self._latency_style = latency_style
+        self._report_not_found = report_not_found
         self._lock = threading.Lock()
         self._reads = 0
         self._writes = 0
@@ -187,6 +191,8 @@ class StatsCollector:
         self._wtimeouts = 0
         self._rerrs = 0
         self._werrs = 0
+        self._rnf = 0
+        self._wnf = 0
         self._r_le1 = 0
         self._w_le1 = 0
         self._r_gt = [0] * max(0, columns - 1)
@@ -200,6 +206,8 @@ class StatsCollector:
         self._prev_wt = 0
         self._prev_re = 0
         self._prev_we = 0
+        self._prev_rnf = 0
+        self._prev_wnf = 0
         self._interval_idx = 0
         self._intervals: List[IntervalSnapshot] = []
         self._lat_summary: array.array[float] = array.array("f")
@@ -238,6 +246,7 @@ class StatsCollector:
         latency_ms: float,
         is_timeout: bool,
         is_error: bool,
+        not_found_count: int = 0,
         include_in_summary_latency: bool,
     ) -> None:
         thresholds = self._thresholds
@@ -249,6 +258,8 @@ class StatsCollector:
                 elif is_error:
                     self._rerrs += 1
                 else:
+                    if not_found_count:
+                        self._rnf += not_found_count
                     if latency_ms <= 1.0:
                         self._r_le1 += 1
                     r_gt = self._r_gt
@@ -262,6 +273,8 @@ class StatsCollector:
                 elif is_error:
                     self._werrs += 1
                 else:
+                    if not_found_count:
+                        self._wnf += not_found_count
                     if latency_ms <= 1.0:
                         self._w_le1 += 1
                     w_gt = self._w_gt
@@ -295,6 +308,8 @@ class StatsCollector:
             snap.write_timeouts = self._wtimeouts - self._prev_wt
             snap.read_errors = self._rerrs - self._prev_re
             snap.write_errors = self._werrs - self._prev_we
+            snap.read_not_found = self._rnf - self._prev_rnf
+            snap.write_not_found = self._wnf - self._prev_wnf
             snap.read_le1 = self._r_le1
             snap.write_le1 = self._w_le1
             snap.read_gt = list(self._r_gt)
@@ -305,6 +320,8 @@ class StatsCollector:
             self._prev_wt = self._wtimeouts
             self._prev_re = self._rerrs
             self._prev_we = self._werrs
+            self._prev_rnf = self._rnf
+            self._prev_wnf = self._wnf
             self._r_le1 = 0
             self._w_le1 = 0
             self._r_gt = [0] * max(0, self._columns - 1)
@@ -333,6 +350,16 @@ class StatsCollector:
 
     def _format_tps_line(self, snap: IntervalSnapshot) -> str:
         total = snap.reads + snap.writes
+        if self._report_not_found:
+            nf_total = snap.read_not_found + snap.write_not_found
+            return (
+                f"write(tps={snap.writes} timeouts={snap.write_timeouts} "
+                f"errors={snap.write_errors} notfound={snap.write_not_found}) "
+                f"read(tps={snap.reads} timeouts={snap.read_timeouts} "
+                f"errors={snap.read_errors} notfound={snap.read_not_found}) "
+                f"total(tps={total} timeouts={snap.read_timeouts + snap.write_timeouts} "
+                f"errors={snap.read_errors + snap.write_errors} notfound={nf_total})"
+            )
         return (
             f"write(tps={snap.writes} timeouts={snap.write_timeouts} "
             f"errors={snap.write_errors}) read(tps={snap.reads} "
@@ -434,6 +461,12 @@ class StatsCollector:
             *pct_lines,
             f"  Peak RSS: {self.rss_mb_macos_linux():.1f} MB",
         ]
+        if self._report_not_found:
+            r_nf = sum(x.read_not_found for x in mid)
+            w_nf = sum(x.write_not_found for x in mid)
+            lines.append(
+                f"  Not found: read={r_nf} write={w_nf} total={r_nf + w_nf}",
+            )
         if tracemalloc.is_tracing():
             _cur, peak = tracemalloc.get_traced_memory()
             lines.append(f"  Peak tracemalloc: {peak / (1024 * 1024):.1f} MB")

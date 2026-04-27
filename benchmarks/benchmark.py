@@ -43,6 +43,7 @@ async def _run_async_mode(cfg, runner=None) -> StatsCollector:
         cfg.warmup_intervals,
         cfg.cooldown_intervals,
         latency_style=getattr(cfg, "latency_style", "columns"),
+        report_not_found=getattr(cfg, "report_not_found", False),
     )
     stop = asyncio.Event()
     connected = asyncio.Event()
@@ -113,6 +114,7 @@ async def _run_sync_mode(cfg) -> StatsCollector:
         cfg.warmup_intervals,
         cfg.cooldown_intervals,
         latency_style=getattr(cfg, "latency_style", "columns"),
+        report_not_found=getattr(cfg, "report_not_found", False),
     )
     sync_stop = threading.Event()
     sync_connected = threading.Event()
@@ -189,6 +191,48 @@ async def _truncate_set(cfg) -> None:
     print("Truncation complete.")
 
 
+async def _prepopulate_set(cfg) -> None:
+    """Write keys 1..key_count so reads in the timed phase don't miss.
+
+    Mirrors JSDK's ``--initialize`` task. Uses bounded concurrency and
+    the fast-path :meth:`Session.put` to load quickly without spinning up
+    the full QueryBuilder pipeline.
+    """
+    from aerospike_sdk.aio.client import Client
+    from aerospike_sdk.dataset import DataSet
+    from aerospike_sdk.policy.behavior import Behavior
+
+    from benchmarks._env import client_policy_from_config
+    from benchmarks.record_spec import full_bins
+
+    fields = list(cfg.bin_fields)
+    bins = full_bins(fields)
+    total = cfg.key_count
+    concurrency = max(8, min(256, cfg.async_tasks * 2))
+    print(
+        f"Prepopulating {cfg.namespace}.{cfg.set_name} "
+        f"with {total} keys (concurrency={concurrency}) ...",
+    )
+    policy = client_policy_from_config(cfg)
+    t0 = asyncio.get_running_loop().time()
+    async with Client(cfg.seeds, policy=policy) as client:
+        session = client.create_session(Behavior.DEFAULT)
+        ds = DataSet.of(cfg.namespace, cfg.set_name)
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _one(kid: int) -> None:
+            async with sem:
+                await session.put(ds.id(kid), bins)
+
+        # Schedule in chunks to bound the task graph size at any moment.
+        chunk = 10000
+        for start in range(1, total + 1, chunk):
+            end = min(start + chunk, total + 1)
+            await asyncio.gather(*(_one(kid) for kid in range(start, end)))
+    elapsed = asyncio.get_running_loop().time() - t0
+    print(f"Prepopulation complete: {total} keys in {elapsed:.1f}s.")
+
+
 async def async_main() -> int:
     parser = build_arg_parser()
     ns = parser.parse_args()
@@ -207,6 +251,12 @@ async def async_main() -> int:
         return 2
     if cfg.truncate_before_run:
         await _truncate_set(cfg)
+
+    # Prepopulate is meaningful only when reads are part of the workload.
+    # INSERT writes net-new keys, so loading would either be redundant or
+    # collide with the bench's own insert sequence.
+    if cfg.prepopulate and cfg.workload != WorkloadKind.INSERT:
+        await _prepopulate_set(cfg)
 
     if cfg.tracemalloc_enabled:
         tracemalloc.start()

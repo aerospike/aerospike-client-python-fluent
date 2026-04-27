@@ -38,6 +38,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 
+try:
+    from benchmarks.stats import _YcsbTracker
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from stats import _YcsbTracker
+
 
 def _load_env() -> None:
     """Load aerospike.env from the PSDK or legacy repo for connection defaults."""
@@ -110,19 +116,36 @@ def _random_value(kind: str, size: int):
 # ---------------------------------------------------------------------------
 
 class _Stats:
-    def __init__(self, warmup: int, cooldown: int) -> None:
+    def __init__(
+        self,
+        warmup: int,
+        cooldown: int,
+        *,
+        latency_style: str = "columns",
+        report_not_found: bool = False,
+    ) -> None:
         self._lock = threading.Lock()
         self._reads = 0
         self._writes = 0
         self._errors = 0
+        self._not_found = 0
         self._prev_reads = 0
         self._prev_writes = 0
+        self._prev_not_found = 0
         self._warmup = warmup
         self._cooldown = cooldown
         self._planned = 0
         self._current = 0
         self._latencies: list = []
         self._intervals: list = []
+        self._latency_style = latency_style
+        self._report_not_found = report_not_found
+        self._ycsb_read = _YcsbTracker()
+        self._ycsb_write = _YcsbTracker()
+
+    @property
+    def latency_style(self) -> str:
+        return self._latency_style
 
     def set_planned(self, n: int) -> None:
         self._planned = n
@@ -133,7 +156,13 @@ class _Stats:
     def total_ops(self) -> int:
         return self._reads + self._writes
 
-    def record(self, is_read: bool, latency_ms: float, is_error: bool) -> None:
+    def record(
+        self,
+        is_read: bool,
+        latency_ms: float,
+        is_error: bool,
+        is_not_found: bool = False,
+    ) -> None:
         include = (
             self._planned > 0
             and self._warmup <= self._current < self._planned - self._cooldown
@@ -145,17 +174,27 @@ class _Stats:
                 self._writes += 1
             if is_error:
                 self._errors += 1
+            if is_not_found:
+                self._not_found += 1
             if include and not is_error:
                 self._latencies.append(latency_ms)
+            # YCSB Period/Total trackers receive every successful op so that
+            # per-interval lines have data even during warmup/cooldown.
+            # Warmup/cooldown gating is applied at summary time only.
+            if not is_error:
+                tracker = self._ycsb_read if is_read else self._ycsb_write
+                tracker.add(int(latency_ms * 1000.0))
 
     def end_interval(self) -> tuple:
         with self._lock:
             dr = self._reads - self._prev_reads
             dw = self._writes - self._prev_writes
+            dnf = self._not_found - self._prev_not_found
             self._prev_reads = self._reads
             self._prev_writes = self._writes
-            self._intervals.append((dr, dw))
-            return dr, dw, self._errors
+            self._prev_not_found = self._not_found
+            self._intervals.append((dr, dw, dnf))
+            return dr, dw, self._errors, dnf
 
     def summary(self) -> list:
         ivs = self._intervals
@@ -183,17 +222,21 @@ class _Stats:
             f"  Write TPS: avg={avg(w):.0f}  median={median(w):.0f}",
             f"  Total TPS: avg={avg(t):.0f}  median={median(t):.0f}",
         ]
+        if self._report_not_found:
+            nf_total = sum(x[2] for x in mid)
+            lines.append(f"  Not found: total={nf_total}")
 
-        lat = sorted(self._latencies)
-        if lat:
-            def pct(p):
-                k = max(1, int(math.ceil(p / 100.0 * len(lat))))
-                return lat[k - 1]
-            lines.append(
-                f"  Latency p50={pct(50):.1f}ms  p90={pct(90):.1f}ms  "
-                f"p99={pct(99):.1f}ms  p99.9={pct(99.9):.1f}ms  "
-                f"max={lat[-1]:.1f}ms"
-            )
+        if self._latency_style != "ycsb":
+            lat = sorted(self._latencies)
+            if lat:
+                def pct(p):
+                    k = max(1, int(math.ceil(p / 100.0 * len(lat))))
+                    return lat[k - 1]
+                lines.append(
+                    f"  Latency p50={pct(50):.1f}ms  p90={pct(90):.1f}ms  "
+                    f"p99={pct(99):.1f}ms  p99.9={pct(99.9):.1f}ms  "
+                    f"max={lat[-1]:.1f}ms"
+                )
 
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         if sys.platform == "darwin":
@@ -254,12 +297,49 @@ def _worker(
                     for name, kind, size in fields
                 ]
                 client.operate(key, ops)
+        # The legacy C client raises RecordNotFound on a missing key; PSDK treats
+        # that case as a successful op with an empty result. Mirror PSDK so the
+        # error column reflects real failures, not empty-keyspace misses.
+        except aerospike.exception.RecordNotFound:
+            dt = (time.perf_counter() - t0) * 1000.0
+            stats.record(is_read, dt, False, is_not_found=True)
         except Exception:
             dt = (time.perf_counter() - t0) * 1000.0
             stats.record(is_read, dt, True)
         else:
             dt = (time.perf_counter() - t0) * 1000.0
             stats.record(is_read, dt, False)
+
+
+# ---------------------------------------------------------------------------
+# Prepopulate (load) phase — analogous to JSDK ``--initialize``.
+# ---------------------------------------------------------------------------
+
+def _prepopulate(
+    client,
+    namespace: str,
+    set_name: str,
+    key_count: int,
+    fields: list,
+) -> None:
+    import aerospike
+
+    print(
+        f"Prepopulating {namespace}.{set_name} with {key_count} keys ...",
+    )
+    t0 = time.perf_counter()
+    for kid in range(1, key_count + 1):
+        ops = [
+            {
+                "op": aerospike.OPERATOR_WRITE,
+                "bin": name,
+                "val": _random_value(kind, size),
+            }
+            for name, kind, size in fields
+        ]
+        client.operate((namespace, set_name, kid), ops)
+    elapsed = time.perf_counter() - t0
+    print(f"Prepopulation complete: {key_count} keys in {elapsed:.1f}s.")
 
 
 # ---------------------------------------------------------------------------
@@ -279,15 +359,54 @@ def main() -> int:
     p.add_argument("-o", "--bins", default="I1", help="Bin spec (e.g. I1, I1,S128).")
     p.add_argument("-w", "--workload", default="RU,50",
                    help="Workload: I or RU,<read_pct>.")
-    p.add_argument("-z", "--concurrency", type=int, default=1,
-                   help="Number of threads (default: 1).")
+    p.add_argument(
+        "-z", "--concurrency", type=int, default=1,
+        help="Number of threads. The legacy Aerospike Python client does "
+             "not officially support multithreaded use, so values > 1 are "
+             "rejected (default: 1).",
+    )
     p.add_argument("-d", "--duration", type=float, default=10.0)
     p.add_argument("-c", "--max-ops", type=int, default=None)
     p.add_argument("--warmup", type=int, default=4)
     p.add_argument("--cooldown", type=int, default=4)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--latency-style",
+        choices=("columns", "ycsb"),
+        default="columns",
+        help="Per-interval latency formatting: 'columns' (TPS only) "
+             "or 'ycsb' (per-op-type Period/Total averages + p95/p99).",
+    )
+    p.add_argument(
+        "--prepopulate",
+        dest="prepopulate",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Write keys 1..K once before the timed run so reads start "
+             "against a fully populated keyspace (aligned with JSDK "
+             "--initialize). Default: on. Use --no-prepopulate to skip.",
+    )
+    p.add_argument(
+        "--report-not-found",
+        dest="report_not_found",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Track and display read not-found counts. Default: off "
+             "(misses are absorbed into successful ops, matching PSDK).",
+    )
 
     args = p.parse_args()
+
+    # The legacy Aerospike Python client (C extension) is not officially
+    # supported for multithreaded use. Reject -z > 1 explicitly so users
+    # don't publish numbers from an unsupported configuration.
+    if args.concurrency > 1:
+        print(
+            f"--concurrency / -z > 1 is not supported for the legacy "
+            f"client (got {args.concurrency}). Run with -z 1.",
+            file=sys.stderr,
+        )
+        return 2
 
     # Parse workload
     wl = args.workload.strip().upper()
@@ -307,7 +426,12 @@ def main() -> int:
     host, port = _parse_host_port(args.hosts)
     n_iv = max(1, math.ceil(args.duration))
 
-    stats = _Stats(args.warmup, args.cooldown)
+    stats = _Stats(
+        args.warmup,
+        args.cooldown,
+        latency_style=args.latency_style,
+        report_not_found=args.report_not_found,
+    )
     stats.set_planned(n_iv)
     stop = threading.Event()
 
@@ -318,6 +442,12 @@ def main() -> int:
     config = {"hosts": [(host, port)], "use_services_alternate": use_alt}
     client = aerospike.client(config).connect()
     print(f"Connected to {args.hosts}. Starting legacy benchmark ...")
+
+    # Prepopulate is meaningful only when reads are part of the workload.
+    # INSERT writes net-new keys, so loading would either be redundant or
+    # collide with the bench's own insert sequence.
+    if args.prepopulate and wl != "I":
+        _prepopulate(client, args.namespace, args.set_name, args.keys, fields)
 
     # Launch workers
     pool = ThreadPoolExecutor(max_workers=max(1, args.concurrency))
@@ -338,10 +468,24 @@ def main() -> int:
         if stop.is_set():
             break
         stats.set_current(iv + 1)
-        dr, dw, errs = stats.end_interval()
+        dr, dw, errs, dnf = stats.end_interval()
         total = dr + dw
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"{stamp} write(tps={dw}) read(tps={dr}) total(tps={total} errors={errs})")
+        if args.report_not_found:
+            print(
+                f"{stamp} write(tps={dw}) read(tps={dr}) "
+                f"total(tps={total} errors={errs} notfound={dnf})",
+            )
+        else:
+            print(
+                f"{stamp} write(tps={dw}) read(tps={dr}) "
+                f"total(tps={total} errors={errs})",
+            )
+        if stats.latency_style == "ycsb":
+            print(stats._ycsb_write.format_period_total("write"))
+            print(stats._ycsb_read.format_period_total("read"))
+            stats._ycsb_write.reset_window()
+            stats._ycsb_read.reset_window()
 
     stop.set()
     wait(futures)
