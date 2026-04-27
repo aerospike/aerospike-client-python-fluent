@@ -1,3 +1,5 @@
+# NOTE: This workflow will be retired once the new release pipeline lands
+# (CI-driven build + branch promotion + publish workflows). Do not extend.
 name: Release
 
 on:
@@ -52,18 +54,33 @@ jobs:
           fi
           echo "Tag v${{ inputs.version }} is available"
 
-      - name: Enforce stable releases from main
+      - name: Enforce branch gate
         run: |
           VERSION="${{ inputs.version }}"
           BRANCH="${{ github.ref_name }}"
-          if echo "$VERSION" | grep -q -E "\-alpha|\-beta|\-rc"; then
-            echo "Pre-release ($VERSION) — allowed from any branch ($BRANCH)"
-          elif [ "$BRANCH" != "main" ]; then
-            echo "::error::Stable releases must be cut from the main branch (current: $BRANCH)"
-            exit 1
-          else
-            echo "Stable release ($VERSION) from main — OK"
-          fi
+          case "$VERSION" in
+            *-alpha.*|*-beta.*)
+              if [ "$BRANCH" != "dev" ]; then
+                echo "::error::alpha/beta releases must be cut from 'dev' (current: $BRANCH)"
+                exit 1
+              fi
+              echo "alpha/beta release ($VERSION) from $BRANCH — OK"
+              ;;
+            *-rc.*)
+              if [ "$BRANCH" != "stage" ]; then
+                echo "::error::RC releases must be cut from 'stage' (current: $BRANCH)"
+                exit 1
+              fi
+              echo "RC release ($VERSION) from $BRANCH — OK"
+              ;;
+            *)
+              if [ "$BRANCH" != "main" ]; then
+                echo "::error::Stable releases must be cut from 'main' (current: $BRANCH)"
+                exit 1
+              fi
+              echo "Stable release ($VERSION) from $BRANCH — OK"
+              ;;
+          esac
 
       - name: Resolve and validate PAC dependency
         id: pac
