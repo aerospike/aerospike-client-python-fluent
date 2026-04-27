@@ -42,7 +42,10 @@ ENV/
 .claude/
 
 # Local notes and one-off tooling (perf inventories, bench harness)
-scripts/
+# Everything in scripts/ is ignored by default; CI tooling under
+# scripts/ci/ is the explicit exception.
+scripts/*
+!scripts/ci/
 
 # Docs
 docs/_build/
