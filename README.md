@@ -9,7 +9,7 @@ A high-level API on the Aerospike Python Async Client, providing an intuitive an
 - **Python** 3.10 - 3.14 (recommended: [pyenv](https://github.com/pyenv/pyenv) with a dedicated environment for this repo)
 - **Aerospike server** -- required for integration tests
 - **Rust toolchain** (rustc + cargo) -- only needed if building the Aerospike Python Async Client from source
-- **Java 11+** -- only needed if regenerating the ANTLR AEL parser
+- **Java 11+** -- required for the one-time AEL parser build (`make generate-ael`)
 
 ## Install the Aerospike Python Async Client
 
@@ -56,8 +56,11 @@ Or adjust and use `requirements-local.txt` (gitignored path example).
 Use the interpreter from your pyenv environment (see `.cursor/rules/guiding-principles.mdc` for the usual env name), then:
 
 ```bash
+make generate-ael          # one-time: build the ANTLR AEL parser (requires Java 11+)
 pip install -e ".[dev]"
 ```
+
+`make generate-ael` only needs to be re-run if `aerospike_sdk/ael/antlr4/Condition.g4` changes.
 
 ## Configuration
 
@@ -104,7 +107,7 @@ Docstrings use Google style with Sphinx cross-references (`:meth:`, `:class:`, e
 ## Development
 
 ```bash
-# Regenerate the ANTLR AEL parser (requires Java 11+)
+# Regenerate the ANTLR AEL parser (only needed if Condition.g4 changes)
 make generate-ael
 
 # Lint
