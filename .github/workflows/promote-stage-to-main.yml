@@ -1,8 +1,8 @@
 # SKELETON — not yet wired into the live release pipeline.
 #
-# Implements Gate 3 (STAGE → PROD-staging, owner: Product) of the new
-# release pipeline. Mirrors `promote-dev-to-stage.yml` one hop further,
-# plus tag and draft-release jobs.
+# Implements Gate 3 (STAGE → PROD, owner: Product) of the new release
+# pipeline. Mirrors `promote-dev-to-stage.yml` one hop further, plus tag
+# and draft-release jobs.
 #
 # Promotion model:
 #   1. A release manager (admin) manually fast-forwards `main` to `stage`'s
@@ -12,10 +12,21 @@
 #   2. That push triggers this workflow on `branch: main`.
 #   3. This workflow:
 #        - verifies the new main tip is reachable from origin/stage,
-#        - promotes the JFrog Release Bundle v2 from STAGE-tier to
-#          PREVIEW/PROD-staging tier (`jf rbp` copy mode),
+#        - promotes the JFrog Release Bundle v2 from STAGE to PROD via
+#          the shared `promote-release-bundle` composite action,
 #        - creates a `v<version>` tag on main,
 #        - drafts a GitHub Release pointing at the tag.
+#
+# Apr 27 update: refactored from raw `jf rbp` to the
+# `aerospike/shared-workflows/.github/actions/promote-release-bundle@v3.3.0`
+# composite action with hardcoded `environment: PROD`. Per-env JFrog repo
+# names + signing key are handled by the action; we no longer carry those
+# vars per repo.
+#
+# Side-effect of landing the bundle at PROD: the JFrog webhook fires the
+# `citrusleaf/artifact-publisher/publish-artifact.yaml` workflow, which
+# publishes to PyPI automatically (Gate 4 PyPI path). No per-repo PyPI
+# workflow is needed — see release-pipeline.md §0.6.d for context.
 #
 # As with promote-dev-to-stage.yml, this workflow does NOT perform any
 # branch-promoting git pushes — the human did that already at step 1.
@@ -23,9 +34,9 @@
 # not (and must not) be force-pushed by this workflow.
 #
 # Status: skeleton. Will not promote anything until DevOps provisions
-# JFROG_PROJECT, JFROG_PREVIEW_ENV (or whatever Gate-3 target env name
-# DevOps assigns), and JFROG_SIGNING_KEY. When those vars are unset the
-# bundle-promote step logs and exits 0 instead of failing every release.
+# JFROG_PROJECT (= "database" per Apr 27 DevOps response). When it's
+# unset the bundle-promote step logs and exits 0 instead of failing
+# every release.
 #
 # See .cursor/plans/release-pipeline.md §0.6.c for full design notes.
 
@@ -37,7 +48,7 @@ on:
   workflow_dispatch:
     inputs:
       dry-run:
-        description: "Dry-run (skip jf rbp, tag push, and release draft)"
+        description: "Dry-run (skip bundle promotion, tag push, and release draft)"
         type: boolean
         default: true
 
@@ -102,6 +113,8 @@ jobs:
         with:
           egress-policy: audit
 
+      # promote-release-bundle expects JFrog CLI to be configured by the
+      # caller (per its README). We use OIDC.
       - name: Set up JFrog CLI
         if: steps.gate.outputs.skip != 'true'
         uses: step-security/setup-jfrog-cli@893a92f96c7727242adf0e603c77b1f2a22390e1 # v4.9.1
@@ -112,31 +125,26 @@ jobs:
           oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
           oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
 
-      - name: Promote Release Bundle v2 (STAGE → PREVIEW/PROD-staging)
-        if: steps.gate.outputs.skip != 'true'
+      - name: Dry-run summary
+        if: ${{ steps.gate.outputs.skip != 'true' && (inputs.dry-run || 'false') == 'true' }}
         env:
-          BUNDLE_NAME: aerospike-client-python-sdk
           BUNDLE_VERSION: ${{ needs.extract-version.outputs.version }}
-          # TODO: confirm with DevOps (release-pipeline.md §0.10 Q18) the
-          # Gate-3 target environment name. PREVIEW vs PROD-staging vs
-          # something else is still TBD pending DevOps response.
-          TARGET_ENV: ${{ vars.JFROG_PREVIEW_ENV }}
-          SIGNING_KEY: ${{ vars.JFROG_SIGNING_KEY }}
-          PROJECT: ${{ vars.JFROG_PROJECT }}
-          DRY_RUN: ${{ inputs.dry-run || 'false' }}
         run: |
-          if [[ "$DRY_RUN" == "true" ]]; then
-            echo "DRY-RUN: would run —"
-            echo "  jf rbp --signing-key=$SIGNING_KEY --project=$PROJECT --sync=true \\"
-            echo "    $BUNDLE_NAME $BUNDLE_VERSION $TARGET_ENV"
-            exit 0
-          fi
-          jf rbp \
-            --signing-key="$SIGNING_KEY" \
-            --project="$PROJECT" \
-            --sync=true \
-            --promotion-type=copy \
-            "$BUNDLE_NAME" "$BUNDLE_VERSION" "$TARGET_ENV"
+          echo "DRY-RUN: would call promote-release-bundle —"
+          echo "  bundle-name: aerospike-client-python-sdk"
+          echo "  version:     $BUNDLE_VERSION"
+          echo "  environment: PROD"
+          echo "  jf-project:  ${{ vars.JFROG_PROJECT }}"
+          echo "(landing at PROD-tier triggers JFrog webhook → citrusleaf/artifact-publisher → PyPI publish)"
+
+      - name: Promote Release Bundle v2 (STAGE → PROD)
+        if: ${{ steps.gate.outputs.skip != 'true' && (inputs.dry-run || 'false') != 'true' }}
+        uses: aerospike/shared-workflows/.github/actions/promote-release-bundle@07c958ca # v3.3.0
+        with:
+          bundle-name: aerospike-client-python-sdk
+          version: ${{ needs.extract-version.outputs.version }}
+          environment: PROD
+          jf-project: ${{ vars.JFROG_PROJECT }}
 
   tag-main:
     needs: [verify-ancestry, extract-version, promote-bundle]
