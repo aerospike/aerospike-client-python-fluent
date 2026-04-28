@@ -168,8 +168,7 @@ class Session:
             >>> name = rec.bins["name"]
 
         See Also:
-            :meth:`query`: Builder-based reads for projections, streams,
-                and secondary-index queries.
+            :meth:`query`: Builder-based reads for projections, streams, and secondary-index queries.
             :meth:`put`: Direct single-key upsert.
         """
         if self._txn is None:
