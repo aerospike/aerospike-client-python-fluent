@@ -12,9 +12,6 @@ on:
 permissions:
   contents: read
 
-env:
-  PAC_REPO: "aerospike/aerospike-client-python-async"
-
 jobs:
   unit:
     runs-on: ubuntu-latest
@@ -30,27 +27,10 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Resolve PAC version from pyproject.toml
-        run: |
-          PAC_VERSION=$(grep 'aerospike-client-python-async' pyproject.toml | grep -oP '@\Kv[^"]+')
-          echo "PAC_VERSION=$PAC_VERSION" >> "$GITHUB_ENV"
-
-      - name: Install PAC wheel from GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          CPVER=$(echo "${{ matrix.python }}" | tr -d '.')
-          PATTERN="*cp${CPVER}-cp${CPVER}-manylinux*x86_64*.whl"
-          gh release download "$PAC_VERSION" \
-            --repo "$PAC_REPO" \
-            --pattern "$PATTERN" \
-            --dir pac_wheel
-          pip install pac_wheel/*.whl
-
-      - name: Install SDK and dev dependencies
+      - name: Install SDK and dev dependencies (PAC resolved from PyPI)
         run: |
           pip install -r requirements-dev.txt
-          pip install . --no-deps
+          pip install .
 
       - name: Generate ANTLR parser
         run: make generate-ael
@@ -94,27 +74,10 @@ jobs:
           echo "=== Server Build ==="
           docker exec aerospike-server asinfo -v "build"
 
-      - name: Resolve PAC version from pyproject.toml
-        run: |
-          PAC_VERSION=$(grep 'aerospike-client-python-async' pyproject.toml | grep -oP '@\Kv[^"]+')
-          echo "PAC_VERSION=$PAC_VERSION" >> "$GITHUB_ENV"
-
-      - name: Install PAC wheel from GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          CPVER=$(echo "${{ matrix.python }}" | tr -d '.')
-          PATTERN="*cp${CPVER}-cp${CPVER}-manylinux*x86_64*.whl"
-          gh release download "$PAC_VERSION" \
-            --repo "$PAC_REPO" \
-            --pattern "$PATTERN" \
-            --dir pac_wheel
-          pip install pac_wheel/*.whl
-
-      - name: Install SDK and dev dependencies
+      - name: Install SDK and dev dependencies (PAC resolved from PyPI)
         run: |
           pip install -r requirements-dev.txt
-          pip install . --no-deps
+          pip install .
 
       - name: Generate ANTLR parser
         run: make generate-ael

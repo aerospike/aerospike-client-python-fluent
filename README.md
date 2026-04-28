@@ -13,43 +13,24 @@ A high-level API on the Aerospike Python Async Client, providing an intuitive an
 
 ## Install the Aerospike Python Async Client
 
-This SDK depends on the [Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async).
-The version is pinned in `pyproject.toml` (git tag). `pip install -e ".[dev]"` installs PAC from Git (requires Rust to build unless you pre-install a wheel).
+This SDK depends on the [Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async),
+published on PyPI as [`aerospike-async`](https://pypi.org/project/aerospike-async/).
+The version is pinned in `pyproject.toml` under `[project] dependencies`. A normal
+`pip install -e ".[dev]"` resolves it from PyPI automatically -- no Rust toolchain
+or git checkout required for ordinary development.
 
-### Option 1: Pre-built wheel (no Rust)
+### Local PAC checkout (development against an unreleased PAC tree)
 
-Download the wheel for your platform and Python version from the
-[GitHub Releases page](https://github.com/aerospike/aerospike-client-python-async/releases),
-then install it with the **same pyenv-backed Python** you use for this SDK **before** installing this package:
-
-```bash
-# e.g. pyenv activate sdk_client_3_14_2_crsr   # your env name
-pip install aerospike_async-0.3.0a10-cp313-cp313-macosx_11_0_arm64.whl  # example; match your Python and platform
-pip install -e ".[dev]" --no-deps   # if PAC is already satisfied
-```
-
-### Option 2: Build PAC from source (requires Rust)
-
-```bash
-git clone git@github.com:aerospike/aerospike-client-python-async.git
-cd aerospike-client-python-async
-git checkout v0.3.0-alpha.10
-pip install -r requirements.txt
-make dev
-```
-
-See the [Aerospike Python Async Client README](https://github.com/aerospike/aerospike-client-python-async/blob/rust-async/README.md) for detailed Rust setup instructions.
-
-### Local PAC checkout (temporary)
-
-To test against an **unreleased** sibling PAC tree, install it explicitly, then install this SDK without re-resolving PAC from git:
+To test against a sibling PAC working tree (e.g. for a feature not yet on PyPI),
+install it editable first and pass `--no-deps` to this SDK so pip doesn't try
+to re-resolve PAC from PyPI:
 
 ```bash
 pip install -e /path/to/aerospike-client-python-async
 pip install -e ".[dev]" --no-deps
 ```
 
-Or adjust and use `requirements-local.txt` (gitignored path example).
+Or use `requirements-local.txt` (gitignored path example).
 
 ## Install this package
 
@@ -157,7 +138,7 @@ normalizes these on upload to the equivalent PEP 440 spelling (`0.1.0a1`).
 The top-level `VERSION` file is the only place where the version lives:
 
 ```
-0.1.0-alpha.1
+0.9.0-alpha.1
 ```
 
 `pyproject.toml` reads it dynamically:
@@ -190,19 +171,19 @@ bin/get-version    # prints 0.1.0-alpha.2
 
 ### Bumping the PAC pin
 
-PSDK depends on a tagged release of the
-[Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async).
-The pin lives in `pyproject.toml` under `[project] dependencies`:
+PSDK depends on a published release of the
+[Aerospike Python Async Client](https://github.com/aerospike/aerospike-client-python-async)
+on PyPI as `aerospike-async`. The pin lives in `pyproject.toml` under
+`[project] dependencies`:
 
 ```toml
-"aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.16",
+"aerospike-async==0.4.0a1",
 ```
 
-To bump: change the `@v0.3.0-alpha.N` suffix to the new tag, then reinstall:
+To bump: change the version to the new release on PyPI, then reinstall:
 
 ```bash
-pip uninstall -y aerospike-client-python-async
-pip install --no-deps "aerospike-client-python-async @ git+ssh://git@github.com/aerospike/aerospike-client-python-async.git@v0.3.0-alpha.N"
+pip install --upgrade "aerospike-async==0.4.0aN"
 ```
 
 Open the PR against `dev`. PSDK's own `VERSION` does not need to change for
@@ -214,7 +195,7 @@ warrant it.
 Anywhere a build script, CI step, or release tool needs the version:
 
 ```bash
-bin/get-version    # → 0.1.0-alpha.1
+bin/get-version    # → 0.9.0-alpha.1
 ```
 
 The script reads `VERSION` and trims trailing whitespace. No Python or
