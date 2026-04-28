@@ -2,7 +2,7 @@
 
 A high-level API on the Aerospike Python Async Client, providing an intuitive and chainable interface for database operations.
 
-> **Status:** Pre-alpha -- internal development.
+> **Status:** Public preview (alpha). Not yet production-ready; feedback welcome via GitHub Issues.
 
 ## Prerequisites
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aerospike-sdk"
 dynamic = ["version"]
-description = "Aerospike Python SDK — high-level API on the Aerospike Python Async Client"
+description = "Aerospike Python SDK - a modern, developer-friendly interface for Aerospike"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 dependencies = [
