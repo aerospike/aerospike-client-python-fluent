@@ -23,6 +23,13 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
+[project.urls]
+Documentation = "https://aerospike.com/docs/develop/client/sdk/"
+"API Reference" = "https://aerospike-python-sdk.readthedocs.io/"
+Repository = "https://github.com/aerospike/aerospike-client-python-sdk"
+Issues = "https://github.com/aerospike/aerospike-client-python-sdk/issues"
+Changelog = "https://github.com/aerospike/aerospike-client-python-sdk/releases"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
