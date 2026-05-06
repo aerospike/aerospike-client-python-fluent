@@ -419,6 +419,9 @@ class SyncClient:
         self,
         seeds: str,
         policy: Optional[ClientPolicy] = None,
+        *,
+        max_error_rate: Optional[int] = None,
+        error_rate_window: Optional[int] = None,
     ) -> None:
         """
         Initialize a SyncClient.
@@ -426,8 +429,20 @@ class SyncClient:
         Args:
             seeds: Aerospike cluster seed addresses (e.g., "localhost:3000")
             policy: Optional client policy. If None, a default policy is used.
+            max_error_rate: Per-node circuit-breaker threshold. See
+                :class:`aerospike_sdk.aio.client.Client` for semantics.
+            error_rate_window: Tend iterations until each node's error
+                counter resets. See
+                :class:`aerospike_sdk.aio.client.Client` for semantics.
         """
         self._seeds = seeds
+        if policy is None and (max_error_rate is not None or error_rate_window is not None):
+            policy = ClientPolicy()
+        if policy is not None:
+            if max_error_rate is not None:
+                policy.max_error_rate = max_error_rate
+            if error_rate_window is not None:
+                policy.error_rate_window = error_rate_window
         self._policy = policy
         self._async_client: Optional[Client] = None
         # Reuse event loop manager per thread to avoid creating too many loops

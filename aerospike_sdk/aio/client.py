@@ -71,6 +71,9 @@ class Client:
         seeds: str,
         policy: Optional[ClientPolicy] = None,
         index_refresh_interval: float = 5.0,
+        *,
+        max_error_rate: Optional[int] = None,
+        error_rate_window: Optional[int] = None,
     ) -> None:
         """Store cluster seeds and policy; connection starts in :meth:`connect` or ``async with``.
 
@@ -83,6 +86,15 @@ class Client:
                 (default 5.0). The monitor periodically fetches index metadata from
                 the cluster so that AEL-based ``where()`` calls can transparently
                 generate secondary index filters.
+            max_error_rate: Per-node circuit-breaker threshold. When a node's
+                error count crosses this value within ``error_rate_window``
+                tend iterations, subsequent commands routed to that node fail
+                fast with :class:`~aerospike_sdk.MaxErrorRate` until the
+                window resets. ``0`` disables the breaker. Defaults to the
+                underlying :class:`ClientPolicy` default (``100``).
+            error_rate_window: Number of cluster tend iterations after which
+                each node's error counter is reset. Defaults to the underlying
+                :class:`ClientPolicy` default (``1``).
 
         Note:
             No network I/O occurs here. The client connects when you ``await
@@ -91,6 +103,10 @@ class Client:
         self._seeds = seeds
         if policy is None:
             policy = ClientPolicy()
+        if max_error_rate is not None:
+            policy.max_error_rate = max_error_rate
+        if error_rate_window is not None:
+            policy.error_rate_window = error_rate_window
         self._policy = policy
         self._client: Optional[AsyncClient] = None
         self._connected = False

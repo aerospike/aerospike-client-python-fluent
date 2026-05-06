@@ -68,6 +68,14 @@ class TestToReadPolicy:
         p = to_read_policy(Settings())
         assert isinstance(p, ReadPolicy)
 
+    def test_compression_threshold_propagates(self):
+        # ``compression_threshold`` should round-trip from Settings into the
+        # underlying ReadPolicy alongside use_compression.
+        s = Settings(use_compression=True, compression_threshold=1024)
+        p = to_read_policy(s)
+        assert p.use_compression is True
+        assert p.compression_threshold == 1024
+
 
 class TestToWritePolicy:
     """Verify to_write_policy() maps Settings fields (including write-
@@ -94,6 +102,12 @@ class TestToWritePolicy:
     def test_none_fields_not_set(self):
         p = to_write_policy(Settings())
         assert isinstance(p, WritePolicy)
+
+    def test_compression_threshold_propagates(self):
+        s = Settings(use_compression=True, compression_threshold=2048)
+        p = to_write_policy(s)
+        assert p.use_compression is True
+        assert p.compression_threshold == 2048
 
 
 class TestToQueryPolicy:
@@ -123,6 +137,12 @@ class TestToQueryPolicy:
         p = to_query_policy(Settings())
         assert isinstance(p, QueryPolicy)
 
+    def test_compression_threshold_propagates(self):
+        s = Settings(use_compression=True, compression_threshold=512)
+        p = to_query_policy(s)
+        assert p.use_compression is True
+        assert p.compression_threshold == 512
+
 
 class TestToBatchPolicy:
     """Verify to_batch_policy() maps Settings fields (including batch-
@@ -147,6 +167,12 @@ class TestToBatchPolicy:
     def test_none_fields_not_set(self):
         p = to_batch_policy(Settings())
         assert isinstance(p, BatchPolicy)
+
+    def test_compression_threshold_propagates(self):
+        s = Settings(use_compression=True, compression_threshold=4096)
+        p = to_batch_policy(s)
+        assert p.use_compression is True
+        assert p.compression_threshold == 4096
 
 
 class TestApplyToReadPolicy:

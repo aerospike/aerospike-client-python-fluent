@@ -722,47 +722,80 @@ class TestExpWithAel:
 
 # CDT Path Access Tests
 
+async def _seed_cdt_data(client, *, enterprise):
+    """Seed three records into ``test/cdt_test`` for CDT path / wrapper tests.
+
+    Used by both ``client_with_cdt_data`` (broad-surface seed) and
+    ``client_with_cdt_data_812`` (8.1.2+ seed) so the two clusters see the
+    exact same shape.
+    """
+    session = client.create_session()
+    ds = DataSet.of("test", "cdt_test")
+
+    for key in ["rec1", "rec2", "rec3"]:
+        try:
+            await session.delete(ds.id(key)).execute()
+        except Exception:
+            pass
+
+    await session.upsert(ds.id("rec1")).put({
+        "numbers": [10, 20, 30, 40, 50],
+        "names": ["alice", "bob", "charlie"],
+        "info": {"name": "Alice", "age": 30, "city": "NYC"},
+        "nested": [{"id": 1, "value": 100}, {"id": 2, "value": 200}],
+    }).execute()
+    await session.upsert(ds.id("rec2")).put({
+        "numbers": [5, 15, 25, 35, 45],
+        "names": ["dave", "eve"],
+        "info": {"name": "Bob", "age": 25, "city": "LA"},
+        "nested": [{"id": 3, "value": 300}],
+    }).execute()
+    await session.upsert(ds.id("rec3")).put({
+        "numbers": [100, 200, 300],
+        "names": ["frank"],
+        "info": {"name": "Charlie", "age": 40, "city": "NYC"},
+        "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
+    }).execute()
+
+    await asyncio.sleep(0.5 if not enterprise else 0.01)
+    return session, ds
+
+
+async def _drop_cdt_data(session, ds):
+    for key in ["rec1", "rec2", "rec3"]:
+        try:
+            await session.delete(ds.id(key)).execute()
+        except Exception:
+            pass
+
+
+@pytest.fixture
+async def client_with_cdt_data_812(aerospike_host_812_required, client_policy, enterprise):
+    """SDK client + CDT dataset on the 8.1.2+ seed.
+
+    Used by tests that exercise convenience wrappers around server-8.1.2
+    ExpOps (``in_list`` / ``map_keys`` / ``map_values``). The dependent
+    ``aerospike_host_812_required`` fixture skips the test cleanly when
+    ``AEROSPIKE_HOST_8_1_2`` is unset.
+    """
+    async with Client(seeds=aerospike_host_812_required, policy=client_policy) as client:
+        session, ds = await _seed_cdt_data(client, enterprise=enterprise)
+        yield client
+        await _drop_cdt_data(session, ds)
+
+
 @pytest.fixture
 async def client_with_cdt_data(aerospike_host, client_policy, enterprise):
-    """Setup test data with lists and maps for CDT path tests."""
+    """SDK client + CDT dataset on the broad-surface seed.
+
+    Tests that exercise convenience wrappers around server-8.1.2 ExpOps
+    should consume ``client_with_cdt_data_812`` instead so they auto-route
+    to the 8.1.2+ cluster when one is available.
+    """
     async with Client(seeds=aerospike_host, policy=client_policy) as client:
-        session = client.create_session()
-        ds = DataSet.of("test", "cdt_test")
-
-        for key in ["rec1", "rec2", "rec3"]:
-            try:
-                await session.delete(ds.id(key)).execute()
-            except Exception:
-                pass
-
-        await session.upsert(ds.id("rec1")).put({
-            "numbers": [10, 20, 30, 40, 50],
-            "names": ["alice", "bob", "charlie"],
-            "info": {"name": "Alice", "age": 30, "city": "NYC"},
-            "nested": [{"id": 1, "value": 100}, {"id": 2, "value": 200}],
-        }).execute()
-        await session.upsert(ds.id("rec2")).put({
-            "numbers": [5, 15, 25, 35, 45],
-            "names": ["dave", "eve"],
-            "info": {"name": "Bob", "age": 25, "city": "LA"},
-            "nested": [{"id": 3, "value": 300}],
-        }).execute()
-        await session.upsert(ds.id("rec3")).put({
-            "numbers": [100, 200, 300],
-            "names": ["frank"],
-            "info": {"name": "Charlie", "age": 40, "city": "NYC"},
-            "nested": [{"id": 4, "value": 400}, {"id": 5, "value": 500}],
-        }).execute()
-
-        await asyncio.sleep(0.5 if not enterprise else 0.01)
-
+        session, ds = await _seed_cdt_data(client, enterprise=enterprise)
         yield client
-
-        for key in ["rec1", "rec2", "rec3"]:
-            try:
-                await session.delete(ds.id(key)).execute()
-            except Exception:
-                pass
+        await _drop_cdt_data(session, ds)
 
 
 class TestCdtPathWithExp:
@@ -1902,16 +1935,26 @@ class TestInExpression:
 
 
 class TestConvenienceWrappers:
-    """Tests for in_list(), map_keys(), map_values() convenience functions."""
+    """Tests for in_list(), map_keys(), map_values() convenience functions.
 
-    async def test_in_list_string_match(self, client_with_cdt_data):
+    These helpers are thin pass-throughs to the native 8.1.2 ExpOps (see
+    the docstrings in ``aerospike_sdk/exp.py``). Server versions older
+    than 8.1.2 reject the opcodes with ``ParameterError``, so the tests
+    consume ``client_with_cdt_data_812`` which auto-routes to the 8.1.2+
+    cluster when one is available and skips cleanly otherwise. Callers
+    that need broader compatibility should build the equivalent expression
+    explicitly with ``Exp.list_get_by_value`` /
+    ``Exp.map_get_by_index_range`` rather than using these wrappers.
+    """
+
+    async def test_in_list_string_match(self, client_with_cdt_data_812):
         """in_list finds "bob" in the names list bin (rec1 only)."""
         filt = Exp.eq(
             in_list(Exp.string_val("bob"), Exp.list_bin("names")),
             Exp.bool_val(True),
         )
         stream = await (
-            client_with_cdt_data.query("test", "cdt_test")
+            client_with_cdt_data_812.query("test", "cdt_test")
             .filter_expression(filt)
             .execute()
         )
@@ -1920,14 +1963,14 @@ class TestConvenienceWrappers:
         assert len(records) == 1
         assert "bob" in records[0].bins["names"]
 
-    async def test_in_list_int_match(self, client_with_cdt_data):
+    async def test_in_list_int_match(self, client_with_cdt_data_812):
         """in_list finds 200 in the numbers list bin (rec3 only)."""
         filt = Exp.eq(
             in_list(Exp.int_val(200), Exp.list_bin("numbers")),
             Exp.bool_val(True),
         )
         stream = await (
-            client_with_cdt_data.query("test", "cdt_test")
+            client_with_cdt_data_812.query("test", "cdt_test")
             .filter_expression(filt)
             .execute()
         )
@@ -1936,14 +1979,14 @@ class TestConvenienceWrappers:
         assert len(records) == 1
         assert 200 in records[0].bins["numbers"]
 
-    async def test_in_list_no_match(self, client_with_cdt_data):
+    async def test_in_list_no_match(self, client_with_cdt_data_812):
         """in_list returns false when the value is not present."""
         filt = Exp.eq(
             in_list(Exp.string_val("zzz"), Exp.list_bin("names")),
             Exp.bool_val(True),
         )
         stream = await (
-            client_with_cdt_data.query("test", "cdt_test")
+            client_with_cdt_data_812.query("test", "cdt_test")
             .filter_expression(filt)
             .execute()
         )
@@ -1951,14 +1994,14 @@ class TestConvenienceWrappers:
         stream.close()
         assert len(records) == 0
 
-    async def test_map_keys(self, client_with_cdt_data):
+    async def test_map_keys(self, client_with_cdt_data_812):
         """map_keys returns the key set of the info map."""
         filt = Exp.eq(
             Exp.list_size(map_keys(Exp.map_bin("info")), []),
             Exp.int_val(3),
         )
         stream = await (
-            client_with_cdt_data.query("test", "cdt_test")
+            client_with_cdt_data_812.query("test", "cdt_test")
             .filter_expression(filt)
             .execute()
         )
@@ -1966,14 +2009,14 @@ class TestConvenienceWrappers:
         stream.close()
         assert len(records) == 3
 
-    async def test_map_values(self, client_with_cdt_data):
+    async def test_map_values(self, client_with_cdt_data_812):
         """map_values returns values; filter on list size == 3."""
         filt = Exp.eq(
             Exp.list_size(map_values(Exp.map_bin("info")), []),
             Exp.int_val(3),
         )
         stream = await (
-            client_with_cdt_data.query("test", "cdt_test")
+            client_with_cdt_data_812.query("test", "cdt_test")
             .filter_expression(filt)
             .execute()
         )

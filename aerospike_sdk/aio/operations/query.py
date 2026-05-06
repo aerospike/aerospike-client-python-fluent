@@ -516,6 +516,11 @@ class QueryBuilder(_WriteVerbs):
         self._udf_package: Optional[str] = None
         self._udf_function: Optional[str] = None
         self._udf_args: Optional[List[Any]] = None
+        # Optional ops projection (server returns the result of these ops
+        # per-record instead of the bin set). Server >= 8.1.2 accepts CDT,
+        # expression, bit, and HLL reads here; older servers accept only the
+        # basic Read op.
+        self._op_projection: Optional[List[Any]] = None
         # Reuse session-cached policies when available; fall back to
         # computing them lazily from the behavior on first use.
         # MRT participation: when set, every policy produced by this
@@ -646,6 +651,44 @@ class QueryBuilder(_WriteVerbs):
         self._with_no_bins = False
         return self
     
+    def with_op_projection(self, *ops: Any) -> QueryBuilder:
+        """Project query results through one or more read operations.
+
+        The server applies ``ops`` to every matching record and returns the
+        operation results in place of the configured bin set. Mutually
+        exclusive with :meth:`bins`: when a projection is set the server
+        ignores the bin list. Subsequent calls replace the previous
+        projection.
+
+        Server compatibility:
+            - Servers older than 8.1.2 accept only the basic ``get_bin`` /
+              ``get_header`` ops.
+            - Server 8.1.2+ also accepts CDT, expression, bit, and HLL
+              reads — for example
+              ``CdtOperation.select_values("bin", [...])``.
+
+        Args:
+            *ops: One or more native ``aerospike_async`` read operations.
+
+        Returns:
+            This builder for method chaining.
+
+        Example::
+
+            from aerospike_async import CTX, CdtOperation
+            stream = await (
+                session.query(users)
+                    .with_op_projection(
+                        CdtOperation.select_values(
+                            "inventory", [CTX.map_key("books")]
+                        ),
+                    )
+                    .execute()
+            )
+        """
+        self._op_projection = list(ops) if ops else None
+        return self
+
     def bin(self, bin_name: str) -> QueryBinBuilder[QueryBuilder]:
         """Start a bin-level read operation.
 
@@ -1320,6 +1363,8 @@ class QueryBuilder(_WriteVerbs):
                 else:
                     filters.append(rec.filter)
             statement.filters = filters
+        if self._op_projection is not None:
+            statement.set_operations(self._op_projection)
         return statement
 
     async def execute(

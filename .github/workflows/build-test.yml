@@ -22,12 +22,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pre-release alpha window: PSDK pins to a PAC version that hasn't
+      # been published to PyPI yet. Build PAC from source as a sibling so
+      # `pip install .` for the SDK finds the dependency already satisfied
+      # and doesn't go to PyPI. Switch back to a plain PyPI install once
+      # the matching PAC release lands on PyPI.
+      - name: Checkout PAC source (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: aerospike/aerospike-client-python-async
+          ref: core-v3-feature-cutover
+          path: aerospike-client-python-async
+
+      - name: Setup Rust toolchain (for PAC build)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Install SDK and dev dependencies (PAC resolved from PyPI)
+      - name: Build & install PAC from source
+        working-directory: aerospike-client-python-async
+        run: |
+          # `maturin develop` requires an active virtualenv; GitHub-hosted
+          # runners use the system Python without one. Build a wheel and
+          # `pip install` it instead — same end state, no venv required.
+          pip install maturin
+          maturin build --release --out dist
+          pip install dist/aerospike_async-*.whl
+
+      - name: Install SDK and dev dependencies
         run: |
           pip install -r requirements-dev.txt
           pip install .
@@ -47,6 +75,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pre-release alpha window: PSDK pins to a PAC version that hasn't
+      # been published to PyPI yet. Build PAC from source as a sibling so
+      # `pip install .` for the SDK finds the dependency already satisfied
+      # and doesn't go to PyPI. Switch back to a plain PyPI install once
+      # the matching PAC release lands on PyPI.
+      - name: Checkout PAC source (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: aerospike/aerospike-client-python-async
+          ref: core-v3-feature-cutover
+          path: aerospike-client-python-async
+
+      - name: Setup Rust toolchain (for PAC build)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v6
         with:
@@ -54,7 +100,12 @@ jobs:
 
       - name: Start Aerospike server
         run: |
-          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.0.2
+          # Server image must be >= 8.1.1 so path-expression / ops-projection
+          # tests run instead of skipping. 8.1.2+ unlocks the additional
+          # native-ExpOp coverage that consumes ``client_with_cdt_data_812``
+          # / ``client_812``; tests that need 8.1.2 and don't see an
+          # 8.1.2-routing seed (``AEROSPIKE_HOST_8_1_2``) will skip cleanly.
+          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.2.1
           for i in {1..10}; do
             if docker exec aerospike-server asinfo -v "statistics" > /dev/null 2>&1; then
               echo "Aerospike server is ready after $i seconds"
@@ -74,7 +125,17 @@ jobs:
           echo "=== Server Build ==="
           docker exec aerospike-server asinfo -v "build"
 
-      - name: Install SDK and dev dependencies (PAC resolved from PyPI)
+      - name: Build & install PAC from source
+        working-directory: aerospike-client-python-async
+        run: |
+          # `maturin develop` requires an active virtualenv; GitHub-hosted
+          # runners use the system Python without one. Build a wheel and
+          # `pip install` it instead — same end state, no venv required.
+          pip install maturin
+          maturin build --release --out dist
+          pip install dist/aerospike_async-*.whl
+
+      - name: Install SDK and dev dependencies
         run: |
           pip install -r requirements-dev.txt
           pip install .
