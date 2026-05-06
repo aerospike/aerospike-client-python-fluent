@@ -201,3 +201,112 @@ def aerospike_host_sec():
     """Fixture providing the security-enabled Aerospike host for tests"""
     return os.environ.get('AEROSPIKE_HOST_SEC', 'localhost:3109')
 
+
+@pytest.fixture(scope="session")
+def aerospike_host_8_1_2():
+    """Seed for an 8.1.2+ Aerospike cluster, when one is available locally.
+
+    Returns ``None`` when ``AEROSPIKE_HOST_8_1_2`` is unset; tests that need
+    8.1.2+ behavior should accept this fixture and ``pytest.skip`` when it is
+    ``None`` rather than failing.
+    """
+    return os.environ.get('AEROSPIKE_HOST_8_1_2')
+
+
+@pytest.fixture
+def aerospike_host_812_required(aerospike_host_8_1_2):
+    """Returns the 8.1.2+ host or skips the dependent test cleanly.
+
+    Tests that exercise server-8.1.2-only features opt in by depending on
+    this fixture (typically via a ``_812``-suffixed client fixture). When
+    ``AEROSPIKE_HOST_8_1_2`` is unset the dependent test is skipped with a
+    clear message rather than running against the wrong cluster. When set,
+    the test is auto-routed to the 8.1.2+ seed, so a single ``pytest`` run
+    can exercise the broad surface against ``AEROSPIKE_HOST`` and the
+    8.1.2-only subset against ``AEROSPIKE_HOST_8_1_2``.
+    """
+    if not aerospike_host_8_1_2:
+        pytest.skip(
+            "AEROSPIKE_HOST_8_1_2 is unset; this test requires an 8.1.2+ "
+            "cluster. Set AEROSPIKE_HOST_8_1_2 in aerospike.env to enable."
+        )
+    return aerospike_host_8_1_2
+
+
+def _parse_build_string(build: str):
+    """Parse a server build string (e.g. ``8.1.2.1``) into ``(M, m, p, b)``.
+
+    Tolerates trailing suffixes on the build component to match the core's
+    regex-based parser. Returns ``None`` if the string does not start with
+    four dot-separated integers.
+    """
+    parts = build.split('.')
+    if len(parts) < 4:
+        return None
+    try:
+        return tuple(int(p) for p in parts[:4])
+    except ValueError:
+        try:
+            fourth = parts[3]
+            cut = 0
+            while cut < len(fourth) and fourth[cut].isdigit():
+                cut += 1
+            return (int(parts[0]), int(parts[1]), int(parts[2]), int(fourth[:cut]))
+        except Exception:
+            return None
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def server_version(aerospike_host, client_policy):
+    """Probe the seed for ``build`` info and return ``(M, m, p, b)``.
+
+    Returns ``None`` if the probe fails. Tests that need a version
+    comparison should short-circuit on ``None`` (skip or fall through to
+    server-side enforcement).
+    """
+    if not aerospike_host:
+        return None
+    try:
+        client = await new_client(client_policy, aerospike_host)
+    except Exception:
+        return None
+    try:
+        info = await client.info("build")
+    finally:
+        await client.close()
+    for raw in info.values():
+        if not raw:
+            continue
+        if "=" in raw:
+            _, _, value = raw.partition("=")
+            parsed = _parse_build_string(value.strip())
+        else:
+            parsed = _parse_build_string(raw.strip())
+        if parsed is not None:
+            return parsed
+    return None
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_query_ops_projection_ext(server_version):
+    """``True`` when the seed cluster accepts non-basic-read ops in queries.
+
+    Mirrors the per-node feature in the Rust core (server >= 8.1.2). Tests
+    that need extended reads in ``Statement.set_operations`` (or its PSDK
+    facade ``QueryBuilder.with_op_projection``) should ``pytest.skip``
+    when this is ``False``.
+    """
+    return server_version is not None and server_version >= (8, 1, 2, 0)
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_enhanced_expression_api(server_version):
+    """``True`` when the cluster supports the 8.1.2 enhanced expression API.
+
+    Covers native ``in_list`` / ``map_keys`` / ``map_values`` ExpOps,
+    ``CTX.map_keys_in`` / ``and_filter`` helpers, and the path-form
+    expression operators (``exp_select_*`` / ``exp_modify_*`` /
+    ``exp_remove``). Server >= 8.1.2.
+    """
+    return server_version is not None and server_version >= (8, 1, 2, 0)
+

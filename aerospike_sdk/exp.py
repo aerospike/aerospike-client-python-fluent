@@ -16,17 +16,20 @@
 """Expression builder utilities.
 
 Re-exports FilterExpression as Exp and provides a convenience val() function
-for creating value expressions from Python values.
+for creating value expressions from Python values, plus thin pass-through
+wrappers around the 8.1.2 enhanced expression API (``in_list`` / ``map_keys``
+/ ``map_values``).
+
+The pass-throughs deliberately have the same signatures as the canonical
+``FilterExpression`` factories. To navigate into nested CDTs use
+``CTX.map_keys_in`` / ``CTX.and_filter`` at the path layer (paired with
+``CdtOperation.select_by_path`` or ``Exp.exp_select_by_path``) — these
+helpers do not accept a ``ctx=`` kwarg.
 """
 
-from typing import Any, Dict, List, Optional, overload
+from typing import Any, Dict, List, overload
 
-from aerospike_async import (
-    CTX,
-    FilterExpression as Exp,
-    ListReturnType,
-    MapReturnType,
-)
+from aerospike_async import FilterExpression as Exp
 
 __all__ = ["Exp", "val", "in_list", "map_keys", "map_values"]
 
@@ -85,75 +88,78 @@ def val(value: Any) -> Exp:
     raise TypeError(f"Unsupported type for val(): {type(value)}")
 
 
-def in_list(
-    value: Exp,
-    list_exp: Exp,
-    ctx: Optional[List[CTX]] = None,
-) -> Exp:
-    """Check whether *value* exists in *list_exp*.
+def in_list(value: Exp, list_exp: Exp) -> Exp:
+    """Boolean expression: ``value`` is an element of ``list_exp``.
 
-    Returns a boolean expression equivalent to ``value IN list``.
+    Thin wrapper around the native ``InList`` ExpOp introduced in server
+    8.1.2 — a single opcode that is cheaper to pack and to evaluate than
+    the equivalent ``list_get_by_value(COUNT) > 0`` composition used on
+    pre-8.1.2 servers.
+
+    Requires Aerospike server >= 8.1.2. On older servers the server's
+    expression VM rejects the opcode at evaluation time. To stay
+    compatible with pre-8.1.2 servers, build the equivalent expression
+    yourself using ``Exp.list_get_by_value`` with
+    ``ListReturnType.COUNT``.
+
+    For navigation into nested CDTs, do **not** invent a ``ctx`` kwarg —
+    apply the path at the CTX layer instead, e.g. via
+    ``CTX.map_keys_in(...)`` and ``CTX.and_filter(...)`` paired with
+    ``CdtOperation.select_by_path`` or ``Exp.exp_select_by_path``.
 
     Args:
         value: The value to search for.
         list_exp: A list expression (e.g. ``Exp.list_bin("tags")``).
-        ctx: Optional CDT context for nested lists.
 
     Example::
 
         # bin "role" in list bin "allowed_roles"
         in_list(Exp.string_bin("role"), Exp.list_bin("allowed_roles"))
     """
-    return Exp.gt(
-        Exp.list_get_by_value(
-            ListReturnType.COUNT,
-            value,
-            list_exp,
-            ctx or [],
-        ),
-        Exp.int_val(0),
-    )
+    return Exp.in_list(value, list_exp)
 
 
-def map_keys(
-    map_exp: Exp,
-    ctx: Optional[List[CTX]] = None,
-) -> Exp:
-    """Return all keys of *map_exp* as a list expression.
+def map_keys(map_exp: Exp) -> Exp:
+    """Return the keys of ``map_exp`` as a list expression.
+
+    Thin wrapper around the native ``MapKeys`` ExpOp introduced in server
+    8.1.2 — cheaper to pack and to evaluate than the equivalent
+    ``map_get_by_index_range(KEY, 0, ...)`` composition used on pre-8.1.2
+    servers.
+
+    Requires Aerospike server >= 8.1.2. On older servers, build the
+    equivalent expression yourself using ``Exp.map_get_by_index_range``
+    with ``MapReturnType.KEY``. For nested-CDT navigation use
+    ``CTX.map_keys_in(...)`` / ``CTX.and_filter(...)`` at the path layer.
 
     Args:
         map_exp: A map expression (e.g. ``Exp.map_bin("scores")``).
-        ctx: Optional CDT context for nested maps.
 
     Example::
 
         map_keys(Exp.map_bin("scores"))
     """
-    return Exp.map_get_by_index_range(
-        MapReturnType.KEY,
-        Exp.int_val(0),
-        map_exp,
-        ctx or [],
-    )
+    return Exp.map_keys(map_exp)
 
 
-def map_values(
-    map_exp: Exp,
-    ctx: Optional[List[CTX]] = None,
-) -> Exp:
-    """Return all values of *map_exp* as a list expression.
+def map_values(map_exp: Exp) -> Exp:
+    """Return the values of ``map_exp`` as a list expression.
+
+    Thin wrapper around the native ``MapValues`` ExpOp introduced in
+    server 8.1.2 — cheaper to pack and to evaluate than the equivalent
+    ``map_get_by_index_range(VALUE, 0, ...)`` composition used on
+    pre-8.1.2 servers.
+
+    Requires Aerospike server >= 8.1.2. On older servers, build the
+    equivalent expression yourself using ``Exp.map_get_by_index_range``
+    with ``MapReturnType.VALUE``. For nested-CDT navigation use
+    ``CTX.map_keys_in(...)`` / ``CTX.and_filter(...)`` at the path layer.
 
     Args:
         map_exp: A map expression (e.g. ``Exp.map_bin("scores")``).
-        ctx: Optional CDT context for nested maps.
 
     Example::
 
         map_values(Exp.map_bin("scores"))
     """
-    return Exp.map_get_by_index_range(
-        MapReturnType.VALUE,
-        Exp.int_val(0),
-        map_exp,
-        ctx or [],
-    )
+    return Exp.map_values(map_exp)

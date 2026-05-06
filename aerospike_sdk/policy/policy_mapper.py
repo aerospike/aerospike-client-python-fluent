@@ -58,6 +58,7 @@ def to_read_policy(settings: Settings) -> ReadPolicy:
         read_mode_sc=settings.read_mode_sc,
         read_touch_ttl=settings.read_touch_ttl_percent,
         use_compression=settings.use_compression,
+        compression_threshold=settings.compression_threshold,
     )
 
 
@@ -85,6 +86,7 @@ def to_write_policy(settings: Settings) -> WritePolicy:
         durable_delete=settings.durable_delete,
         commit_level=settings.commit_level,
         use_compression=settings.use_compression,
+        compression_threshold=settings.compression_threshold,
     )
 
 
@@ -111,6 +113,8 @@ def to_query_policy(settings: Settings) -> QueryPolicy:
         p.read_mode_sc = settings.read_mode_sc
     if settings.use_compression is not None:
         p.use_compression = settings.use_compression
+    if settings.compression_threshold is not None:
+        p.compression_threshold = settings.compression_threshold
     if settings.max_concurrent_nodes is not None:
         p.max_concurrent_nodes = settings.max_concurrent_nodes
     if settings.record_queue_size is not None:
@@ -149,6 +153,7 @@ def to_batch_policy(settings: Settings) -> BatchPolicy:
         allow_inline=settings.allow_inline,
         allow_inline_ssd=settings.allow_inline_ssd,
         use_compression=settings.use_compression,
+        compression_threshold=settings.compression_threshold,
     )
 
 
@@ -172,6 +177,8 @@ def apply_to_read_policy(settings: Settings, policy: ReadPolicy) -> ReadPolicy:
         policy.read_mode_sc = settings.read_mode_sc
     if settings.use_compression is not None:
         policy.use_compression = settings.use_compression
+    if settings.compression_threshold is not None:
+        policy.compression_threshold = settings.compression_threshold
     return policy
 
 
@@ -193,4 +200,6 @@ def apply_to_write_policy(settings: Settings, policy: WritePolicy) -> WritePolic
         policy.commit_level = settings.commit_level
     if settings.use_compression is not None:
         policy.use_compression = settings.use_compression
+    if settings.compression_threshold is not None:
+        policy.compression_threshold = settings.compression_threshold
     return policy

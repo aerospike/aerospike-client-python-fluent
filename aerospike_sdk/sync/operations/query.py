@@ -186,6 +186,15 @@ class SyncQueryBuilder(_SyncWriteVerbs):
         self._qb.with_no_bins()
         return self
 
+    def with_op_projection(self, *ops: Any) -> SyncQueryBuilder:
+        """Project query results through one or more read operations.
+
+        Forwards to
+        :meth:`~aerospike_sdk.aio.operations.query.QueryBuilder.with_op_projection`.
+        """
+        self._qb.with_op_projection(*ops)
+        return self
+
     # -- Filtering ------------------------------------------------------------
 
     def filter(self, filter_obj: Filter) -> SyncQueryBuilder:
