@@ -48,8 +48,12 @@ jobs:
       - name: Build & install PAC from source
         working-directory: aerospike-client-python-async
         run: |
+          # `maturin develop` requires an active virtualenv; GitHub-hosted
+          # runners use the system Python without one. Build a wheel and
+          # `pip install` it instead — same end state, no venv required.
           pip install maturin
-          maturin develop --release
+          maturin build --release --out dist
+          pip install dist/aerospike_async-*.whl
 
       - name: Install SDK and dev dependencies
         run: |
@@ -124,8 +128,12 @@ jobs:
       - name: Build & install PAC from source
         working-directory: aerospike-client-python-async
         run: |
+          # `maturin develop` requires an active virtualenv; GitHub-hosted
+          # runners use the system Python without one. Build a wheel and
+          # `pip install` it instead — same end state, no venv required.
           pip install maturin
-          maturin develop --release
+          maturin build --release --out dist
+          pip install dist/aerospike_async-*.whl
 
       - name: Install SDK and dev dependencies
         run: |
