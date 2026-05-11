@@ -58,7 +58,9 @@ jobs:
       - name: Install SDK and dev dependencies
         run: |
           pip install -r requirements-dev.txt
-          pip install .
+          # PAC was installed from the source checkout above. Avoid resolving
+          # the temporary direct git dependency during this pre-release window.
+          pip install . --no-deps
 
       - name: Generate ANTLR parser
         run: make generate-ael
@@ -138,7 +140,9 @@ jobs:
       - name: Install SDK and dev dependencies
         run: |
           pip install -r requirements-dev.txt
-          pip install .
+          # PAC was installed from the source checkout above. Avoid resolving
+          # the temporary direct git dependency during this pre-release window.
+          pip install . --no-deps
 
       - name: Generate ANTLR parser
         run: make generate-ael
