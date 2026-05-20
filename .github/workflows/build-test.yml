@@ -41,7 +41,7 @@ jobs:
       - name: Setup Rust toolchain (for PAC build)
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.90.0
+          toolchain: 1.93.0
           components: rustfmt, clippy
 
       - name: Setup Python ${{ matrix.python }}
@@ -100,7 +100,7 @@ jobs:
       - name: Setup Rust toolchain (for PAC build)
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.90.0
+          toolchain: 1.93.0
           components: rustfmt, clippy
 
       - name: Setup Python ${{ matrix.python }}
@@ -197,7 +197,7 @@ jobs:
         # and should be migrated in a separate cleanup pass.
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.93.0
           components: rustfmt, clippy
       - name: Setup free-threaded Python ${{ matrix.python }}
         uses: actions/setup-python@v6
@@ -245,7 +245,7 @@ jobs:
         # and should be migrated in a separate cleanup pass.
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.93.0
           components: rustfmt, clippy
       - name: Setup free-threaded Python ${{ matrix.python }}
         uses: actions/setup-python@v6

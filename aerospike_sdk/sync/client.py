@@ -70,8 +70,7 @@ class SyncClient:
 
     See Also:
         :class:`~aerospike_sdk.aio.client.Client`: Async equivalent.
-        :meth:`create_session`: Session-scoped
-            :class:`~aerospike_sdk.policy.behavior.Behavior`.
+        :meth:`create_session`: Session-scoped :class:`~aerospike_sdk.policy.behavior.Behavior`.
     """
 
     def __init__(

@@ -134,23 +134,23 @@ Every cell in the matrix below was produced by `python -m benchmarks.benchmark -
 
 | Client / Mode | Threads / Tasks | FT TPS | non-FT TPS |
 |---|---|---|---|
-| **PSDK sync, fast-path** (`session.get` / `session.put`) | 32 | **199,377** | 45,448 |
-| PSDK sync, builder (chained API) | 32 | 117,047 | 21,636 |
-| **PSDK async AsyncPool, fast-path** | 4×64 | **145,718** | 48,368 |
-| PSDK async AsyncPool, builder | 4×64 | 102,675 | 25,014 |
-| PSDK async single-loop, fast-path | 32 tasks | 93,515 | 64,330 |
-| PSDK async single-loop, builder | 32 tasks | 36,655 | 30,078 |
-| PSDK sync, fast-path | 1 | 13,808 | 12,437 |
-| PSDK sync, builder | 1 | 11,573 | 11,669 |
-| **PAC sync direct** (`pac-blocking`) | 32 | **210,495** | 49,534 |
-| **PAC async direct** (`pac-async`) | 32 tasks | **98,597** | 65,748 |
-| PAC sync | 1 | 13,455 | 12,083 |
-| PAC async | 1 task | 9,390 | 3,821 |
+| **PSDK sync, fast-path** (`session.get` / `session.put`) | 32 | **200,128** | 45,285 |
+| PSDK sync, builder (chained API) | 32 | 115,918 | 21,665 |
+| **PSDK async AsyncPool, fast-path** | 4×64 | **149,459** | 48,063 |
+| PSDK async AsyncPool, builder | 4×64 | 100,983 | 25,284 |
+| PSDK async single-loop, fast-path | 32 tasks | 93,091 | 63,526 |
+| PSDK async single-loop, builder | 32 tasks | 38,129 | 31,477 |
+| PSDK sync, fast-path | 1 | 11,783 | 13,596 |
+| PSDK sync, builder | 1 | 11,627 | 11,482 |
+| **PAC sync direct** (`pac-blocking`) | 32 | **211,825** | 49,022 |
+| **PAC async direct** (`pac-async`) | 32 tasks | **96,702** | 65,527 |
+| PAC sync | 1 | 13,796 | 12,955 |
+| PAC async | 1 task | 9,497 | 3,742 |
 | **Rust core, async** (Tokio tasks, no Python) | 32 tasks | **283,315** | n/a (no GIL) |
 | Rust core, sync (OS threads + `Handle::block_on`) | 32 | 241,034 | n/a (no GIL) |
 | Rust core, async | 1 task | 17,543 | n/a (no GIL) |
 | Rust core, sync | 1 | 14,968 | n/a (no GIL) |
-| Python legacy (sync, C client) | 1 | 14,876 | 16,131 |
+| Python legacy (sync, C client) | 1 | 15,762 | 15,541 |
 
 ## Cross-client latency
 
@@ -158,15 +158,15 @@ p50 / p99 / p99.9 in microseconds, sampled 1-in-100 ops during measurement. Fram
 
 | Client / Mode | Threads / Tasks | FT (µs) | non-FT (µs) |
 |---|---|---|---|
-| PSDK sync, fast-path | 32 | **100 / 300 / 500** | 700 / 2,900 / 4,200 |
-| PSDK sync, builder | 32 | 200 / 1,400 / 2,800 | 1,500 / 5,600 / 8,200 |
-| PSDK sync, fast-path | 1 | 100 / 100 / 100 | 100 / 100 / 100 |
-| PSDK sync, builder | 1 | 100 / 100 / 300 | 100 / 100 / 200 |
-| PSDK async single-loop, fast-path | 32 tasks | 300 / 400 / 1,000 | 500 / 600 / 700 |
-| PSDK async single-loop, builder | 32 tasks | 900 / 1,100 / 1,500 | 1,100 / 1,300 / 1,300 |
-| PSDK async AsyncPool, fast-path | 4×64 | 1,600 / 4,500 / 5,900 | 5,300 / 17,200 / 17,200 |
-| PSDK async AsyncPool, builder | 4×64 | 2,400 / 5,000 / 6,200 | 9,700 / 27,800 / 28,100 |
-| PAC sync | 32 | 100 / 300 / 500 | 600 / 2,800 / 4,000 |
+| PSDK sync, fast-path | 32 | **200 / 300 / 600** | 700 / 2,700 / 4,500 |
+| PSDK sync, builder | 32 | 200 / 1,700 / 3,600 | 1,500 / 5,300 / 7,000 |
+| PSDK sync, fast-path | 1 | 100 / 100 / 100 | 100 / 100 / 200 |
+| PSDK sync, builder | 1 | 100 / 100 / 100 | 100 / 100 / 200 |
+| PSDK async single-loop, fast-path | 32 tasks | 300 / 400 / 1,000 | 500 / 600 / 600 |
+| PSDK async single-loop, builder | 32 tasks | 800 / 1,100 / 1,100 | 1,100 / 1,300 / 1,400 |
+| PSDK async AsyncPool, fast-path | 4×64 | 1,600 / 4,700 / 6,200 | 4,800 / 23,600 / 23,700 |
+| PSDK async AsyncPool, builder | 4×64 | 2,400 / 5,000 / 6,200 | 8,900 / 22,500 / 30,400 |
+| PAC sync | 32 | 100 / 300 / 500 | 600 / 2,900 / 4,000 |
 | PAC sync | 1 | 100 / 100 / 100 | 100 / 100 / 100 |
 | PAC async | 32 tasks | 300 / 400 / 800 | 500 / 600 / 900 |
 | PAC async | 1 task | 100 / 100 / 100 | 300 / 300 / 300 |
@@ -187,12 +187,12 @@ The single-key cells above measure one record per `execute()`. Real applications
 
 | Batch size | Total TPS | × b=1 |
 |---|---|---|
-| 1 | 116,540 | 1.00× |
-| 4 | 194,664 | 1.67× |
-| 16 | 311,776 | 2.68× |
-| **32** | **332,660** | **2.86×** |
-| 64 | 336,145 | 2.88× |
-| 128 | 327,878 | 2.81× |
+| 1 | 115,501 | 1.00× |
+| 4 | 206,872 | 1.79× |
+| 16 | 377,610 | 3.27× |
+| 32 | 436,183 | 3.78× |
+| 64 | 475,296 | 4.11× |
+| **128** | **495,067** | **4.29×** |
 
 ### PSDK async single-loop builder
 
@@ -200,12 +200,12 @@ The single-key cells above measure one record per `execute()`. Real applications
 
 | Batch size | Total TPS | × b=1 |
 |---|---|---|
-| 1 | 36,174 | 1.00× |
-| 4 | 65,980 | 1.82× |
-| 16 | 128,505 | 3.55× |
-| 32 | 157,006 | 4.34× |
-| 64 | 167,653 | 4.63× |
-| **128** | **189,147** | **5.23×** |
+| 1 | 37,502 | 1.00× |
+| 4 | 61,673 | 1.64× |
+| 16 | 124,651 | 3.32× |
+| 32 | 154,946 | 4.13× |
+| 64 | 172,023 | 4.59× |
+| **128** | **185,563** | **4.95×** |
 
 ### PSDK async AsyncPool builder
 
@@ -213,15 +213,15 @@ Four event loops × 64 tasks per loop. Free-threaded only.
 
 | Batch size | Total TPS | × b=1 (pool) |
 |---|---|---|
-| 1 | 103,052 | 1.00× |
-| 4 | 155,294 | 1.51× |
-| 16 | 247,136 | 2.40× |
-| 32 | 291,077 | 2.82× |
-| **64** | **324,773** | **3.15×** |
+| 1 | 94,840 | 1.00× |
+| 4 | 155,204 | 1.64× |
+| 16 | 250,984 | 2.65× |
+| 32 | 290,334 | 3.06× |
+| **64** | **324,722** | **3.42×** |
 
-**Headline**: at batch size 32 the **PSDK sync builder hits 332K TPS** — the highest single-loop number in the entire matrix, ahead of Rust-core async direct (283K) and the AsyncPool builder at batch=64 (325K). Batches amortize the PyO3 boundary cost so effectively that the Python sync stack ends up faster than the no-Python Rust async stack on single-record dispatch.
+**Headline**: the **PSDK sync builder scales monotonically through batch=128 to 495K TPS** — the highest number in the entire matrix and **75% above Rust-core async direct (283K)**. Sync batch routes via PAC's `batch_*_blocking` entries with one PyO3 boundary per batch, so doubling the batch size keeps amortizing the per-call Python cost without ceiling out. The b=128 peak is 4.3× the single-key sync builder.
 
-The async single-loop sweep tops out around 189K (batch=128) — the asyncio ↔ Tokio bridge cost per `execute()` doesn't go away just because each call moves more data. AsyncPool recovers most of that by running 4 loops in parallel, hitting 325K at batch=64.
+The async single-loop sweep tops out around 186K (batch=128) — the asyncio ↔ Tokio bridge cost per `execute()` doesn't go away just because each call moves more data. AsyncPool recovers most of that by running 4 loops in parallel, hitting 325K at batch=64.
 
 ## Stack cost analysis
 

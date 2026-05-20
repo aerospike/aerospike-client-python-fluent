@@ -68,10 +68,16 @@ WARMUP="${WARMUP:-3}"
 mkdir -p "$OUT"
 rm -f "$OUT"/*.txt
 
+
 # Common bench args (-d / --services-alternate / no-tracemalloc are fixed).
+# --with-telemetry enables 1-in-100 latency sampling so the summary block
+# includes "Latency p50/p99/p99.9" — The framework's per-op sampling cost is
+# ~1-2% TPS hit, so disabled by default.
+
 ARGS=(-H "$HOST" -n "$NS" -s "$SET" -k "$KEYS" -o I8
       -w RU,50 -d "$DURATION"
       --services-alternate --no-tracemalloc)
+      #--services-alternate --no-tracemalloc --with-telemetry)
 
 run() {
   local tag="$1"; shift
